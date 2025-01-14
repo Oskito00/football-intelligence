@@ -80,7 +80,7 @@ def get_season_matches(season_id, competition_name, season_name):
         }
         
         # Save to file
-        output_dir = Path.cwd() / 'sportradar' / 'data' / 'matches_data'
+        output_dir = Path.cwd() / 'sportradar' / 'data' / 'matches_data2'
         output_dir.mkdir(parents=True, exist_ok=True)
         
         clean_comp_name = competition_name.replace(' ', '_')

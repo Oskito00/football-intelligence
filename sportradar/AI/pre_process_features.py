@@ -3,7 +3,7 @@ from sklearn.preprocessing import LabelEncoder
 import joblib  # for saving the LabelEncoder
 
 # Load and preprocess data
-df = pd.read_csv('sportradar/data/processed_data/training_data_advanced.csv')
+df = pd.read_csv('match_metrics.csv')
 
 # Drop non-feature columns
 df_features = df.drop(["fixture_id"], axis=1)
