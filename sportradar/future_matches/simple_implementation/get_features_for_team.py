@@ -2,6 +2,67 @@ from datetime import datetime
 import sqlite3
 import csv
 
+
+def calculate_team_momentum(matches, weights=[0.35, 0.25, 0.20, 0.12, 0.08]):
+    """
+    Calculate team momentum based on their last 5 matches.
+    Positive momentum means improving form, negative means declining form.
+    
+    Args:
+        matches: List of match dictionaries containing performance stats
+        weights: List of weights for each match (most recent first)
+    
+    Returns:
+        float: Momentum score between -1 and 1
+    """
+    if len(matches) < 2:
+        return 0.0
+
+    match_scores = []
+    
+    # Calculate match scores (most recent first)
+    for match in matches:
+        # Calculate basic indicators
+        basic_indicators = {
+            'goals_ratio': (match['goals_scored'] / match['goals_conceded']) 
+                          if match['goals_conceded'] > 0 
+                          else match['goals_scored'],
+            'win': 1 if match['wins'] == 1 else 0,
+            'clean_sheet': 1 if match['clean_sheets'] == 1 else 0
+        }
+        
+        # Calculate advanced indicators
+        advanced_indicators = {
+            'shot_accuracy': match['shots_on_target'] / match['total_shots'] 
+                           if match['total_shots'] > 0 else 0,
+            'pass_accuracy': match['pass_accuracy']
+        }
+        
+        # Calculate match score with weighted components
+        match_score = (
+            0.35 * basic_indicators['win'] +
+            0.25 * basic_indicators['goals_ratio'] +
+            0.15 * basic_indicators['clean_sheet'] +
+            0.15 * advanced_indicators['shot_accuracy'] +
+            0.10 * advanced_indicators['pass_accuracy']
+        )
+        
+        match_scores.append(match_score)
+
+    # Calculate trends between consecutive matches
+    trends = []
+    for i in range(1, len(match_scores)):
+        trend = match_scores[i-1] - match_scores[i]  # Compare newer to older matches
+        trends.append(trend)
+    
+    # Calculate weighted average of trends
+    weighted_trend = sum(t * w for t, w in zip(trends, weights[1:]))
+    
+    # Clamp between -1 and 1
+    momentum = max(-1, min(1, weighted_trend))
+    
+    return round(momentum, 3)
+
 def calculate_squad_strength(all_key_players, missing_players):
     """
     Calculate squad strength based on weighted importance of available players
@@ -256,6 +317,9 @@ def calculate_and_write_metrics(
     # Calculate fatigue
     home_fatigue = calculate_team_fatigue(*home_fatigue_details)
     away_fatigue = calculate_team_fatigue(*away_fatigue_details)
+
+    home_momentum = calculate_team_momentum(home_last_5_matches)
+    away_momentum = calculate_team_momentum(away_last_5_matches)
     
     # Calculate squad strength
     conn = sqlite3.connect('football_data.db')
@@ -284,11 +348,13 @@ def calculate_and_write_metrics(
         home_metrics['average_win_rate'],
         home_metrics['average_clean_sheets'],
         home_fatigue,
+        home_momentum,
         away_metrics['average_goals_scored'],
         away_metrics['average_goals_conceded'],
         away_metrics['average_win_rate'],
         away_metrics['average_clean_sheets'],
         away_fatigue,
+        away_momentum,
         home_metrics['h2h_average_goals'],
         home_metrics['h2h_average_clean_sheets'],
         home_metrics['h2h_average_points'],
@@ -402,6 +468,7 @@ home_h2h_matches = [
 
 home_fatigue_details = (4, 2)  # time since last match, matches in 10 days
 
+
 #AWAY STATS
 
 away_last_5_matches = [
@@ -431,6 +498,7 @@ away_h2h_matches = [
 ]
 
 away_fatigue_details = (5, 2)  # time since last match, matches in 10 days
+
 
 metrics = calculate_and_write_metrics(
     '2024-12-14',          # start_time
