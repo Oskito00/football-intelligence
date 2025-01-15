@@ -3,7 +3,7 @@ from sklearn.preprocessing import LabelEncoder
 import joblib  # for saving the LabelEncoder
 
 # Load and preprocess data
-df = pd.read_csv('match_metrics.csv')
+df = pd.read_csv('sportradar/data/processed_data/training_data_advanced.csv')
 
 # Drop non-feature columns
 df_features = df.drop(["fixture_id"], axis=1)
@@ -29,12 +29,17 @@ df_features["defensive_success_difference"] = df_features["home_defensive_succes
 df_features["clean_sheets_difference"] = df_features["average_home_clean_sheets"] - df_features["average_away_clean_sheets"]
 df_features["h2h_goals_difference"] = df_features["home_h2h_avg_goals"] - df_features["away_h2h_avg_goals"]
 df_features["h2h_clean_sheets_difference"] = df_features["home_h2h_avg_clean_sheets"] - df_features["away_h2h_avg_clean_sheets"]
+df_features['momentum_difference'] = df_features['home_momentum'] - df_features['away_momentum']
 
-# Drop redundant original features
+# Drop redundant original features, but keep core performance metrics
 columns_to_drop = [
-    "average_home_goals_scored", "average_away_goals_scored",
-    "average_home_goals_conceded", "average_away_goals_conceded",
-    "average_home_win_rate", "average_away_win_rate",
+    # Keep these core metrics
+    # "average_home_goals_scored", "average_away_goals_scored",
+    # "average_home_goals_conceded", "average_away_goals_conceded",
+    # "average_home_win_rate", "average_away_win_rate",
+    # "average_home_clean_sheets", "average_away_clean_sheets",
+    
+    # Drop these comparison metrics
     "home_squad_strength", "away_squad_strength",
     "home_fatigue", "away_fatigue",
     "home_h2h_avg_points", "away_h2h_avg_points",
@@ -42,9 +47,8 @@ columns_to_drop = [
     "home_shot_accuracy", "away_shot_accuracy",
     "home_conversion_rate", "away_conversion_rate",
     "home_defensive_success", "away_defensive_success",
-    "average_home_clean_sheets", "average_away_clean_sheets",
     "home_h2h_avg_goals", "away_h2h_avg_goals",
-    "home_h2h_avg_clean_sheets", "away_h2h_avg_clean_sheets"
+    "home_h2h_avg_clean_sheets", "away_h2h_avg_clean_sheets",
 ]
 df_features = df_features.drop(columns=columns_to_drop)
 

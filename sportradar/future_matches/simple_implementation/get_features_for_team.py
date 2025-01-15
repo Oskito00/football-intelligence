@@ -268,7 +268,7 @@ def calculate_and_write_metrics(
     # print(home_squad_strength)
     # print(away_squad_strength)
     #CALCULATE THIS MYSELF
-    home_squad_strength = 0.93
+    home_squad_strength = 0.64
     away_squad_strength = 0.81  
 
 
@@ -367,76 +367,76 @@ print(away_players)
 match_details = {
     'is_derby': False,
     'is_cup_match': False,
-    'home_position': 8,
-    'away_position': 5,
-    'home_points': 25,
+    'home_position': 14,
+    'away_position': 9,
+    'home_points': 23,
     'away_points': 30
 }
 #HOME STATS
 
 home_last_5_matches = [
-    {'goals_scored': 2, 'goals_conceded': 0, 'wins': 1, 'clean_sheets': 1,
-    'pass_accuracy': 0.80, 'total_shots': 13, 'shots_on_target': 7, 
+    {'goals_scored': 1, 'goals_conceded': 2, 'wins': 0, 'clean_sheets': 0,
+    'pass_accuracy': 0.82, 'total_shots': 11, 'shots_on_target': 2, 
      'tackles_successful': 0, 'tackles_total': 0},
-    {'goals_scored': 0, 'goals_conceded': 2, 'wins': 0, 'clean_sheets': 0,
-     'pass_accuracy': 0.80, 'total_shots': 7, 'shots_on_target': 1, 
+    {'goals_scored': 1, 'goals_conceded': 4, 'wins': 0, 'clean_sheets': 0,
+     'pass_accuracy': 0.85, 'total_shots': 17, 'shots_on_target': 4, 
      'tackles_successful': 0, 'tackles_total': 0},
-    {'goals_scored': 0, 'goals_conceded': 0, 'wins': 0, 'clean_sheets': 1,
-     'pass_accuracy': 0.79, 'total_shots': 15, 'shots_on_target': 4  , 
+    {'goals_scored': 0, 'goals_conceded': 5, 'wins': 0, 'clean_sheets': 0,
+     'pass_accuracy': 0.85, 'total_shots': 7, 'shots_on_target': 0  , 
      'tackles_successful': 0, 'tackles_total': 0},
-    {'goals_scored': 3, 'goals_conceded': 0, 'wins': 1, 'clean_sheets': 1,
-     'pass_accuracy': 0.85, 'total_shots': 27, 'shots_on_target': 14, 
+    {'goals_scored': 1, 'goals_conceded': 0, 'wins': 1, 'clean_sheets': 1,
+     'pass_accuracy': 0.79, 'total_shots': 16, 'shots_on_target': 2, 
      'tackles_successful': 0, 'tackles_total': 0},
-    {'goals_scored': 3, 'goals_conceded': 0, 'wins': 1, 'clean_sheets': 1,
-     'pass_accuracy': 0.75, 'total_shots': 15, 'shots_on_target': 5, 
+    {'goals_scored': 1, 'goals_conceded': 1, 'wins': 0, 'clean_sheets': 0,
+     'pass_accuracy': 0.76, 'total_shots': 11, 'shots_on_target': 4, 
      'tackles_successful': 0, 'tackles_total': 0}
 ]
 
 # Example H2H matches data
 home_h2h_matches = [
-    {'h2h_goals_scored': 1, 'h2h_clean_sheets': 0, 'h2h_points': 0},
-    {'h2h_goals_scored': 3, 'h2h_clean_sheets': 1, 'h2h_points': 3},
+    {'h2h_goals_scored': 1, 'h2h_clean_sheets': 0, 'h2h_points': 1},
+    {'h2h_goals_scored': 0, 'h2h_clean_sheets': 0, 'h2h_points': 0},
     {'h2h_goals_scored': 0, 'h2h_clean_sheets': 0, 'h2h_points': 0},
     {'h2h_goals_scored': 1, 'h2h_clean_sheets': 1, 'h2h_points': 3}
 ]
 
-home_fatigue_details = (9, 1)  # time since last match, matches in 10 days
+home_fatigue_details = (4, 2)  # time since last match, matches in 10 days
 
 #AWAY STATS
 
 away_last_5_matches = [
-    {'goals_scored': 5, 'goals_conceded': 2, 'wins': 1, 'clean_sheets': 0,
-    'pass_accuracy': 0.87, 'total_shots': 18, 'shots_on_target': 9, 
+    {'goals_scored': 4, 'goals_conceded': 1, 'wins': 1, 'clean_sheets': 0,
+    'pass_accuracy': 0.88, 'total_shots': 27, 'shots_on_target': 8, 
      'tackles_successful': 0, 'tackles_total': 0},
-    {'goals_scored': 1, 'goals_conceded': 1, 'wins': 0, 'clean_sheets': 0,
-     'pass_accuracy': 0.77, 'total_shots': 14, 'shots_on_target': 5, 
+    {'goals_scored': 2, 'goals_conceded': 2, 'wins': 0, 'clean_sheets': 0,
+     'pass_accuracy': 0.88, 'total_shots': 15, 'shots_on_target': 4, 
      'tackles_successful': 0, 'tackles_total': 0},
-    {'goals_scored': 1, 'goals_conceded': 2, 'wins': 0, 'clean_sheets': 0,
-     'pass_accuracy': 0.86, 'total_shots': 17, 'shots_on_target': 4  , 
+    {'goals_scored': 2, 'goals_conceded': 2, 'wins': 0, 'clean_sheets': 0,
+     'pass_accuracy': 0.79, 'total_shots': 11, 'shots_on_target': 6  , 
      'tackles_successful': 0, 'tackles_total': 0},
-    {'goals_scored': 0, 'goals_conceded': 2, 'wins': 0, 'clean_sheets': 0,
-     'pass_accuracy': 0.84, 'total_shots': 11, 'shots_on_target': 1, 
+    {'goals_scored': 2, 'goals_conceded': 1, 'wins': 1, 'clean_sheets': 0,
+     'pass_accuracy': 0.86, 'total_shots': 14, 'shots_on_target': 7, 
      'tackles_successful': 0, 'tackles_total': 0},
-    {'goals_scored': 0, 'goals_conceded': 1, 'wins': 0, 'clean_sheets': 0,
-     'pass_accuracy': 0.72, 'total_shots': 6, 'shots_on_target': 2, 
+    {'goals_scored': 0, 'goals_conceded': 0, 'wins': 0, 'clean_sheets': 1,
+     'pass_accuracy': 0.86, 'total_shots': 15, 'shots_on_target': 5, 
      'tackles_successful': 0, 'tackles_total': 0}
 ]
 
 # Example H2H matches data
 away_h2h_matches = [
-    {'h2h_goals_scored': 3, 'h2h_clean_sheets': 0, 'h2h_points': 3},
-    {'h2h_goals_scored': 0, 'h2h_clean_sheets': 0, 'h2h_points': 0},
+    {'h2h_goals_scored': 1, 'h2h_clean_sheets': 0, 'h2h_points': 1},
     {'h2h_goals_scored': 2, 'h2h_clean_sheets': 1, 'h2h_points': 3},
+    {'h2h_goals_scored': 5, 'h2h_clean_sheets': 1, 'h2h_points': 3},
     {'h2h_goals_scored': 0, 'h2h_clean_sheets': 0, 'h2h_points': 0}
 ]
 
-away_fatigue_details = (20, 0)  # time since last match, matches in 10 days
+away_fatigue_details = (5, 2)  # time since last match, matches in 10 days
 
 metrics = calculate_and_write_metrics(
-    '2024-12-13',          # start_time
-    'Real Sociedad',              # home_team
-    'Villareal',            # away_team
-    8,                   # competition_id (Ligue 1)
+    '2024-12-14',          # start_time
+    'West Ham',              # home_team
+    'Fulham',            # away_team
+    0,                   # competition_id (Premier League)
     home_last_5_matches,
     away_last_5_matches,
     home_h2h_matches,
@@ -444,5 +444,5 @@ metrics = calculate_and_write_metrics(
     match_details,
     home_fatigue_details,
     away_fatigue_details,
-    'match_metrics.csv'
+    'sportradar/future_matches/simple_implementation/match_metrics.csv'
 )

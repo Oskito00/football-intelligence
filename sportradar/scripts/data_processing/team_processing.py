@@ -188,6 +188,14 @@ def calculate_form(conn, before_match_date):
     home_stats['has_advanced_stats'] = 1 if has_enough_advanced_stats(home_stats) else 0
     away_stats['has_advanced_stats'] = 1 if has_enough_advanced_stats(away_stats) else 0
 
+    #Calculate momentum
+    home_momentum = calculate_momentum(home_previous_5_matches, before_match_date['home_team'])
+    away_momentum = calculate_momentum(away_previous_5_matches, before_match_date['away_team'])
+
+    # Add momentum to stats
+    home_stats['momentum'] = home_momentum
+    away_stats['momentum'] = away_momentum
+
     home_stats['fatigue'] = home_fatigue
     away_stats['fatigue'] = away_fatigue
     
@@ -582,7 +590,109 @@ def calculate_match_importance(conn, match):
     
     return (round(importance, 2))
 
+#********************************************************************************
 #Helper functions
+#********************************************************************************
+
+def safe_ratio(match, numerator, denominator, default=0.0):
+    """
+    Safely calculate ratio between two match statistics.
+    
+    Args:
+        match: Dictionary containing match statistics
+        numerator: Key for numerator statistic
+        denominator: Key for denominator statistic
+        default: Default value to return in case of division by zero
+    
+    Returns:
+        float: Calculated ratio or default value
+    """
+    num = match.get(numerator, 0)
+    den = match.get(denominator, 1)
+    if den == 0:
+        return default
+    return num / max(1, den)
+
+def calculate_momentum(matches, team_name, weights=[0.35, 0.25, 0.20, 0.12, 0.08]):
+    """
+    Calculate team momentum based on their last 5 matches.
+    Positive momentum means improving form, negative means declining form.
+    Uses raw match stats without averaging.
+    """
+    if len(matches) < 2:
+        print(f"Not enough matches for {team_name}: {len(matches)}")
+        print("Returning 0.0")
+        return 0.0
+
+    match_scores = []
+    
+    print(f"\nCalculating momentum for {team_name}")
+    print(f"Number of matches: {len(matches)}")
+    
+    # Calculate match scores (most recent first)
+    for match in matches:
+        print(f"\nProcessing match from {match.get('start_time')}")
+        
+        # Calculate basic indicators first
+        basic_indicators = {
+            'goals_ratio': (match.get('goals_scored', 0) / match.get('goals_conceded', 1)) 
+                          if match.get('goals_conceded', 0) > 0 
+                          else match.get('goals_scored', 0),
+            'win': 1 if match.get('match_outcome') == 'win' else 0,
+            'clean_sheet': 1 if match.get('goals_conceded', 1) == 0 else 0
+        }
+        
+        # Initialize match_score with basic indicators
+        match_score = (
+            0.50 * basic_indicators['win'] +
+            0.30 * basic_indicators['goals_ratio'] +
+            0.20 * basic_indicators['clean_sheet']
+        )
+        
+        # Calculate advanced indicators if the stats exist
+        if all(match.get(stat) is not None for stat in ['shots_on_target', 'shots_total', 
+                                                       'passes_successful', 'passes_total',
+                                                       'tackles_successful', 'tackles_total']):
+            advanced_indicators = {
+                'shot_accuracy': safe_ratio(match, 'shots_on_target', 'shots_total'),
+                'pass_accuracy': safe_ratio(match, 'passes_successful', 'passes_total'),
+                'chance_creation': safe_ratio(match, 'shots_on_target', 'goals_scored', default=0.0),
+                'tackle_success': safe_ratio(match, 'tackles_successful', 'tackles_total'),
+            }
+            
+            # Update match_score with advanced indicators
+            match_score = (
+                0.35 * basic_indicators['win'] +
+                0.20 * basic_indicators['goals_ratio'] +
+                0.15 * basic_indicators['clean_sheet'] +
+                0.08 * advanced_indicators['shot_accuracy'] +
+                0.08 * advanced_indicators['pass_accuracy'] +
+                0.07 * advanced_indicators['chance_creation'] +
+                0.07 * advanced_indicators['tackle_success']
+            )
+        
+        print(f"Match score: {match_score}")
+        match_scores.append(match_score)
+
+    print(f"\nAll match scores: {match_scores}")
+    
+    # Calculate trend
+    trends = []
+    for i in range(1, len(match_scores)):
+        trend = match_scores[i-1] - match_scores[i]  # Compare newer to older matches
+        trends.append(trend)
+    
+    print(f"Trends: {trends}")
+    
+    # Calculate weighted average of trends
+    weighted_trend = sum(t * w for t, w in zip(trends, weights[1:]))
+    print(f"Weighted trend: {weighted_trend}")
+    
+    # Clamp between -1 and 1
+    momentum = max(-1, min(1, weighted_trend))
+    print(f"Final momentum: {momentum}")
+
+    return round(momentum, 3)
 
 #Helper function for calculate_form
 def calculate_metrics(stats):
@@ -601,6 +711,7 @@ def calculate_metrics(stats):
                              (stats['shots_on_target']['sum'] / max(stats['shots_on_target']['divisor'], 1)),
             'defensive_success': stats['tackles_successful']['sum'] / max(stats['tackles_total']['sum'], 1),
             'fatigue': stats.get('fatigue'),
+            'momentum': stats.get('momentum'),
             'has_advanced_stats': 1
         }
     else:
@@ -610,6 +721,8 @@ def calculate_metrics(stats):
             'average_goals_conceded': stats['goals_conceded']['sum'] / max(stats['goals_conceded']['divisor'], 1),
             'average_win_rate': stats['wins']['sum'] / max(stats['wins']['divisor'], 1),
             'average_clean_sheets': stats['clean_sheets']['sum'] / max(stats['clean_sheets']['divisor'], 1),
+            'fatigue': stats.get('fatigue'),
+            'momentum': stats.get('momentum'),
             'has_advanced_stats': 0
         }
 
