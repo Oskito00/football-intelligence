@@ -3,15 +3,20 @@ import pandas as pd
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc_auc_score, confusion_matrix
 
 def run_experiment_3_class(n_runs=10):
     """
-    Train a 3-class classifier (Home Win, Draw, Away Win) over multiple runs using Logistic Regression,
-    record accuracies, and print details for each match in the test set.
+    Train a 3-class classifier with comprehensive evaluation metrics
     """
-    accuracies = []
-    home_win_accuracies = []  # Baseline: always predict Home Win
+    # Initialize metric storage
+    test_accuracies = []
+    train_accuracies = []
+    home_win_accuracies = []
+    test_precisions = []
+    test_recalls = []
+    test_f1s = []
+    test_roc_aucs = []
 
     for run_i in range(n_runs):
         # 1. Load your preprocessed data
@@ -67,45 +72,85 @@ def run_experiment_3_class(n_runs=10):
 
         best_model = clf.best_estimator_
 
-        # 7. Predict on the test set
-        y_pred = best_model.predict(X_test)
+        # 7. Predict on both train and test sets
+        y_train_pred = best_model.predict(X_train)
+        y_test_pred = best_model.predict(X_test)
+        
+        # Get prediction probabilities for ROC-AUC
+        y_test_proba = best_model.predict_proba(X_test)
 
-        # 8. Evaluate model accuracy
-        accuracy = accuracy_score(y_test, y_pred)
+        # 8. Calculate all evaluation metrics
+        # Basic accuracy
+        train_accuracy = accuracy_score(y_train, y_train_pred)
+        test_accuracy = accuracy_score(y_test, y_test_pred)
+        
+        # Precision, Recall, F1 (weighted averages)
+        precision, recall, f1, _ = precision_recall_fscore_support(
+            y_test, 
+            y_test_pred, 
+            average='weighted'
+        )
+        
+        # ROC-AUC (one-vs-rest)
+        roc_auc = roc_auc_score(
+            pd.get_dummies(y_test), 
+            y_test_proba, 
+            multi_class='ovr'
+        )
+        
+        # Confusion Matrix
+        cm = confusion_matrix(y_test, y_test_pred)
         
         # Baseline: always predict Home Win
         y_baseline = np.full_like(y_test, fill_value=2)
         home_win_accuracy = accuracy_score(y_test, y_baseline)
 
-        accuracies.append(accuracy)
+        # Store metrics
+        train_accuracies.append(train_accuracy)
+        test_accuracies.append(test_accuracy)
         home_win_accuracies.append(home_win_accuracy)
+        test_precisions.append(precision)
+        test_recalls.append(recall)
+        test_f1s.append(f1)
+        test_roc_aucs.append(roc_auc)
+
+        # # 9. Print test matches detail
+        # outcome_map = {0: "Away Win", 1: "Draw", 2: "Home Win"}
+
+        # print("  Test Matches Detail:")
+        # for idx, pred_label in zip(X_test.index, y_test_pred):
+        #     row = df_test_metadata.loc[idx]
+        #     actual_label = row["outcome"]
+        #     start_time = row["start_time"]
+        #     home_team = row["home_team"]
+        #     away_team = row["away_team"]
+        #     actual_home_goals = row["home_goals"]
+        #     actual_away_goals = row["away_goals"]
+
+        #     pred_outcome = outcome_map[pred_label]
+        #     actual_outcome = outcome_map[actual_label]
+        #     print(
+        #         f"    {start_time}: {home_team} vs {away_team} | "
+        #         f"Predicted: {pred_outcome}, Actual: {actual_outcome} | "
+        #         f"Score: {actual_home_goals}-{actual_away_goals}"
+        #     )
+        # print("-"*60)
 
         # Print run info
-        print(f"Run {run_i+1}/{n_runs}")
-        print(f"  Best Params: {clf.best_params_}")
-        print(f"  Model Accuracy: {accuracy:.2%}, Home Win Baseline: {home_win_accuracy:.2%}")
+        print(f"\nRun {run_i+1}/{n_runs}")
+        print(f"Best Params: {clf.best_params_}")
+        print("\nMetrics:")
+        print(f"  Train Accuracy:    {train_accuracy:.2%}")
+        print(f"  Test Accuracy:     {test_accuracy:.2%}")
+        print(f"  Precision:         {precision:.2%}")
+        print(f"  Recall:            {recall:.2%}")
+        print(f"  F1 Score:          {f1:.2%}")
+        print(f"  ROC-AUC:           {roc_auc:.2%}")
+        print(f"  Baseline Accuracy: {home_win_accuracy:.2%}")
         
-        # 9. Print test matches detail
-        outcome_map = {0: "Away Win", 1: "Draw", 2: "Home Win"}
-
-        print("  Test Matches Detail:")
-        for idx, pred_label in zip(X_test.index, y_pred):
-            row = df_test_metadata.loc[idx]
-            actual_label = row["outcome"]
-            start_time = row["start_time"]
-            home_team = row["home_team"]
-            away_team = row["away_team"]
-            actual_home_goals = row["home_goals"]
-            actual_away_goals = row["away_goals"]
-
-            pred_outcome = outcome_map[pred_label]
-            actual_outcome = outcome_map[actual_label]
-            print(
-                f"    {start_time}: {home_team} vs {away_team} | "
-                f"Predicted: {pred_outcome}, Actual: {actual_outcome} | "
-                f"Score: {actual_home_goals}-{actual_away_goals}"
-            )
-        print("-"*60)
+        print("\nConfusion Matrix:")
+        print("Predicted →  [Away Win  Draw  Home Win]")
+        print(f"Actual ↓\n{cm}")
 
         # After each run, print feature importance
         feature_importance = pd.DataFrame({
@@ -118,14 +163,17 @@ def run_experiment_3_class(n_runs=10):
         print("-"*60)
 
     # 10. Final results
-    mean_acc = np.mean(accuracies)
-    std_acc = np.std(accuracies)
-    mean_home_win_acc = np.mean(home_win_accuracies)
-
     print(f"\nFinal Results Over {n_runs} Runs:")
-    print(f"Mean Model Accuracy: {mean_acc:.2%}")
-    print(f"Home Win Baseline:  {mean_home_win_acc:.2%}")
-    print(f"Std Dev:            {std_acc:.2%}")
+    print("\nAccuracy Metrics:")
+    print(f"  Mean Train Accuracy: {np.mean(train_accuracies):.2%} (±{np.std(train_accuracies):.2%})")
+    print(f"  Mean Test Accuracy:  {np.mean(test_accuracies):.2%} (±{np.std(test_accuracies):.2%})")
+    print(f"  Home Win Baseline:   {np.mean(home_win_accuracies):.2%}")
+    
+    print("\nDetailed Test Metrics:")
+    print(f"  Mean Precision:      {np.mean(test_precisions):.2%} (±{np.std(test_precisions):.2%})")
+    print(f"  Mean Recall:         {np.mean(test_recalls):.2%} (±{np.std(test_recalls):.2%})")
+    print(f"  Mean F1 Score:       {np.mean(test_f1s):.2%} (±{np.std(test_f1s):.2%})")
+    print(f"  Mean ROC-AUC:        {np.mean(test_roc_aucs):.2%} (±{np.std(test_roc_aucs):.2%})")
 
 def predict_future_match(future_match_csv, model_data_csv="sportradar/AI/preprocessed_features.csv"):
     """
