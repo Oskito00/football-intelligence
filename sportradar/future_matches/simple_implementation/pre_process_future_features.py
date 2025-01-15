@@ -14,6 +14,17 @@ df_features['competition_id'] = df['competition_id']
 df_features['match_importance'] = df['match_importance']
 
 # Create difference features
+df_features['average_home_goals_scored'] = df['average_home_goals_scored']
+df_features['average_home_goals_conceded'] = df['average_home_goals_conceded']
+df_features['average_home_win_rate'] = df['average_home_win_rate']
+df_features['average_home_clean_sheets'] = df['average_home_clean_sheets']
+df_features['home_momentum'] = df['home_momentum']
+df_features['average_away_goals_scored'] = df['average_away_goals_scored']
+df_features['average_away_goals_conceded'] = df['average_away_goals_conceded']
+df_features['average_away_win_rate'] = df['average_away_win_rate']
+df_features['average_away_clean_sheets'] = df['average_away_clean_sheets']
+df_features['away_momentum'] = df['away_momentum']
+
 df_features["goals_scored_difference"] = df["average_home_goals_scored"] - df["average_away_goals_scored"]
 df_features["goals_conceded_difference"] = df["average_home_goals_conceded"] - df["average_away_goals_conceded"]
 df_features["win_rate_difference"] = df["average_home_win_rate"] - df["average_away_win_rate"]
@@ -27,6 +38,7 @@ df_features["defensive_success_difference"] = df["home_defensive_success"] - df[
 df_features["clean_sheets_difference"] = df["average_home_clean_sheets"] - df["average_away_clean_sheets"]
 df_features["h2h_goals_difference"] = df["home_h2h_avg_goals"] - df["away_h2h_avg_goals"]
 df_features["h2h_clean_sheets_difference"] = df["home_h2h_avg_clean_sheets"] - df["away_h2h_avg_clean_sheets"]
+df_features["momentum_difference"] = df["home_momentum"] - df["away_momentum"]
 
 # Save preprocessed features
 df_features.to_csv('sportradar/future_matches/simple_implementation/preprocessed_features.csv', index=False)

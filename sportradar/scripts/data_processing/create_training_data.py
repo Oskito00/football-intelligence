@@ -122,7 +122,7 @@ def create_training_data(db_path, output_dir, debug_mode=False):
                 # else:
                 #     print(f"No referee data for match {match['fixture_id']}")
 
-                if (average_home_stats.get('has_advanced_stats') == 0 and average_away_stats.get('has_advanced_stats') == 0) and result['home_squad_strength'] is None and result['away_squad_strength'] is None:
+                if (average_home_stats.get('has_advanced_stats') == 0 and average_away_stats.get('has_advanced_stats') == 0) and result['home_squad_strength'] is not None and result['away_squad_strength'] is not None:
                     basic_row['home_squad_strength'] = result['home_squad_strength']
                     basic_row['away_squad_strength'] = result['away_squad_strength']
                     basic_row['home_goals'] = match['home_goals']

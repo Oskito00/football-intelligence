@@ -228,4 +228,4 @@ def predict_future_match(future_match_csv, model_data_csv="sportradar/AI/preproc
 
 run_experiment_3_class(n_runs=100)
 
-# prediction, probabilities = predict_future_match("sportradar/future_matches/simple_implementation/preprocessed_features.csv")
+prediction, probabilities = predict_future_match("sportradar/future_matches/simple_implementation/preprocessed_features.csv")
