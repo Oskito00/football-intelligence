@@ -50,7 +50,8 @@ def create_tables(cursor):
         home_score INTEGER,
         away_score INTEGER,
         match_status TEXT,
-        attendance INTEGER
+        attendance INTEGER,
+        referee_id TEXT
     )''')
     
     # Create team_stats table
@@ -273,6 +274,11 @@ def process_match_data(db_file):
             # Update related tables
             update_related_tables(cursor, match_data)
             
+            # Extract referee info
+            referee = next((ref for ref in match.get("sport_event_conditions", {}).get("referees", []) 
+                          if ref.get("type") == "main_referee"), {})
+            referee_id = referee.get("id")
+
             # Insert match data
             round_info = context.get("round", {})
             round_display = round_info.get("name") if round_info.get("name") else str(round_info.get("number", ""))
@@ -281,8 +287,8 @@ def process_match_data(db_file):
                 match_id, start_time, start_time_confirmed, venue_id, venue_name, venue_capacity,
                 venue_city, venue_country, competition_id, competition_name, competition_type, competition_phase, season_id, season_name,
                 round_display, home_team_id, home_team_name, away_team_id, away_team_name,
-                home_score, away_score, match_status, attendance
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', (
+                home_score, away_score, match_status, attendance, referee_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', (
                 match_id, start_time, match.get("start_time_confirmed"),
                 venue.get("id"), venue.get("name"), venue.get("capacity"),
                 venue.get("city_name"), venue.get("country_name"),
@@ -295,7 +301,7 @@ def process_match_data(db_file):
                 round_display,
                 home_team.get("id"), home_team.get("name"),
                 away_team.get("id"), away_team.get("name"),
-                home_score, away_score, match_status, attendance
+                home_score, away_score, match_status, attendance, referee_id
             ))
             
             # Only process statistics for completed matches

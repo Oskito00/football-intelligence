@@ -115,6 +115,13 @@ def create_training_data(db_path, output_dir, debug_mode=False):
                     'away_h2h_avg_points': h2h_stats[match['away_team_id']]['avg_points'],
 
                 }
+
+                # # Add referee_id if it exists and is not null
+                # if 'referee_id' in match and pd.notna(match['referee_id']):
+                #     basic_row['referee_id'] = match['referee_id']
+                # else:
+                #     print(f"No referee data for match {match['fixture_id']}")
+
                 if (average_home_stats.get('has_advanced_stats') == 0 and average_away_stats.get('has_advanced_stats') == 0) and result['home_squad_strength'] is None and result['away_squad_strength'] is None:
                     basic_row['home_squad_strength'] = result['home_squad_strength']
                     basic_row['away_squad_strength'] = result['away_squad_strength']

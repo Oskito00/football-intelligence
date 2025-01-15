@@ -183,6 +183,7 @@ WITH numbered_matches AS (
         m.away_team_name as away_team,
         m.home_score as home_goals,
         m.away_score as away_goals,
+        m.referee_id,
         
         -- Home team stats (all metrics)
         home_stats.ball_possession as home_ball_possession,
@@ -296,6 +297,7 @@ SELECT
     m.away_team_name as away_team,
     m.home_score as home_goals,
     m.away_score as away_goals,
+    m.referee_id,
     
     -- Home team stats (all metrics)
     home_stats.ball_possession as home_ball_possession,

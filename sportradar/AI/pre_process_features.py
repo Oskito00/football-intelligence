@@ -8,12 +8,16 @@ df = pd.read_csv('sportradar/data/processed_data/training_data_advanced.csv')
 # Drop non-feature columns
 df_features = df.drop(["fixture_id"], axis=1)
 
-# Label encode competition_id
-label_encoder = LabelEncoder()
-df_features["competition_id"] = label_encoder.fit_transform(df_features["competition_id"])
+# Label encode competition_id and referee_id
+competition_encoder = LabelEncoder()
+referee_encoder = LabelEncoder()
 
-# Save the label encoder for future use
-joblib.dump(label_encoder, 'sportradar/AI/competition_id_encoder.joblib')
+df_features["competition_id"] = competition_encoder.fit_transform(df_features["competition_id"])
+df_features["referee_id"] = referee_encoder.fit_transform(df_features["referee_id"])
+
+# Save the label encoders for future use
+joblib.dump(competition_encoder, 'sportradar/AI/competition_id_encoder.joblib')
+joblib.dump(referee_encoder, 'sportradar/AI/referee_id_encoder.joblib')
 
 # Create derived difference features
 df_features["goals_scored_difference"] = df_features["average_home_goals_scored"] - df_features["average_away_goals_scored"]
