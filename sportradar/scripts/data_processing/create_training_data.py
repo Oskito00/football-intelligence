@@ -11,7 +11,7 @@ from constants import (
     DEBUG_ENDED_MATCHES_QUERY
 )
 from player_stats import initialize_player_database, process_match_stats
-from team_processing import add_points_for_team, add_team_stats, calculate_match_importance, calculate_form, get_league_positions, get_stats_coverage, get_team_points, getH2h_stats, initialize_database, get_previous_matches
+from team_processing import add_points_for_team, add_team_stats, calculate_elo_rating, calculate_match_importance, calculate_form, get_league_positions, get_stats_coverage, get_team_points, getH2h_stats, initialize_database, get_previous_matches
 
 
 def create_training_data(db_path, output_dir, debug_mode=False):
@@ -56,11 +56,15 @@ def create_training_data(db_path, output_dir, debug_mode=False):
             try:
                 # Process match stats
                 add_team_stats(conn, match)
+                
+                # Calculate form using pre-match ELO ratings
                 average_home_stats, average_away_stats = calculate_form(conn, match)
                 competition_id = match['competition_id']
-                
-                # Calculate match importance and update points
+
+                # Now update ELO ratings based on match outcome
                 match_importance = calculate_match_importance(conn, match)
+                home_elo_rating, away_elo_rating = calculate_elo_rating(conn, match, match_importance)
+                
                 add_points_for_team(conn, match)
 
                 # H2H Stats
@@ -98,22 +102,24 @@ def create_training_data(db_path, output_dir, debug_mode=False):
                     'average_home_goals_scored': average_home_stats['average_goals_scored'],
                     'average_home_goals_conceded': average_home_stats['average_goals_conceded'],
                     'average_home_win_rate': average_home_stats['average_win_rate'],
+                    'average_home_draw_rate': average_home_stats['average_draw_rate'],
                     'average_home_clean_sheets': average_home_stats['average_clean_sheets'],
                     'home_fatigue': average_home_stats.get('fatigue'),
                     'home_momentum': average_home_stats.get('momentum'),
                     'average_away_goals_scored': average_away_stats['average_goals_scored'],
                     'average_away_goals_conceded': average_away_stats['average_goals_conceded'],
                     'average_away_win_rate': average_away_stats['average_win_rate'],
+                    'average_away_draw_rate': average_away_stats['average_draw_rate'],
                     'average_away_clean_sheets': average_away_stats['average_clean_sheets'],
                     'away_fatigue': average_away_stats.get('fatigue'),
                     'away_momentum': average_away_stats.get('momentum'),
+                    'h2h_avg_draw_rate': h2h_stats[match['home_team_id']]['avg_draw_rate'],
                     'home_h2h_avg_goals': h2h_stats[match['home_team_id']]['avg_goals'],
                     'home_h2h_avg_clean_sheets': h2h_stats[match['home_team_id']]['avg_clean_sheets'],
                     'home_h2h_avg_points': h2h_stats[match['home_team_id']]['avg_points'],
                     'away_h2h_avg_goals': h2h_stats[match['away_team_id']]['avg_goals'],
                     'away_h2h_avg_clean_sheets': h2h_stats[match['away_team_id']]['avg_clean_sheets'],
                     'away_h2h_avg_points': h2h_stats[match['away_team_id']]['avg_points'],
-
                 }
 
                 # # Add referee_id if it exists and is not null
@@ -121,6 +127,10 @@ def create_training_data(db_path, output_dir, debug_mode=False):
                 #     basic_row['referee_id'] = match['referee_id']
                 # else:
                 #     print(f"No referee data for match {match['fixture_id']}")
+
+                if home_elo_rating is not None and away_elo_rating is not None:
+                    basic_row['home_elo_rating'] = home_elo_rating
+                    basic_row['away_elo_rating'] = away_elo_rating
 
                 if (average_home_stats.get('has_advanced_stats') == 0 and average_away_stats.get('has_advanced_stats') == 0) and result['home_squad_strength'] is not None and result['away_squad_strength'] is not None:
                     basic_row['home_squad_strength'] = result['home_squad_strength']

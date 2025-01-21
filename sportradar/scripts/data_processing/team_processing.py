@@ -16,15 +16,22 @@ def initialize_database(conn):
     # Drop existing tables to ensure we have the correct schema
     cursor.execute("DROP TABLE IF EXISTS team_running_stats")
     cursor.execute("DROP TABLE IF EXISTS season_points")
+    cursor.execute("DROP TABLE IF EXISTS elo_rating")
     
-    # Create team_running_stats table
+    # Create team_running_stats table with added team ID fields
     cursor.execute('''CREATE TABLE team_running_stats (
         team_name TEXT,
+        team_id TEXT,
         start_time TEXT,
         season_id TEXT,
         competition_id TEXT,
         match_id TEXT,
         match_status TEXT DEFAULT 'ended',
+        qualifier TEXT,  -- Added qualifier field (home/away)
+        
+        -- Opponent info
+        opponent_team_name TEXT,
+        opponent_team_id TEXT,
         
         -- Stats for the game
         goals_scored INTEGER,
@@ -46,6 +53,14 @@ def initialize_database(conn):
         has_advanced_stats BOOLEAN DEFAULT 0,
         
         PRIMARY KEY (team_name, start_time)
+    )''')
+
+    # Create elo_rating table
+    cursor.execute('''CREATE TABLE elo_rating (
+        team_id TEXT,
+        team_name TEXT,
+        elo_rating INTEGER DEFAULT 1500,
+        PRIMARY KEY (team_id)
     )''')
     
     # Create season_points table
@@ -70,11 +85,15 @@ def get_previous_matches(conn, team_name, before_match_date):
     cursor.execute("""
         SELECT 
             team_name,
+            team_id,
             start_time,
             season_id,
             competition_id,
             match_id,
             match_status,
+            qualifier,
+            opponent_team_name,
+            opponent_team_id,
             goals_scored,
             goals_conceded,
             match_outcome,
@@ -102,24 +121,39 @@ def get_previous_matches(conn, team_name, before_match_date):
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 
-def calculate_form(conn, before_match_date):
+def calculate_form(conn, match):
     """Calculate form metrics for both teams"""
     cursor = conn.cursor()
 
+    # Get team names safely
+    home_team = match.get('home_team')
+    print(f"Home team: {home_team}")
+    away_team = match.get('away_team')
+    print(f"Away team: {away_team}")
+    start_time = match.get('start_time')
+    print(f"Start time: {start_time}")
+    if not all([home_team, away_team, start_time]):
+        raise ValueError(f"Missing required fields for form calculation. Match data: {match}")
+
     # Get previous matches
-    home_previous_5_matches = get_previous_matches(conn, before_match_date['home_team'], before_match_date['start_time'])
-    away_previous_5_matches = get_previous_matches(conn, before_match_date['away_team'], before_match_date['start_time'])
+    home_previous_5_matches = get_previous_matches(conn, home_team, start_time)
+    print(f"Home previous 5 matches: {home_previous_5_matches}")
+    away_previous_5_matches = get_previous_matches(conn, away_team, start_time)
+    print(f"Away previous 5 matches: {away_previous_5_matches}")
 
     # Calculate fatigue
-    home_fatigue = calculate_team_fatigue(home_previous_5_matches, before_match_date['start_time'])
-    away_fatigue = calculate_team_fatigue(away_previous_5_matches, before_match_date['start_time'])
+    home_fatigue = calculate_team_fatigue(home_previous_5_matches, start_time)
+    away_fatigue = calculate_team_fatigue(away_previous_5_matches, start_time)
+
+    
 
     # Define and initialize stats
     stat_definitions = {
         'goals_scored': {'sum': 0, 'divisor': 0},
         'goals_conceded': {'sum': 0, 'divisor': 0},
-        'wins': {'sum': 0, 'divisor': 0},
-        'clean_sheets': {'sum': 0, 'divisor': 0},
+        'wins': {'sum': 0, 'divisor': 0},  # Make sure these are included
+        'draws': {'sum': 0, 'divisor': 0},
+        'clean_sheets': {'sum': 0, 'divisor': 0},  # Make sure these are included
         'passes_successful': {'sum': 0, 'divisor': 0},
         'passes_total': {'sum': 0, 'divisor': 0},
         'shots_on_target': {'sum': 0, 'divisor': 0},
@@ -129,36 +163,169 @@ def calculate_form(conn, before_match_date):
         'chances_created': {'sum': 0, 'divisor': 0},
     }
 
+    # At the start of your code, add this debug print
+    print("\nAvailable stats:", stat_definitions.keys())
+
+    print("\nChecking first match data:")
+    if home_previous_5_matches:
+        print("First match outcome:", home_previous_5_matches[0].get('match_outcome'))
+        print("First match goals conceded:", home_previous_5_matches[0].get('goals_conceded'))
+
     home_stats = {stat: dict(values) for stat, values in stat_definitions.items()}
     away_stats = {stat: dict(values) for stat, values in stat_definitions.items()}
 
     # Process home team stats
-    for match in home_previous_5_matches:
+    for prev_match in home_previous_5_matches:
+        home_team_elo = get_elo_rating(conn, prev_match.get('team_id'))
+        opponent_team_elo = get_elo_rating(conn, prev_match.get('opponent_team_id'))
+        qualifier = prev_match.get('qualifier')
+        
+        # Add home advantage to ELO calculation
+        home_advantage = 100
+        adjusted_team_elo = home_team_elo + (home_advantage if qualifier == 'home' else -home_advantage)
+        
+        # Calculate expected performance (P)
+        elo_diff = adjusted_team_elo - opponent_team_elo
+        expected_performance = 1 / (1 + 10 ** (-elo_diff / 400))
+        
+        # Calculate goal margin multiplier (G)
+        goal_diff = abs(prev_match.get('goals_scored', 0) - prev_match.get('goals_conceded', 0))
+        goal_multiplier = np.log(goal_diff + 1) * (2.2 / ((adjusted_team_elo - opponent_team_elo) * 0.001 + 2.2))
+        
+        # Performance multiplier based on whether team is favorite or underdog
+        performance_multiplier = 1/expected_performance if elo_diff < 0 else expected_performance
+        
         for stat in home_stats:
+            # Apply appropriate weighting based on stat type
             if stat == 'wins':
-                value = 1 if match['match_outcome'] == 'win' else 0
+                base_value = 1 if prev_match.get('match_outcome') == 'win' else 0
+                print(f"\nProcessing {stat} for match:")
+                print(f"Match outcome: {prev_match.get('match_outcome')}")
+                print(f"Base value before weighting: {base_value}")
+                print(f"Performance multiplier: {performance_multiplier}")
+                value = base_value * performance_multiplier + (goal_multiplier if base_value == 1 else 0)
+                print(f"Final win value: {value}")
+            
+            elif stat == 'draws':
+                base_value = 1 if prev_match.get('match_outcome') == 'draw' else 0
+                if base_value == 1:
+                    # Softer weighting for draws (square root of performance multiplier)
+                    draw_weight = np.sqrt(performance_multiplier)
+                    # Add small bonus for drawing against much stronger teams
+                    if elo_diff < -100:  # If opponent is significantly stronger
+                        draw_weight *= 1.2
+                    value = base_value * draw_weight
+                else:
+                    value = 0
+                
+                print(f"\nDraw check - Match outcome: {prev_match.get('match_outcome')}")
+                print(f"ELO difference: {elo_diff}")
+                print(f"Draw weight: {draw_weight if base_value == 1 else 'N/A'}")
+                print(f"Final draw value: {value}")
+                
             elif stat == 'clean_sheets':
-                value = 1 if match.get('goals_conceded') == 0 else 0
+                base_value = 1 if prev_match.get('goals_conceded', 0) == 0 else 0
+                print(f"\nProcessing {stat} for match:")
+                print(f"Goals conceded: {prev_match.get('goals_conceded')}")
+                print(f"Base value before weighting: {base_value}")
+                print(f"Performance multiplier: {performance_multiplier}")
+                value = base_value * performance_multiplier
+                print(f"Final clean sheet value: {value}")
+                
+            elif stat in ['goals_scored', 'goals_conceded', 'chances_created', 
+                         'passes_successful', 'tackles_successful']:
+                base_value = prev_match.get(stat)
+                value = base_value * performance_multiplier if base_value is not None else None
+                
+            elif stat in ['passes_total', 'shots_on_target', 'shots_total', 'tackles_total']:
+                value = prev_match.get(stat)
+                
             else:
-                value = match.get(stat)
+                base_value = prev_match.get(stat)
+                value = base_value * performance_multiplier if base_value is not None else None
             
             if value is not None:
                 home_stats[stat]['sum'] += value
                 home_stats[stat]['divisor'] += 1
+            
+            # Debug print after adding to stats
+            if stat in ['wins', 'clean_sheets']:
+                print(f"Current {stat} sum: {home_stats[stat]['sum']}")
+                print(f"Current {stat} divisor: {home_stats[stat]['divisor']}")
 
     # Process away team stats
-    for match in away_previous_5_matches:
+    for prev_match in away_previous_5_matches:
+        away_team_elo = get_elo_rating(conn, prev_match.get('team_id'))
+        opponent_team_elo = get_elo_rating(conn, prev_match.get('opponent_team_id'))
+        qualifier = prev_match.get('qualifier')
+        
+        # Add home advantage to ELO calculation
+        home_advantage = 100
+        adjusted_team_elo = away_team_elo + (home_advantage if qualifier == 'home' else -home_advantage)
+        
+        # Calculate expected performance (P)
+        elo_diff = adjusted_team_elo - opponent_team_elo
+        expected_performance = 1 / (1 + 10 ** (-elo_diff / 400))
+        
+        # Calculate goal margin multiplier (G)
+        goal_diff = abs(prev_match.get('goals_scored', 0) - prev_match.get('goals_conceded', 0))
+        goal_multiplier = np.log(goal_diff + 1) * (2.2 / ((adjusted_team_elo - opponent_team_elo) * 0.001 + 2.2))
+        
+        # Performance multiplier based on whether team is favorite or underdog
+        performance_multiplier = 1/expected_performance if elo_diff < 0 else expected_performance
+        
         for stat in away_stats:
+            # Apply appropriate weighting based on stat type
             if stat == 'wins':
-                value = 1 if match['match_outcome'] == 'win' else 0
+                base_value = 1 if prev_match.get('match_outcome') == 'win' else 0
+                print(f"\nProcessing {stat} for match:")
+                print(f"Match outcome: {prev_match.get('match_outcome')}")
+                print(f"Base value before weighting: {base_value}")
+                print(f"Performance multiplier: {performance_multiplier}")
+                value = base_value * performance_multiplier + (goal_multiplier if base_value == 1 else 0)
+                print(f"Final win value: {value}")
+
+            elif stat == 'draws':
+                base_value = 1 if prev_match.get('match_outcome') == 'draw' else 0
+                if base_value == 1:
+                    # Softer weighting for draws (square root of performance multiplier)
+                    draw_weight = np.sqrt(performance_multiplier)
+                    # Add small bonus for drawing against much stronger teams
+                    if elo_diff < -100:  # If opponent is significantly stronger
+                        draw_weight *= 1.2
+                    value = base_value * draw_weight
+                else:
+                    value = 0
+                
             elif stat == 'clean_sheets':
-                value = 1 if match.get('goals_conceded') == 0 else 0
+                base_value = 1 if prev_match.get('goals_conceded', 0) == 0 else 0
+                print(f"\nProcessing {stat} for match:")
+                print(f"Goals conceded: {prev_match.get('goals_conceded')}")
+                print(f"Base value before weighting: {base_value}")
+                print(f"Performance multiplier: {performance_multiplier}")
+                value = base_value * performance_multiplier
+                print(f"Final clean sheet value: {value}")
+                
+            elif stat in ['goals_scored', 'goals_conceded', 'chances_created', 
+                         'passes_successful', 'tackles_successful']:
+                base_value = prev_match.get(stat)
+                value = base_value * performance_multiplier if base_value is not None else None
+                
+            elif stat in ['passes_total', 'shots_on_target', 'shots_total', 'tackles_total']:
+                value = prev_match.get(stat)
+                
             else:
-                value = match.get(stat)
+                base_value = prev_match.get(stat)
+                value = base_value * performance_multiplier if base_value is not None else None
             
             if value is not None:
                 away_stats[stat]['sum'] += value
                 away_stats[stat]['divisor'] += 1
+            
+            # Debug print after adding to stats
+            if stat in ['wins', 'clean_sheets', 'draws']:
+                print(f"Current {stat} sum: {away_stats[stat]['sum']}")
+                print(f"Current {stat} divisor: {away_stats[stat]['divisor']}")
 
     # Advanced stats check
     def has_enough_advanced_stats(stats):
@@ -188,9 +355,9 @@ def calculate_form(conn, before_match_date):
     home_stats['has_advanced_stats'] = 1 if has_enough_advanced_stats(home_stats) else 0
     away_stats['has_advanced_stats'] = 1 if has_enough_advanced_stats(away_stats) else 0
 
-    #Calculate momentum
-    home_momentum = calculate_momentum(home_previous_5_matches, before_match_date['home_team'])
-    away_momentum = calculate_momentum(away_previous_5_matches, before_match_date['away_team'])
+    # Calculate momentum
+    home_momentum = calculate_momentum(conn, home_previous_5_matches, home_team)
+    away_momentum = calculate_momentum(conn, away_previous_5_matches, away_team)
 
     # Add momentum to stats
     home_stats['momentum'] = home_momentum
@@ -211,9 +378,33 @@ def add_team_stats(conn, match):
     try:
         import numpy as np
 
+        # Convert pandas Series to dict if necessary
+        if isinstance(match, pd.Series):
+            # Convert to dictionary and handle NaN values
+            match_dict = {}
+            for key, value in match.items():
+                if pd.isna(value):
+                    match_dict[key] = None
+                else:
+                    match_dict[key] = value
+            match = match_dict
+
+        # Check required fields are present
+        required_fields = [
+            'home_team', 'away_team',
+            'home_team_id', 'away_team_id',
+            'start_time', 'season_id',
+            'competition_id', 'fixture_id',
+            'home_goals', 'away_goals'
+        ]
+        
+        missing_fields = [field for field in required_fields if field not in match or match[field] is None]
+        if missing_fields:
+            raise ValueError(f"Missing required fields: {missing_fields} for match ID: {match.get('fixture_id', 'unknown')}")
+
         # Function to check if basic stats are present
         def has_basic_stats(stats):
-            basic_fields = ['team_name', 'start_time', 'season_id', 'competition_id', 
+            basic_fields = ['team_name', 'team_id', 'start_time', 'season_id', 'competition_id', 
                           'match_id', 'goals_scored', 'goals_conceded']
             return all(stats.get(field) is not None 
                      and not (isinstance(stats.get(field), float) and np.isnan(stats.get(field)))
@@ -228,15 +419,17 @@ def add_team_stats(conn, match):
                       and not (isinstance(stats.get(field), float) and np.isnan(stats.get(field)))
                       for field in advanced_fields)
 
-        # Map the expected column names to what's in your database
-
         home_stats = {
             'team_name': match['home_team'],
+            'team_id': match['home_team_id'],
             'start_time': match['start_time'],
             'season_id': match['season_id'],
             'competition_id': match['competition_id'],
             'match_id': match['fixture_id'],
             'match_status': 'ended',
+            'qualifier': 'home',
+            'opponent_team_name': match['away_team'],
+            'opponent_team_id': match['away_team_id'],
             'goals_scored': match['home_goals'],
             'goals_conceded': match['away_goals'],
             'match_outcome': 'win' if match['home_goals'] > match['away_goals'] else 'loss' if match['home_goals'] < match['away_goals'] else 'draw',
@@ -250,17 +443,20 @@ def add_team_stats(conn, match):
             'tackles_total': match.get('home_tackles_total')
         }
 
-        # Add the stats check flags
         home_stats['has_basic_stats'] = has_basic_stats(home_stats)
         home_stats['has_advanced_stats'] = has_advanced_stats(home_stats)
 
         away_stats = {
             'team_name': match['away_team'],
+            'team_id': match['away_team_id'],
             'start_time': match['start_time'],
             'season_id': match['season_id'],
             'competition_id': match['competition_id'],
             'match_id': match['fixture_id'],
             'match_status': 'ended',
+            'qualifier': 'away',
+            'opponent_team_name': match['home_team'],
+            'opponent_team_id': match['home_team_id'],
             'goals_scored': match['away_goals'],
             'goals_conceded': match['home_goals'],
             'match_outcome': 'win' if match['away_goals'] > match['home_goals'] else 'loss' if match['away_goals'] < match['home_goals'] else 'draw',
@@ -279,14 +475,16 @@ def add_team_stats(conn, match):
 
         insert_query = """
             INSERT INTO team_running_stats (
-                team_name, start_time, season_id, competition_id, match_id,
-                match_status, goals_scored, goals_conceded, match_outcome, clean_sheet,
+                team_name, team_id, start_time, season_id, competition_id, match_id,
+                match_status, qualifier, opponent_team_name, opponent_team_id,
+                goals_scored, goals_conceded, match_outcome, clean_sheet,
                 passes_successful, passes_total, shots_on_target, shots_total,
                 chances_created, tackles_successful, tackles_total,
                 has_basic_stats, has_advanced_stats
             ) VALUES (
-                :team_name, :start_time, :season_id, :competition_id, :match_id,
-                :match_status, :goals_scored, :goals_conceded, :match_outcome, :clean_sheet,
+                :team_name, :team_id, :start_time, :season_id, :competition_id, :match_id,
+                :match_status, :qualifier, :opponent_team_name, :opponent_team_id,
+                :goals_scored, :goals_conceded, :match_outcome, :clean_sheet,
                 :passes_successful, :passes_total, :shots_on_target, :shots_total,
                 :chances_created, :tackles_successful, :tackles_total,
                 :has_basic_stats, :has_advanced_stats
@@ -295,11 +493,9 @@ def add_team_stats(conn, match):
 
         cursor.execute(insert_query, home_stats)
         cursor.execute(insert_query, away_stats)
-
         conn.commit()        
     except Exception as e:
         print(f"Error adding match: {str(e)}")
-        print(f"Match data: {match}")
         conn.rollback()
         raise
 
@@ -470,6 +666,73 @@ def get_league_positions(conn, match):
         'away': positions.get(match['away_team'], {'position': None, 'points': 0, 'matches_played': 0})
     }
 
+def calculate_elo_rating(conn, match, match_importance):
+    """Calculate the Elo rating for home and away team"""
+    cursor = conn.cursor()
+    
+    # Get or create Elo ratings for both teams
+    def get_or_create_elo(team_id, team_name):
+        cursor.execute("""
+            INSERT OR IGNORE INTO elo_rating (team_id, team_name, elo_rating)
+            VALUES (?, ?, 1500)
+        """, (team_id, team_name, ))
+        cursor.execute("SELECT elo_rating FROM elo_rating WHERE team_id = ?", (team_id,))
+        return cursor.fetchone()[0]
+    
+    # Get current Elo ratings
+    home_elo = get_or_create_elo(match['home_team_id'], match['home_team'])
+    away_elo = get_or_create_elo(match['away_team_id'], match['away_team'])
+    
+    # Calculate expected scores
+    elo_diff = home_elo - away_elo + 100  # +100 for home advantage
+    expected_home = 1 / (1 + 10 ** (-elo_diff / 400))
+    expected_away = 1 - expected_home
+    
+    # Calculate actual scores based on goals
+    if 'home_goals' in match and 'away_goals' in match:
+        goal_diff = abs(match['home_goals'] - match['away_goals'])
+        
+        if match['home_goals'] > match['away_goals']:
+            actual_home = 1
+            actual_away = 0
+            # Goal margin multiplier for winner (home)
+            goal_multiplier = np.log(goal_diff + 1) * (2.2 / ((home_elo - away_elo) * 0.001 + 2.2))
+        elif match['home_goals'] < match['away_goals']:
+            actual_home = 0
+            actual_away = 1
+            # Goal margin multiplier for winner (away)
+            goal_multiplier = np.log(goal_diff + 1) * (2.2 / ((away_elo - home_elo) * 0.001 + 2.2))
+        else:
+            actual_home = 0.5
+            actual_away = 0.5
+            goal_multiplier = 1.0
+            
+        # Calculate K-factor (importance multiplier)
+        # Scale match_importance to reasonable K-factor range (20-40)
+        base_k = 30  # Base K-factor
+        k_factor = base_k * (match_importance / 10.0) * goal_multiplier
+        
+        # Calculate new Elo ratings
+        home_elo_new = home_elo + k_factor * (actual_home - expected_home)
+        away_elo_new = away_elo + k_factor * (actual_away - expected_away)
+        
+        # Update database with new ratings
+        cursor.execute("""
+            UPDATE elo_rating 
+            SET elo_rating = ? 
+            WHERE team_id = ?
+        """, (home_elo_new, match['home_team_id']))
+        
+        cursor.execute("""
+            UPDATE elo_rating 
+            SET elo_rating = ? 
+            WHERE team_id = ?
+        """, (away_elo_new, match['away_team_id']))
+        
+        conn.commit()
+        
+    return home_elo, away_elo
+
 #TODO: Implement more features
 def calculate_match_importance(conn, match):
     """Calculate the importance of a match based on various factors"""
@@ -594,6 +857,28 @@ def calculate_match_importance(conn, match):
 #Helper functions
 #********************************************************************************
 
+def get_elo_rating(conn, team_id):
+    """Get the current Elo rating for a team"""
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+            SELECT elo_rating 
+            FROM elo_rating 
+            WHERE team_id = ?
+        """, (team_id,))
+        
+        result = cursor.fetchone()
+        
+        if result is None:
+            raise ValueError(f"Team ID {team_id} not found in elo_rating table")
+        
+        return result[0]
+        
+    except Exception as e:
+        print(f"Error getting Elo rating for team {team_id}: {str(e)}")
+        raise  # Re-raise the exception to be handled by the caller
+
 def safe_ratio(match, numerator, denominator, default=0.0):
     """
     Safely calculate ratio between two match statistics.
@@ -613,11 +898,11 @@ def safe_ratio(match, numerator, denominator, default=0.0):
         return default
     return num / max(1, den)
 
-def calculate_momentum(matches, team_name, weights=[0.35, 0.25, 0.20, 0.12, 0.08]):
+def calculate_momentum(conn,matches, team_name, weights=[0.35, 0.25, 0.20, 0.12, 0.08]):
     """
     Calculate team momentum based on their last 5 matches.
     Positive momentum means improving form, negative means declining form.
-    Uses raw match stats without averaging.
+    Uses raw match stats without averaging and weights based on opponent strength.
     """
     if len(matches) < 2:
         print(f"Not enough matches for {team_name}: {len(matches)}")
@@ -633,6 +918,22 @@ def calculate_momentum(matches, team_name, weights=[0.35, 0.25, 0.20, 0.12, 0.08
     for match in matches:
         print(f"\nProcessing match from {match.get('start_time')}")
         
+        # Calculate ELO-based performance multiplier
+        team_elo = get_elo_rating(conn, match.get('team_id'))
+        opponent_elo = get_elo_rating(conn, match.get('opponent_team_id'))
+        qualifier = match.get('qualifier')
+        
+        # Add home advantage to ELO calculation
+        home_advantage = 100
+        adjusted_team_elo = team_elo + (home_advantage if qualifier == 'home' else -home_advantage)
+        
+        # Calculate expected performance (P)
+        elo_diff = adjusted_team_elo - opponent_elo
+        expected_performance = 1 / (1 + 10 ** (-elo_diff / 400))
+        
+        # Performance multiplier based on whether team is favorite or underdog
+        performance_multiplier = 1/expected_performance if elo_diff < 0 else expected_performance
+        
         # Calculate basic indicators first
         basic_indicators = {
             'goals_ratio': (match.get('goals_scored', 0) / match.get('goals_conceded', 1)) 
@@ -642,11 +943,18 @@ def calculate_momentum(matches, team_name, weights=[0.35, 0.25, 0.20, 0.12, 0.08
             'clean_sheet': 1 if match.get('goals_conceded', 1) == 0 else 0
         }
         
-        # Initialize match_score with basic indicators
+        # Weight the basic indicators
+        weighted_indicators = {
+            'goals_ratio': basic_indicators['goals_ratio'] * performance_multiplier,
+            'win': basic_indicators['win'] * performance_multiplier,
+            'clean_sheet': basic_indicators['clean_sheet'] * performance_multiplier
+        }
+        
+        # Initialize match_score with weighted basic indicators
         match_score = (
-            0.50 * basic_indicators['win'] +
-            0.30 * basic_indicators['goals_ratio'] +
-            0.20 * basic_indicators['clean_sheet']
+            0.50 * weighted_indicators['win'] +
+            0.30 * weighted_indicators['goals_ratio'] +
+            0.20 * weighted_indicators['clean_sheet']
         )
         
         # Calculate advanced indicators if the stats exist
@@ -660,11 +968,14 @@ def calculate_momentum(matches, team_name, weights=[0.35, 0.25, 0.20, 0.12, 0.08
                 'tackle_success': safe_ratio(match, 'tackles_successful', 'tackles_total'),
             }
             
+            # Weight only chance_creation as it's a direct performance metric
+            advanced_indicators['chance_creation'] *= performance_multiplier
+            
             # Update match_score with advanced indicators
             match_score = (
-                0.35 * basic_indicators['win'] +
-                0.20 * basic_indicators['goals_ratio'] +
-                0.15 * basic_indicators['clean_sheet'] +
+                0.35 * weighted_indicators['win'] +
+                0.20 * weighted_indicators['goals_ratio'] +
+                0.15 * weighted_indicators['clean_sheet'] +
                 0.08 * advanced_indicators['shot_accuracy'] +
                 0.08 * advanced_indicators['pass_accuracy'] +
                 0.07 * advanced_indicators['chance_creation'] +
@@ -672,23 +983,22 @@ def calculate_momentum(matches, team_name, weights=[0.35, 0.25, 0.20, 0.12, 0.08
             )
         
         print(f"Match score: {match_score}")
+        print(f"Performance multiplier: {performance_multiplier}")
         match_scores.append(match_score)
 
+    # Rest of the function remains the same
     print(f"\nAll match scores: {match_scores}")
     
-    # Calculate trend
     trends = []
     for i in range(1, len(match_scores)):
-        trend = match_scores[i-1] - match_scores[i]  # Compare newer to older matches
+        trend = match_scores[i-1] - match_scores[i]
         trends.append(trend)
     
     print(f"Trends: {trends}")
     
-    # Calculate weighted average of trends
     weighted_trend = sum(t * w for t, w in zip(trends, weights[1:]))
     print(f"Weighted trend: {weighted_trend}")
     
-    # Clamp between -1 and 1
     momentum = max(-1, min(1, weighted_trend))
     print(f"Final momentum: {momentum}")
 
@@ -702,6 +1012,7 @@ def calculate_metrics(stats):
             'average_goals_scored': stats['goals_scored']['sum'] / max(stats['goals_scored']['divisor'], 1),
             'average_goals_conceded': stats['goals_conceded']['sum'] / max(stats['goals_conceded']['divisor'], 1),
             'average_win_rate': stats['wins']['sum'] / max(stats['wins']['divisor'], 1),
+            'average_draw_rate': stats['draws']['sum'] / max(stats['draws']['divisor'], 1),
             'average_clean_sheets': stats['clean_sheets']['sum'] / max(stats['clean_sheets']['divisor'], 1),
             
             # Advanced metrics
@@ -720,6 +1031,7 @@ def calculate_metrics(stats):
             'average_goals_scored': stats['goals_scored']['sum'] / max(stats['goals_scored']['divisor'], 1),
             'average_goals_conceded': stats['goals_conceded']['sum'] / max(stats['goals_conceded']['divisor'], 1),
             'average_win_rate': stats['wins']['sum'] / max(stats['wins']['divisor'], 1),
+            'average_draw_rate': stats['draws']['sum'] / max(stats['draws']['divisor'], 1),
             'average_clean_sheets': stats['clean_sheets']['sum'] / max(stats['clean_sheets']['divisor'], 1),
             'fatigue': stats.get('fatigue'),
             'momentum': stats.get('momentum'),
@@ -826,8 +1138,20 @@ def getH2h_stats(conn, team1_id, team2_id, current_match_time):
 
     # Initialize stats dictionaries for both teams
     stats = {
-        team1_id: {"goals": 0, "clean_sheets": 0, "points": 0, "games": 0},
-        team2_id: {"goals": 0, "clean_sheets": 0, "points": 0, "games": 0}
+        team1_id: {
+            "goals": 0, 
+            "clean_sheets": 0, 
+            "points": 0, 
+            "games": 0,
+            "draws": 0  # Added draws counter
+        },
+        team2_id: {
+            "goals": 0, 
+            "clean_sheets": 0, 
+            "points": 0, 
+            "games": 0,
+            "draws": 0  # Added draws counter
+        }
     }
     
     try:
@@ -862,14 +1186,17 @@ def getH2h_stats(conn, team1_id, team2_id, current_match_time):
                 if away_score == 0:
                     stats[team2_id]["clean_sheets"] += 1
 
-            # Add points
+            # Add points and track draws
             if home_score > away_score:
                 stats[home_id]["points"] += 3
             elif home_score < away_score:
                 stats[away_id]["points"] += 3
             else:
+                # It's a draw
                 stats[home_id]["points"] += 1
                 stats[away_id]["points"] += 1
+                stats[home_id]["draws"] += 1
+                stats[away_id]["draws"] += 1
 
             # Increment games counter
             stats[team1_id]["games"] += 1
@@ -882,11 +1209,13 @@ def getH2h_stats(conn, team1_id, team2_id, current_match_time):
                 stats[team_id]["avg_goals"] = round(stats[team_id]["goals"] / games, 2)
                 stats[team_id]["avg_clean_sheets"] = round(stats[team_id]["clean_sheets"] / games, 2)
                 stats[team_id]["avg_points"] = round(stats[team_id]["points"] / games, 2)
+                stats[team_id]["avg_draw_rate"] = round(stats[team_id]["draws"] / games, 2)  # Added draw rate
             
             # Clean up working stats
             del stats[team_id]["goals"]
             del stats[team_id]["clean_sheets"]
             del stats[team_id]["points"]
+            del stats[team_id]["draws"]  # Clean up draws counter
             
         return stats
 
