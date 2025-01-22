@@ -11,7 +11,7 @@ def fetch_seasons_for_competitions():
     """Fetch seasons for each competition from SportRadar API"""
     
     # Load competition IDs from top_competitions.json
-    with open('sportradar/data/top_competitions.json', 'r') as f:
+    with open('sportradar/data/sportradar_jsons/top_competitions_extra.json', 'r') as f:
         competitions = json.load(f)
     
     # API configuration
@@ -60,7 +60,7 @@ def fetch_seasons_for_competitions():
             continue
     
     # Save results
-    output_file = 'sportradar/data/top_seasons.json'
+    output_file = 'sportradar/data/sportradar_jsons/top_seasons_extra.json'
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(all_seasons, f, indent=4, ensure_ascii=False)
     

@@ -225,7 +225,7 @@ def process_match_data(db_file):
     create_tables(cursor)
     
     # Get all JSON files from matches_data directory
-    matches_dir = Path('sportradar/data/matches_data2')
+    matches_dir = Path('sportradar/data/matches_data')
     season_files = matches_dir.glob('*.json')
     
     for season_file in season_files:

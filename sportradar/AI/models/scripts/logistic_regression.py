@@ -830,7 +830,7 @@ def create_data_splits(data, test_size=100, random_seed=42):
 
 # Main execution
 if __name__ == "__main__":
-    # Remove these lines at the bottom of the file
+    # # Remove these lines at the bottom of the file
     # print("Running Full Model:")
     # full_metrics, full_model, scaler, test_data = run_experiment_3_class(n_runs=50)
     # print("\nRunning ELO ML Model:")
