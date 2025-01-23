@@ -15,7 +15,7 @@ def run_experiment_3_class(n_runs=10):
 
     for run_i in range(n_runs):
         # 1. Load your preprocessed data
-        df = pd.read_csv("sportradar/AI/preprocessed_features.csv")
+        df = pd.read_csv("sportradar/AI/processed_data/preprocessed_features.csv")
         # Columns (for reference):
         # start_time, home_team, away_team, competition_id, match_importance,
         # goals_scored_difference, goals_conceded_difference, win_rate_difference,
@@ -132,7 +132,7 @@ def run_experiment_3_class(n_runs=10):
     print(f"Home Win Baseline:  {mean_home_win_acc:.2%}")
     print(f"Std Dev:            {std_acc:.2%}")
 
-def predict_future_match(future_match_csv, model_data_csv="sportradar/AI/preprocessed_features.csv"):
+def predict_future_match(future_match_csv, model_data_csv="sportradar/AI/processed_data/preprocessed_features.csv"):
     """
     Predict outcome for future matches using the trained model
     """

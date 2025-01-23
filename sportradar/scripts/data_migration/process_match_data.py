@@ -245,6 +245,19 @@ def process_match_data(db_file):
             start_time = match.get("start_time")
             match_status = status.get("match_status")
             
+            # Check if match already exists in all relevant tables
+            cursor.execute('''
+                SELECT 
+                    EXISTS(SELECT 1 FROM matches WHERE match_id = ?) AS in_matches,
+                    EXISTS(SELECT 1 FROM team_stats WHERE match_id = ?) AS in_team_stats,
+                    EXISTS(SELECT 1 FROM player_stats WHERE match_id = ?) AS in_player_stats
+            ''', (match_id, match_id, match_id))
+            
+            exists_result = cursor.fetchone()
+            if all(exists_result):  # If match exists in all tables
+                print(f"Skipping existing match {match_id}")
+                continue
+            
             # Extract team info
             competitors = match.get("competitors", [])
             home_team = next((team for team in competitors if team.get("qualifier") == "home"), {})

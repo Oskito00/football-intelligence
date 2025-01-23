@@ -11,8 +11,34 @@ from constants import (
     DEBUG_ENDED_MATCHES_QUERY
 )
 from player_stats import initialize_player_database, process_match_stats
-from team_processing import add_points_for_team, add_team_stats, calculate_elo_rating, calculate_match_importance, calculate_form, get_league_positions, get_stats_coverage, get_team_points, getH2h_stats, initialize_database, get_previous_matches
+from team_processing import add_points_for_team, add_team_stats, calculate_elo_rating, calculate_match_importance, calculate_form, get_league_positions, get_match_formations, get_stats_coverage, get_team_points, getH2h_stats, initialize_database, get_previous_matches, refined_categorize_formation
 
+
+def get_processed_matches(conn):
+    """Get all processed matches in one query"""
+    cursor = conn.cursor()
+    
+    # Get all unique combinations of match_id, team names and start times
+    cursor.execute('''
+        SELECT DISTINCT 
+            match_id,
+            team_name,
+            start_time
+        FROM team_running_stats
+    ''')
+    
+    # Create sets for fast lookup
+    processed_match_ids = set()
+    processed_team_times = set()
+    
+    for row in cursor.fetchall():
+        match_id, team_name, start_time = row
+        if match_id:
+            processed_match_ids.add(match_id)
+        if team_name and start_time:
+            processed_team_times.add((team_name, start_time))
+    
+    return processed_match_ids, processed_team_times
 
 def create_training_data(db_path, output_dir, debug_mode=False):
     """Create both basic and advanced training datasets from match database"""
@@ -27,39 +53,49 @@ def create_training_data(db_path, output_dir, debug_mode=False):
         # Create output directory if it doesn't exist
         os.makedirs(output_dir, exist_ok=True)
         
-        # Connect to database and initialize
+        # Connect to database
         conn = sqlite3.connect(db_path)
         print("Successfully connected to database")
-        print("Initializing database...")
+
         initialize_database(conn)
         initialize_player_database(conn)
-        print("Database initialization complete")
-
+        
+        # # Get all processed matches once
+        # processed_match_ids, processed_team_times = get_processed_matches(conn)
+        # print(f"Found {len(processed_match_ids)} previously processed matches")
+        
         # Get completed matches
         print("\nFetching completed matches...")
         matches_query = DEBUG_ENDED_MATCHES_QUERY if debug_mode else ENDED_MATCHES_QUERY
         matches_df = pd.read_sql_query(matches_query, conn)
         print(f"Found {len(matches_df)} completed matches")
         
-        # Debug: Check team_stats table
-        if debug_mode:
-            print("\nChecking team_stats table...")
-            stats_check = pd.read_sql_query(STATS_CHECK_QUERY, conn)
-            print("Team stats summary:")
-            print(stats_check)
-        
         basic_data = []
         advanced_data = []
+        advanced_data_with_formation = []
         total_matches = len(matches_df)
+        processed_count = 0
+        skipped_count = 0
         
         for idx, match in matches_df.iterrows():
             try:
+                match_id = match['fixture_id']
+                
+                # # Fast lookup using sets
+                # if (match_id in processed_match_ids or 
+                #     (match['home_team'], match['start_time']) in processed_team_times or 
+                #     (match['away_team'], match['start_time']) in processed_team_times):
+                #     skipped_count += 1
+                #     continue
+                
                 # Process match stats
                 add_team_stats(conn, match)
                 
                 # Calculate form using pre-match ELO ratings
                 average_home_stats, average_away_stats = calculate_form(conn, match)
                 competition_id = match['competition_id']
+                home_formation, away_formation = get_match_formations(match_id)
+                print(f"Home formation: {home_formation}, Away formation: {away_formation}")
 
                 # Now update ELO ratings based on match outcome
                 match_importance = calculate_match_importance(conn, match)
@@ -139,9 +175,32 @@ def create_training_data(db_path, output_dir, debug_mode=False):
                     basic_row['away_goals'] = match['away_goals']
                     basic_data.append(basic_row)
 
+                if home_formation is not None and away_formation is not None and average_home_stats.get('has_advanced_stats') == 1 and average_away_stats.get('has_advanced_stats') == 1 and result['home_squad_strength'] is not None and result['away_squad_strength'] is not None:
+                    home_formation_category = refined_categorize_formation(home_formation)
+                    away_formation_category = refined_categorize_formation(away_formation)
+                    advanced_row_with_formation = basic_row.copy()
+                    advanced_row_with_formation.update({
+                        'home_pass_effectiveness': round(average_home_stats['pass_effectiveness'], 2),
+                        'home_shot_accuracy': round(average_home_stats['shot_accuracy'], 2),
+                        'home_conversion_rate': round(average_home_stats['conversion_rate'], 2),
+                        'home_defensive_success': round(average_home_stats['defensive_success'], 2),
+                        'away_pass_effectiveness': round(average_away_stats['pass_effectiveness'], 2),
+                        'away_shot_accuracy': round(average_away_stats['shot_accuracy'], 2),
+                        'away_conversion_rate': round(average_away_stats['conversion_rate'], 2),
+                        'away_defensive_success': round(average_away_stats['defensive_success'], 2),
+                        'home_squad_strength': round(result['home_squad_strength'], 2),
+                        'away_squad_strength': round(result['away_squad_strength'], 2),
+                        'home_formation': home_formation_category,
+                        'away_formation': away_formation_category,
+                        'home_goals': match['home_goals'],
+                        'away_goals': match['away_goals'],
+                    })
+                    advanced_data_with_formation.append(advanced_row_with_formation)
                 
                 # Process advanced stats if available
                 if average_home_stats.get('has_advanced_stats') == 1 and average_away_stats.get('has_advanced_stats') == 1 and result['home_squad_strength'] is not None and result['away_squad_strength'] is not None:
+
+
                     advanced_row = basic_row.copy()
                     advanced_row.update({ #TODO: Check if rounding here increases time complexity
                         'home_pass_effectiveness': round(average_home_stats['pass_effectiveness'], 2),
@@ -160,7 +219,9 @@ def create_training_data(db_path, output_dir, debug_mode=False):
                     advanced_data.append(advanced_row)
 
                 conn.commit()
-                print(f"Matches processed: {idx + 1} of {total_matches}")
+                processed_count += 1
+                if processed_count % 100 == 0:  # Print progress less frequently
+                    print(f"Matches processed: {processed_count} (Total: {idx + 1} of {total_matches}, Skipped: {skipped_count})")
 
             except Exception as e:
                 print(f"\nError processing match {match['fixture_id']}: {str(e)}")
@@ -171,19 +232,60 @@ def create_training_data(db_path, output_dir, debug_mode=False):
         # Save datasets
         basic_df = pd.DataFrame(basic_data)
         advanced_df = pd.DataFrame(advanced_data)
+        advanced_with_formation_df = pd.DataFrame(advanced_data_with_formation)
+        
+        print(f"\nDataFrame sizes before saving:")
+        print(f"Basic data: {len(basic_df)} rows, {len(basic_df.columns)} columns")
+        print(f"Advanced data: {len(advanced_df)} rows, {len(advanced_df.columns)} columns")
+        print(f"Advanced with formation: {len(advanced_with_formation_df)} rows, {len(advanced_with_formation_df.columns)} columns")
         
         # Save to files
-        suffix = '_debug' if debug_mode else ''
-        basic_output = os.path.join(output_dir, f'training_data_basic{suffix}.csv')
-        advanced_output = os.path.join(output_dir, f'training_data_advanced{suffix}.csv')
+        basic_output = os.path.join(output_dir, f'training_data_basic.csv')
+        advanced_output = os.path.join(output_dir, f'training_data_advanced.csv')
+        advanced_output_with_formation = os.path.join(output_dir, f'training_data_advanced_with_formation.csv')
         
-        basic_df.to_csv(basic_output, index=False)
-        advanced_df.to_csv(advanced_output, index=False)
+        new_basic_matches = len(basic_df)
+        new_advanced_matches = len(advanced_df)
+        new_advanced_with_formation_matches = len(advanced_with_formation_df)
         
-        print(f"\nSaved basic dataset with {len(basic_df)} matches to {basic_output}")
-        print(f"Saved advanced dataset with {len(advanced_df)} matches to {advanced_output}")
+        # Append to existing files if they exist
+        if os.path.exists(basic_output) and new_basic_matches > 0:
+            existing_basic_df = pd.read_csv(basic_output)
+            basic_df = pd.concat([existing_basic_df, basic_df], ignore_index=True)
+            print(f"\nAppended {new_basic_matches} new matches to existing basic dataset")
+            
+        if os.path.exists(advanced_output) and new_advanced_matches > 0:
+            existing_advanced_df = pd.read_csv(advanced_output)
+            advanced_df = pd.concat([existing_advanced_df, advanced_df], ignore_index=True)
+            print(f"Appended {new_advanced_matches} new matches to existing advanced dataset")
+            
+        if os.path.exists(advanced_output_with_formation) and new_advanced_with_formation_matches > 0:
+            existing_advanced_with_formation_df = pd.read_csv(advanced_output_with_formation)
+            advanced_with_formation_df = pd.concat([existing_advanced_with_formation_df, advanced_with_formation_df], ignore_index=True)
+            print(f"Appended {new_advanced_with_formation_matches} new matches to existing advanced dataset with formation")
+            
+        # Save the updated dataframes
+        if len(basic_df) > 0:
+            basic_df.to_csv(basic_output, index=False)
+        if len(advanced_df) > 0:
+            advanced_df.to_csv(advanced_output, index=False)
+            
+        if len(advanced_with_formation_df) > 0:
+            advanced_with_formation_df.to_csv(advanced_output_with_formation, index=False)
         
-        return basic_df, advanced_df
+        print(f"\nProcessing summary:")
+        print(f"Total matches found: {total_matches}")
+        print(f"New matches processed: {processed_count}")
+        print(f"Matches skipped (already processed): {skipped_count}")
+        
+        if new_basic_matches == 0 and new_advanced_matches == 0:
+            print("\nNo new matches to add to the datasets")
+        else:
+            print(f"\nTotal matches in basic dataset: {len(basic_df)}")
+            print(f"Total matches in advanced dataset: {len(advanced_df)}")
+            print(f"Total matches in advanced dataset with formation: {len(advanced_with_formation_df)}")
+        
+        return basic_df, advanced_df, advanced_with_formation_df
         
     except Exception as e:
         print(f"\nFatal error: {str(e)}")
@@ -197,6 +299,6 @@ if __name__ == "__main__":
     try:
         output_dir = 'sportradar/data/processed_data'
         debug_mode = False  # Set to False for full processing
-        basic_df, advanced_df = create_training_data('football_data.db', output_dir, debug_mode)
+        basic_df, advanced_df, advanced_with_formation_df = create_training_data('football_data.db', output_dir, debug_mode)
     except Exception as e:
         print(f"\nScript failed: {str(e)}") 

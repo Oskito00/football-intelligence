@@ -95,7 +95,7 @@ def run_neural_network(n_runs=100, epochs=100):
         
         # Load and prepare data
         print("Loading and preparing data...")
-        df = pd.read_csv("sportradar/AI/preprocessed_features.csv")
+        df = pd.read_csv("sportradar/AI/processed_data/preprocessed_features.csv")
         
         df["outcome"] = [2 if h > a else (1 if h == a else 0) 
                         for h, a in zip(df["home_goals"], df["away_goals"])]

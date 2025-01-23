@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+from typing import Tuple, Optional
+
 import sqlite3
 import pandas as pd
 import numpy as np
@@ -856,6 +858,83 @@ def calculate_match_importance(conn, match):
 #********************************************************************************
 #Helper functions
 #********************************************************************************
+
+def refined_categorize_formation(formation):
+    """
+    Categorize a football formation as very defensive, defensive, balanced, offensive, or very offensive,
+    and encode them as numerical values. Handles formations with varying lengths (e.g., "4-4-2" or "4-1-4-1").
+    """
+    try:
+        # Split formation into parts (e.g., "4-4-2" -> [4, 4, 2], "4-1-4-1" -> [4, 1, 4, 1])
+        parts = list(map(int, formation.split('-')))
+        num_parts = len(parts)
+
+        # If the formation has less than 3 parts, it's invalid
+        if num_parts < 3:
+            return -1  # Unknown category
+
+        # Define defenders, midfielders, and attackers based on formation length
+        if num_parts == 3:
+            # Standard format (e.g., "4-4-2")
+            num_defenders, num_midfielders, num_attackers = parts
+        elif num_parts == 4:
+            # Extended format (e.g., "4-1-4-1")
+            num_defenders = parts[0]
+            num_midfielders = parts[1] + parts[2]  # Combine central and attacking midfielders
+            num_attackers = parts[3]
+        else:
+            return -1  # Unsupported or unusual formation
+
+        # Define rules for categorization and return numerical encoding
+        if num_defenders >= 5:
+            if num_midfielders >= 4:
+                return 0  # Very Defensive
+            else:
+                return 1  # Defensive
+        elif num_defenders == 4:
+            if num_midfielders >= 5:
+                return 1  # Defensive
+            elif num_attackers >= 3:
+                return 2  # Balanced
+            else:
+                return 2  # Balanced
+        elif num_defenders <= 3:
+            if num_attackers >= 4:
+                return 4  # Very Offensive
+            else:
+                return 3  # Offensive
+        else:
+            return -1  # Unknown
+    except Exception as e:
+        print(f"Error processing formation '{formation}': {e}")
+        return -1  # Unknown
+
+def get_match_formations(match_id: str, db_file: str = 'football_data.db') -> Tuple[Optional[str], Optional[str]]:
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+    
+    print(f"\nLooking for match_id: {match_id}")  # Debug print
+    
+    cursor.execute('''
+        SELECT 
+            home_formation,
+            away_formation,
+            home_team_name,  -- Added these for debugging
+            away_team_name   -- Added these for debugging
+        FROM team_lineups
+        WHERE match_id = ?
+    ''', (match_id,))
+    
+    result = cursor.fetchone()
+    
+    if result:
+        print(f"Found match: {result}")  # Debug print
+        return result[0], result[1]
+    else:
+        print(f"No match found for ID: {match_id}")  # Debug print
+    
+    conn.close()
+    return None, None
 
 def get_elo_rating(conn, team_id):
     """Get the current Elo rating for a team"""

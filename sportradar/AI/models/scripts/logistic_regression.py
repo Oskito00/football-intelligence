@@ -451,7 +451,8 @@ def run_hybrid_model(n_runs=10, elo_threshold=40, weight_elo=0.3):
     Hybrid model combining ELO threshold and full logistic regression
     """
     metrics = {
-        'accuracies': [],
+        'train_accuracies': [],  # Add train accuracy tracking
+        'dev_accuracies': [],    # Rename accuracies to dev_accuracies
         'draw_precision': [],
         'draw_recall': [],
         'draw_f1': [],
@@ -516,46 +517,57 @@ def run_hybrid_model(n_runs=10, elo_threshold=40, weight_elo=0.3):
                 index=X_dev.index
             )
             
-            # Make hybrid predictions
-            y_pred = []
-            y_pred_proba = []
+            # Make hybrid predictions for both train and dev sets
+            def get_hybrid_predictions(data, features_scaled):
+                predictions = []
+                probabilities = []
+                
+                for _, match in data.iterrows():
+                    # Add home advantage to ELO difference
+                    elo_diff = (match['home_elo_rating'] + 40) - match['away_elo_rating']
+                    elo_probs = get_elo_probabilities(elo_diff, threshold=elo_threshold)
+                    
+                    # Get ML probabilities
+                    match_features = pd.DataFrame([match.drop(cols_to_drop)], columns=feature_names)
+                    match_features_scaled = pd.DataFrame(
+                        scaler.transform(match_features),
+                        columns=feature_names
+                    )
+                    ml_probs = full_model.predict_proba(match_features_scaled)[0]
+                    
+                    # Combine probabilities
+                    combined_probs = [
+                        weight_elo * elo_p + (1 - weight_elo) * ml_p 
+                        for elo_p, ml_p in zip(elo_probs, ml_probs)
+                    ]
+                    
+                    predictions.append(np.argmax(combined_probs))
+                    probabilities.append(combined_probs)
+                
+                return predictions, probabilities
             
-            for _, match in dev_data.iterrows():
-                # Add 100 point home advantage to ELO difference
-                elo_diff = (match['home_elo_rating'] + 40) - match['away_elo_rating']
-                elo_probs = get_elo_probabilities(elo_diff, threshold=elo_threshold)
-                
-                # Get ML probabilities
-                match_features = pd.DataFrame([match.drop(cols_to_drop)], columns=feature_names)
-                match_features_scaled = pd.DataFrame(
-                    scaler.transform(match_features),
-                    columns=feature_names
-                )
-                ml_probs = full_model.predict_proba(match_features_scaled)[0]
-                
-                # Combine probabilities
-                combined_probs = [
-                    weight_elo * elo_p + (1 - weight_elo) * ml_p 
-                    for elo_p, ml_p in zip(elo_probs, ml_probs)
-                ]
-                
-                y_pred.append(np.argmax(combined_probs))
-                y_pred_proba.append(combined_probs)
+            # Get predictions for both sets
+            y_train_pred, y_train_proba = get_hybrid_predictions(train_data, X_train_scaled)
+            y_dev_pred, y_dev_proba = get_hybrid_predictions(dev_data, X_dev_scaled)
             
-            # Calculate metrics
-            accuracy = accuracy_score(y_dev, y_pred)
-            metrics['accuracies'].append(accuracy)
+            # Calculate accuracies
+            train_accuracy = accuracy_score(y_train, y_train_pred)
+            dev_accuracy = accuracy_score(y_dev, y_dev_pred)
+            
+            # Store accuracies
+            metrics['train_accuracies'].append(train_accuracy)
+            metrics['dev_accuracies'].append(dev_accuracy)
             
             # Update best model if needed
-            if accuracy > best_dev_accuracy:
-                best_dev_accuracy = accuracy
+            if dev_accuracy > best_dev_accuracy:
+                best_dev_accuracy = dev_accuracy
                 best_model = full_model
                 best_scaler = scaler
             
-            # Calculate class-specific metrics
+            # Calculate class-specific metrics (using dev set)
             for outcome in [0, 1, 2]:  # Away, Draw, Home
-                precision = precision_score(y_dev == outcome, np.array(y_pred) == outcome, zero_division=0)
-                recall = recall_score(y_dev == outcome, np.array(y_pred) == outcome, zero_division=0)
+                precision = precision_score(y_dev == outcome, np.array(y_dev_pred) == outcome, zero_division=0)
+                recall = recall_score(y_dev == outcome, np.array(y_dev_pred) == outcome, zero_division=0)
                 f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
                 
                 if outcome == 0:
@@ -571,12 +583,15 @@ def run_hybrid_model(n_runs=10, elo_threshold=40, weight_elo=0.3):
                     metrics['home_recall'].append(recall)
                     metrics['home_f1'].append(f1)
             
+            # Print run info with both accuracies
             print(f"\nRun {run_i+1}/{n_runs}")
-            print(f"Dev Accuracy: {accuracy:.2%}")
+            print(f"Train Accuracy: {train_accuracy:.2%}")
+            print(f"Dev Accuracy:   {dev_accuracy:.2%}")
+            print(f"Difference:     {(train_accuracy - dev_accuracy):.2%}")
             
             # Print confusion matrix
-            cm = confusion_matrix(y_dev, y_pred)
-            print("\nConfusion Matrix:")
+            cm = confusion_matrix(y_dev, y_dev_pred)
+            print("\nConfusion Matrix (Dev Set):")
             print("Predicted →  [Away Win  Draw  Home Win]")
             print(f"Actual ↓\n{cm}")
             print("-"*60)
@@ -584,6 +599,12 @@ def run_hybrid_model(n_runs=10, elo_threshold=40, weight_elo=0.3):
         except Exception as e:
             print(f"Error in run {run_i + 1}: {str(e)}")
             continue
+    
+    # Print final average metrics
+    print("\nFinal Results:")
+    print(f"Average Train Accuracy: {np.mean(metrics['train_accuracies']):.2%} (±{np.std(metrics['train_accuracies']):.2%})")
+    print(f"Average Dev Accuracy:   {np.mean(metrics['dev_accuracies']):.2%} (±{np.std(metrics['dev_accuracies']):.2%})")
+    print(f"Average Gap:           {(np.mean(metrics['train_accuracies']) - np.mean(metrics['dev_accuracies'])):.2%}")
     
     return metrics, best_model, best_scaler, test_data
 
@@ -838,28 +859,28 @@ if __name__ == "__main__":
     # print("\nRunning ELO Threshold Model:")
     # threshold_metrics, test_data = run_elo_threshold_baseline(n_runs=400, threshold=40)
     # print("\nRunning Hybrid Model:")
-    # hybrid_metrics, full_model, scaler, test_data = run_hybrid_model(n_runs=400, elo_threshold=40, weight_elo=0.3)
+    hybrid_metrics, full_model, scaler, test_data = run_hybrid_model(n_runs=400, elo_threshold=40, weight_elo=0.3)
     # print_four_way_comparison(full_metrics, elo_metrics, threshold_metrics, hybrid_metrics)
     # Remove all the model comparison code and just run predictions
-    print("Predicting Test Matches:")
-    predictions, probabilities = predict_test_matches(
-        test_data_csv="sportradar/AI/processed_data/test_preprocessed_features.csv",
-        train_data_csv="sportradar/AI/processed_data/preprocessed_features.csv",
-        home_advantage=100
-    )
+    # print("Predicting Test Matches:")
+    # predictions, probabilities = predict_test_matches(
+    #     test_data_csv="sportradar/AI/processed_data/test_preprocessed_features.csv",
+    #     train_data_csv="sportradar/AI/processed_data/preprocessed_features.csv",
+    #     home_advantage=100
+    # )
     
-    # Save predictions to CSV
-    test_df = pd.read_csv("sportradar/AI/processed_data/test_preprocessed_features.csv")
-    results_df = pd.DataFrame({
-        'start_time': test_df['start_time'],
-        'home_team': test_df['home_team'],
-        'away_team': test_df['away_team'],
-        'predicted_outcome': [['Away Win', 'Draw', 'Home Win'][p] for p in predictions],
-        'home_win_prob': [round(p[2], 2) for p in probabilities],
-        'draw_prob': [round(p[1], 2) for p in probabilities],
-        'away_win_prob': [round(p[0], 2) for p in probabilities]
-    })
+    # # Save predictions to CSV
+    # test_df = pd.read_csv("sportradar/AI/processed_data/test_preprocessed_features.csv")
+    # results_df = pd.DataFrame({
+    #     'start_time': test_df['start_time'],
+    #     'home_team': test_df['home_team'],
+    #     'away_team': test_df['away_team'],
+    #     'predicted_outcome': [['Away Win', 'Draw', 'Home Win'][p] for p in predictions],
+    #     'home_win_prob': [round(p[2], 2) for p in probabilities],
+    #     'draw_prob': [round(p[1], 2) for p in probabilities],
+    #     'away_win_prob': [round(p[0], 2) for p in probabilities]
+    # })
     
-    output_path = "sportradar/AI/match_predictions.csv"
-    results_df.to_csv(output_path, index=False)
-    print(f"\nPredictions saved to {output_path}")
+    # output_path = "sportradar/AI/match_predictions.csv"
+    # results_df.to_csv(output_path, index=False)
+    # print(f"\nPredictions saved to {output_path}")

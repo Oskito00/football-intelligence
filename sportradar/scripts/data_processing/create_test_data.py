@@ -40,7 +40,7 @@ def get_upcoming_matches_query():
     FROM matches m
     WHERE m.match_status != 'ended'
     AND datetime(m.start_time) BETWEEN datetime('now') 
-    AND datetime('now', '+10 days')
+    AND datetime('now', '+5 days')
     ORDER BY m.start_time
     """
 
