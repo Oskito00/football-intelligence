@@ -967,14 +967,14 @@ def create_data_splits(data, test_size=100, random_seed=42):
 # Main execution
 if __name__ == "__main__":
     # # Remove these lines at the bottom of the file
-    print("Running Full Model:")
+    # print("Running Full Model:")
     full_metrics, full_model, scaler, test_data = run_experiment_3_class(n_runs=50)
     print("\nRunning ELO ML Model:")
     elo_metrics, elo_model, elo_scaler, test_data = run_elo_baseline(n_runs=400)
     print("\nRunning ELO Threshold Model:")
     threshold_metrics, test_data = run_elo_threshold_baseline(n_runs=400, threshold=40)
     print("\nRunning Hybrid Model:")
-    hybrid_metrics, full_model, scaler, test_data = run_hybrid_model(n_runs=20, elo_threshold=40, weight_elo=0.3)
+    hybrid_metrics, full_model, scaler, test_data = run_hybrid_model(n_runs=40, elo_threshold=40, weight_elo=0.3)
     # import seaborn as sns
     # results_df, best_params = optimize_elo_parameters(n_runs=5)
     print_four_way_comparison(full_metrics, elo_metrics, threshold_metrics, hybrid_metrics)
