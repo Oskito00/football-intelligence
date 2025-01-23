@@ -4,13 +4,15 @@ from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc_auc_score, confusion_matrix, recall_score, precision_score
+import matplotlib.pyplot as plt
 
 def run_experiment_3_class(n_runs=10):
     """
     Train a 3-class classifier with comprehensive evaluation metrics
     """
     metrics = {
-        'accuracies': [],
+        'train_accuracies': [],
+        'dev_accuracies': [],
         'draw_precision': [],
         'draw_recall': [],
         'draw_f1': [],
@@ -110,7 +112,8 @@ def run_experiment_3_class(n_runs=10):
         metrics['home_win_accuracies'].append(home_win_accuracy)
         
         # Store metrics
-        metrics['accuracies'].append(dev_accuracy)
+        metrics['train_accuracies'].append(train_accuracy)
+        metrics['dev_accuracies'].append(dev_accuracy)
         
         # Calculate class-specific metrics
         for outcome in [0, 1, 2]:  # Away, Draw, Home
@@ -158,7 +161,7 @@ def run_experiment_3_class(n_runs=10):
     # Print final results
     print(f"\nFinal Results Over {n_runs} Runs:")
     print("\nAccuracy Metrics:")
-    print(f"  Mean Dev Accuracy:   {np.mean(metrics['accuracies']):.2%} (±{np.std(metrics['accuracies']):.2%})")
+    print(f"  Mean Dev Accuracy:   {np.mean(metrics['dev_accuracies']):.2%} (±{np.std(metrics['dev_accuracies']):.2%})")
     print(f"  Mean ROC-AUC:        {np.mean(metrics['roc_auc_scores']):.2%} (±{np.std(metrics['roc_auc_scores']):.2%})")
     print(f"  Home Win Baseline:   {np.mean(metrics['home_win_accuracies']):.2%}")
     
@@ -220,7 +223,8 @@ def run_elo_baseline(n_runs=10):
     Train a 3-class logistic regression using only ELO features
     """
     metrics = {
-        'accuracies': [],
+        'train_accuracies': [],
+        'dev_accuracies': [],
         'draw_precision': [],
         'draw_recall': [],
         'draw_f1': [],
@@ -272,7 +276,8 @@ def run_elo_baseline(n_runs=10):
         
         # Calculate metrics
         accuracy = accuracy_score(y_dev, y_pred)
-        metrics['accuracies'].append(accuracy)
+        metrics['train_accuracies'].append(accuracy_score(y_train, clf.predict(X_train_scaled)))
+        metrics['dev_accuracies'].append(accuracy)  # Store dev accuracy
         
         # Calculate class-specific metrics
         for outcome in [0, 1, 2]:  # Away, Draw, Home
@@ -332,7 +337,8 @@ def run_elo_threshold_baseline(n_runs=10, threshold=40, home_advantage=40):
     Incorporates home advantage by adding bonus points to home team's ELO
     """
     metrics = {
-        'accuracies': [],
+        'train_accuracies': [],
+        'dev_accuracies': [],
         'draw_precision': [],
         'draw_recall': [],
         'draw_f1': [],
@@ -377,7 +383,9 @@ def run_elo_threshold_baseline(n_runs=10, threshold=40, home_advantage=40):
         
         # Calculate metrics
         accuracy = accuracy_score(y_dev, y_pred)
-        metrics['accuracies'].append(accuracy)
+        metrics['train_accuracies'].append(accuracy_score(train_data["outcome"], 
+                                     train_data.apply(predict_with_threshold, axis=1)))
+        metrics['dev_accuracies'].append(accuracy)  # Store dev accuracy
         
         # Calculate class-specific metrics
         for outcome in [0, 1, 2]:  # Away, Draw, Home
@@ -420,7 +428,7 @@ def print_three_way_comparison(full_metrics, elo_metrics, threshold_metrics):
     print("-"*140)
     
     metrics_to_print = [
-        ('Overall Accuracy', 'accuracies'),
+        ('Overall Accuracy', 'dev_accuracies'),
         ('Home Win Precision', 'home_precision'),
         ('Home Win Recall', 'home_recall'),
         ('Home Win F1', 'home_f1'),
@@ -451,8 +459,8 @@ def run_hybrid_model(n_runs=10, elo_threshold=40, weight_elo=0.3):
     Hybrid model combining ELO threshold and full logistic regression
     """
     metrics = {
-        'train_accuracies': [],  # Add train accuracy tracking
-        'dev_accuracies': [],    # Rename accuracies to dev_accuracies
+        'train_accuracies': [],
+        'dev_accuracies': [],
         'draw_precision': [],
         'draw_recall': [],
         'draw_f1': [],
@@ -589,6 +597,26 @@ def run_hybrid_model(n_runs=10, elo_threshold=40, weight_elo=0.3):
             print(f"Dev Accuracy:   {dev_accuracy:.2%}")
             print(f"Difference:     {(train_accuracy - dev_accuracy):.2%}")
             
+            # Feature importance analysis
+            feature_importance = pd.DataFrame({
+                'feature': X_train.columns,
+                'importance': np.mean(np.abs(full_model.coef_), axis=0)
+            }).sort_values('importance', ascending=False)
+            
+            print("\nTop 10 Most Important Features:")
+            print(feature_importance.head(10))
+            
+            # Plot feature importance for the last run
+            if run_i == n_runs - 1:  # Only for last run
+                plt.figure(figsize=(12, 6))
+                plt.bar(feature_importance['feature'].head(15), 
+                       feature_importance['importance'].head(15))
+                plt.xticks(rotation=45, ha='right')
+                plt.title('Top 15 Most Important Features (Hybrid Model)')
+                plt.tight_layout()
+                plt.savefig('sportradar/AI/models/analysis/hybrid_model_importance.png')
+                plt.close()
+            
             # Print confusion matrix
             cm = confusion_matrix(y_dev, y_dev_pred)
             print("\nConfusion Matrix (Dev Set):")
@@ -616,7 +644,7 @@ def print_four_way_comparison(full_metrics, elo_metrics, threshold_metrics, hybr
     print("-"*180)
     
     metrics_to_print = [
-        ('Overall Accuracy', 'accuracies'),
+        ('Overall Accuracy', 'dev_accuracies'),
         ('Home Win Precision', 'home_precision'),
         ('Home Win Recall', 'home_recall'),
         ('Home Win F1', 'home_f1'),
@@ -645,7 +673,7 @@ def print_four_way_comparison(full_metrics, elo_metrics, threshold_metrics, hybr
     
     print("="*180)
 
-def optimize_hybrid_weights(n_runs=100, thresholds=[40], weights=np.arange(0.1, 1.0, 0.1)):
+def optimize_hybrid_weights(n_runs=10, thresholds=[40], weights=np.arange(0.1, 1.0, 0.1)):
     """
     Test different combinations of ELO thresholds and weights
     """
@@ -654,14 +682,14 @@ def optimize_hybrid_weights(n_runs=100, thresholds=[40], weights=np.arange(0.1, 
     for threshold in thresholds:
         for weight in weights:
             print(f"\nTesting threshold={threshold}, weight_elo={weight:.1f}")
-            metrics = run_hybrid_model(n_runs=n_runs, 
-                                     elo_threshold=threshold, 
-                                     weight_elo=weight)
+            metrics, _, _, _ = run_hybrid_model(n_runs=n_runs, 
+                                              elo_threshold=threshold, 
+                                              weight_elo=weight)
             
             # Store average metrics
             results[(threshold, weight)] = {
-                'accuracy': np.mean(metrics['accuracies']),
-                'accuracy_std': np.std(metrics['accuracies']),
+                'accuracy': np.mean(metrics['dev_accuracies']),
+                'accuracy_std': np.std(metrics['dev_accuracies']),
                 'draw_f1': np.mean(metrics['draw_f1']),
                 'home_f1': np.mean(metrics['home_f1']),
                 'away_f1': np.mean(metrics['away_f1'])
@@ -690,6 +718,93 @@ def optimize_hybrid_weights(n_runs=100, thresholds=[40], weights=np.arange(0.1, 
         print(f"Best {metric:<10}: weight={best_idx[1]:.1f}, value={best_value:.2%}")
     
     return results_df
+
+def optimize_elo_parameters(n_runs=5, 
+                          weights=np.arange(0.2, 0.7, 0.1),
+                          thresholds=np.arange(20, 81, 20)):
+    """
+    Test different combinations of ELO weights and thresholds
+    """
+    results = {}
+    best_params = {'accuracy': 0, 'weight': None, 'threshold': None}
+    
+    for threshold in thresholds:
+        for weight in weights:
+            print(f"\nTesting threshold={threshold}, weight_elo={weight:.1f}")
+            metrics, _, _, _ = run_hybrid_model(n_runs=n_runs, 
+                                              elo_threshold=threshold, 
+                                              weight_elo=weight)
+            
+            # Calculate average metrics
+            dev_accuracy = np.mean(metrics['dev_accuracies'])
+            dev_std = np.std(metrics['dev_accuracies'])
+            
+            # Store results
+            results[(threshold, weight)] = {
+                'dev_accuracy': dev_accuracy,
+                'dev_accuracy_std': dev_std,
+                'train_accuracy': np.mean(metrics['train_accuracies']),
+                'gap': np.mean(metrics['train_accuracies']) - dev_accuracy,
+                'draw_f1': np.mean(metrics['draw_f1']),
+                'home_f1': np.mean(metrics['home_f1']),
+                'away_f1': np.mean(metrics['away_f1'])
+            }
+            
+            # Update best parameters if needed
+            if dev_accuracy > best_params['accuracy']:
+                best_params['accuracy'] = dev_accuracy
+                best_params['weight'] = weight
+                best_params['threshold'] = threshold
+    
+    # Convert results to DataFrame
+    results_df = pd.DataFrame(results).T
+    results_df.index.names = ['threshold', 'weight']
+    
+    # Print summary table
+    print("\nResults Summary:")
+    print("="*120)
+    print("Threshold  Weight  Dev Accuracy    Train Accuracy    Gap        Draw F1    Home F1    Away F1")
+    print("-"*120)
+    
+    for (threshold, weight), row in results_df.iterrows():
+        print(f"{threshold:>8}  {weight:>6.1f}   "
+              f"{row['dev_accuracy']:>6.2%} (±{row['dev_accuracy_std']:>4.2%})   "
+              f"{row['train_accuracy']:>6.2%}   {row['gap']:>6.2%}   "
+              f"{row['draw_f1']:>6.2%}   {row['home_f1']:>6.2%}   {row['away_f1']:>6.2%}")
+    
+    # Create heatmap using matplotlib
+    accuracy_matrix = results_df['dev_accuracy'].unstack()
+    
+    plt.figure(figsize=(10, 6))
+    plt.imshow(accuracy_matrix, cmap='YlOrRd', aspect='auto')
+    
+    # Add text annotations
+    for i in range(len(thresholds)):
+        for j in range(len(weights)):
+            plt.text(j, i, f"{accuracy_matrix.iloc[i, j]:.1%}", 
+                    ha='center', va='center')
+    
+    # Customize plot
+    plt.colorbar(label='Dev Accuracy')
+    plt.title('Dev Accuracy by ELO Weight and Threshold')
+    plt.xlabel('ELO Weight')
+    plt.ylabel('ELO Threshold')
+    
+    # Set tick labels
+    plt.xticks(range(len(weights)), [f"{w:.1f}" for w in weights])
+    plt.yticks(range(len(thresholds)), thresholds)
+    
+    plt.tight_layout()
+    plt.savefig('sportradar/AI/models/analysis/elo_parameter_optimization.png')
+    plt.close()
+    
+    # Print best parameters
+    print("\nBest Parameters:")
+    print(f"Threshold: {best_params['threshold']}")
+    print(f"Weight: {best_params['weight']:.1f}")
+    print(f"Dev Accuracy: {best_params['accuracy']:.2%}")
+    
+    return results_df, best_params
 
 def predict_test_matches(test_data_csv="sportradar/AI/processed_data/test_preprocessed_features.csv", 
                         train_data_csv="sportradar/AI/processed_data/preprocessed_features.csv",
@@ -852,15 +967,17 @@ def create_data_splits(data, test_size=100, random_seed=42):
 # Main execution
 if __name__ == "__main__":
     # # Remove these lines at the bottom of the file
-    # print("Running Full Model:")
-    # full_metrics, full_model, scaler, test_data = run_experiment_3_class(n_runs=50)
-    # print("\nRunning ELO ML Model:")
-    # elo_metrics, elo_model, elo_scaler, test_data = run_elo_baseline(n_runs=400)
-    # print("\nRunning ELO Threshold Model:")
-    # threshold_metrics, test_data = run_elo_threshold_baseline(n_runs=400, threshold=40)
-    # print("\nRunning Hybrid Model:")
-    hybrid_metrics, full_model, scaler, test_data = run_hybrid_model(n_runs=400, elo_threshold=40, weight_elo=0.3)
-    # print_four_way_comparison(full_metrics, elo_metrics, threshold_metrics, hybrid_metrics)
+    print("Running Full Model:")
+    full_metrics, full_model, scaler, test_data = run_experiment_3_class(n_runs=50)
+    print("\nRunning ELO ML Model:")
+    elo_metrics, elo_model, elo_scaler, test_data = run_elo_baseline(n_runs=400)
+    print("\nRunning ELO Threshold Model:")
+    threshold_metrics, test_data = run_elo_threshold_baseline(n_runs=400, threshold=40)
+    print("\nRunning Hybrid Model:")
+    hybrid_metrics, full_model, scaler, test_data = run_hybrid_model(n_runs=20, elo_threshold=40, weight_elo=0.3)
+    # import seaborn as sns
+    # results_df, best_params = optimize_elo_parameters(n_runs=5)
+    print_four_way_comparison(full_metrics, elo_metrics, threshold_metrics, hybrid_metrics)
     # Remove all the model comparison code and just run predictions
     # print("Predicting Test Matches:")
     # predictions, probabilities = predict_test_matches(
