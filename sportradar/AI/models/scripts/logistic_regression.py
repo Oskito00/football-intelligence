@@ -968,36 +968,36 @@ def create_data_splits(data, test_size=100, random_seed=42):
 if __name__ == "__main__":
     # # Remove these lines at the bottom of the file
     # print("Running Full Model:")
-    full_metrics, full_model, scaler, test_data = run_experiment_3_class(n_runs=50)
-    print("\nRunning ELO ML Model:")
-    elo_metrics, elo_model, elo_scaler, test_data = run_elo_baseline(n_runs=400)
-    print("\nRunning ELO Threshold Model:")
-    threshold_metrics, test_data = run_elo_threshold_baseline(n_runs=400, threshold=40)
-    print("\nRunning Hybrid Model:")
-    hybrid_metrics, full_model, scaler, test_data = run_hybrid_model(n_runs=40, elo_threshold=40, weight_elo=0.3)
-    # import seaborn as sns
-    # results_df, best_params = optimize_elo_parameters(n_runs=5)
-    print_four_way_comparison(full_metrics, elo_metrics, threshold_metrics, hybrid_metrics)
+    # full_metrics, full_model, scaler, test_data = run_experiment_3_class(n_runs=50)
+    # print("\nRunning ELO ML Model:")
+    # elo_metrics, elo_model, elo_scaler, test_data = run_elo_baseline(n_runs=400)
+    # print("\nRunning ELO Threshold Model:")
+    # threshold_metrics, test_data = run_elo_threshold_baseline(n_runs=400, threshold=40)
+    # print("\nRunning Hybrid Model:")
+    # hybrid_metrics, full_model, scaler, test_data = run_hybrid_model(n_runs=50, elo_threshold=40, weight_elo=0.3)
+    # # import seaborn as sns
+    # # results_df, best_params = optimize_elo_parameters(n_runs=5)
+    # print_four_way_comparison(full_metrics, elo_metrics, threshold_metrics, hybrid_metrics)
     # Remove all the model comparison code and just run predictions
-    # print("Predicting Test Matches:")
-    # predictions, probabilities = predict_test_matches(
-    #     test_data_csv="sportradar/AI/processed_data/test_preprocessed_features.csv",
-    #     train_data_csv="sportradar/AI/processed_data/preprocessed_features.csv",
-    #     home_advantage=100
-    # )
+    print("Predicting Test Matches:")
+    predictions, probabilities = predict_test_matches(
+        test_data_csv="sportradar/AI/processed_data/test_preprocessed_features.csv",
+        train_data_csv="sportradar/AI/processed_data/preprocessed_features.csv",
+        home_advantage=100
+    )
     
-    # # Save predictions to CSV
-    # test_df = pd.read_csv("sportradar/AI/processed_data/test_preprocessed_features.csv")
-    # results_df = pd.DataFrame({
-    #     'start_time': test_df['start_time'],
-    #     'home_team': test_df['home_team'],
-    #     'away_team': test_df['away_team'],
-    #     'predicted_outcome': [['Away Win', 'Draw', 'Home Win'][p] for p in predictions],
-    #     'home_win_prob': [round(p[2], 2) for p in probabilities],
-    #     'draw_prob': [round(p[1], 2) for p in probabilities],
-    #     'away_win_prob': [round(p[0], 2) for p in probabilities]
-    # })
+    # Save predictions to CSV
+    test_df = pd.read_csv("sportradar/AI/processed_data/test_preprocessed_features.csv")
+    results_df = pd.DataFrame({
+        'start_time': test_df['start_time'],
+        'home_team': test_df['home_team'],
+        'away_team': test_df['away_team'],
+        'predicted_outcome': [['Away Win', 'Draw', 'Home Win'][p] for p in predictions],
+        'home_win_prob': [round(p[2], 2) for p in probabilities],
+        'draw_prob': [round(p[1], 2) for p in probabilities],
+        'away_win_prob': [round(p[0], 2) for p in probabilities]
+    })
     
-    # output_path = "sportradar/AI/match_predictions.csv"
-    # results_df.to_csv(output_path, index=False)
-    # print(f"\nPredictions saved to {output_path}")
+    output_path = "sportradar/AI/match_predictions.csv"
+    results_df.to_csv(output_path, index=False)
+    print(f"\nPredictions saved to {output_path}")

@@ -110,6 +110,7 @@ def create_tables(cursor):
         player_name TEXT,
         team_id TEXT,
         starter BOOLEAN,
+        position TEXT,
         assists INTEGER,
         chances_created INTEGER,
         clearances INTEGER,
@@ -214,7 +215,7 @@ def infer_main_competitions(cursor):
         )
     ''')
 
-def process_match_data(db_file):
+def process_match_data(db_file='football_data.db'):
     """Process match data from all season files and insert into SQLite database"""
     
     # Connect to SQLite database
@@ -354,16 +355,37 @@ def process_match_data(db_file):
                             "throw_ins", "was_fouled", "yellow_cards", "yellow_red_cards"
                         ]]))
                     
-                    # Insert player stats
+                    # Get player positions from lineups first - handle home and away separately
+                    cursor.execute("""
+                        SELECT 
+                            json_extract(value, '$.id') as player_id,
+                            json_extract(value, '$.type') as position
+                        FROM team_lineups l,
+                             json_each(l.home_players)
+                        WHERE l.match_id = ?
+                        UNION ALL
+                        SELECT 
+                            json_extract(value, '$.id') as player_id,
+                            json_extract(value, '$.type') as position
+                        FROM team_lineups l,
+                             json_each(l.away_players)
+                        WHERE l.match_id = ?
+                    """, (match_id, match_id))
+                    
+                    player_positions = {row[0]: row[1] for row in cursor.fetchall()}
+
+                    # Insert player stats with position
                     for player in team.get("players", []):
                         player_id = player.get("id")
                         player_name = player.get("name")
                         starter = player.get("starter", False)
                         start_time = match.get("start_time")
                         player_stats = player.get("statistics", {})
+                        position = player_positions.get(player_id, 'unknown')
                         
                         cursor.execute('''INSERT OR REPLACE INTO player_stats (
                             match_id, start_time, player_id, player_name, team_id, starter,
+                            position,
                             assists, chances_created, clearances, corner_kicks, crosses_successful,
                             crosses_total, defensive_blocks, diving_saves, dribbles_completed,
                             fouls_committed, goals_by_head, goals_by_penalty, goals_conceded,
@@ -374,8 +396,10 @@ def process_match_data(db_file):
                             shots_blocked, shots_faced_saved, shots_faced_total, shots_off_target,
                             shots_on_target, substituted_in, substituted_out, tackles_successful,
                             tackles_total, was_fouled, yellow_cards, yellow_red_cards
-                        ) VALUES (?, ?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                            (match_id, start_time, player_id, player_name, team_id, starter, *[player_stats.get(k) for k in [
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                            (match_id, start_time, player_id, player_name, team_id, starter,
+                             position,
+                             *[player_stats.get(k) for k in [
                                 "assists", "chances_created", "clearances", "corner_kicks",
                                 "crosses_successful", "crosses_total", "defensive_blocks",
                                 "diving_saves", "dribbles_completed", "fouls_committed",
@@ -389,10 +413,36 @@ def process_match_data(db_file):
                                 "shots_faced_total", "shots_off_target", "shots_on_target",
                                 "substituted_in", "substituted_out", "tackles_successful",
                                 "tackles_total", "was_fouled", "yellow_cards", "yellow_red_cards"
-                            ]]))
+                            ]])
+                        )
     
     # Update main competitions after processing all matches
     infer_main_competitions(cursor)
+    
+    # Get counts BEFORE closing the connection
+    cursor.execute("SELECT COUNT(*) FROM matches WHERE match_status = 'ended'")
+    match_count = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM team_lineups")
+    lineup_count = cursor.fetchone()[0]
+
+    print(f"\nDatabase stats:")
+    print(f"Total ended matches: {match_count}")
+    print(f"Total matches with lineups: {lineup_count}")
+    print(f"Matches missing lineups: {match_count - lineup_count}")
+
+    if match_count > lineup_count:
+        cursor.execute("""
+            SELECT m.match_id, m.start_time, m.home_team_name, m.away_team_name, m.competition_name
+            FROM matches m 
+            LEFT JOIN team_lineups l ON m.match_id = l.match_id 
+            WHERE l.match_id IS NULL AND m.match_status = 'ended'
+            LIMIT 5
+        """)
+        missing = cursor.fetchall()
+        print("\nFirst 5 matches missing lineups:")
+        for m in missing:
+            print(f"- {m[0]}: {m[2]} vs {m[3]} ({m[1]}) - {m[4]}")
     
     # Commit changes and close connection
     conn.commit()

@@ -105,7 +105,7 @@ def get_season_lineups(season_id, competition_name, season_name):
 def scrape_all_lineups():
     """Scrape lineups for all seasons in top_seasons.json"""
     # Load the seasons data
-    with open('sportradar/data/sportradar_jsons/top_seasons.json', 'r') as f:
+    with open('sportradar/data/sportradar_jsons/top_seasons_24_25.json', 'r') as f:
         competitions = json.load(f)
     
     for competition_name, competition_data in competitions.items():

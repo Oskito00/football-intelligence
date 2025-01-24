@@ -117,6 +117,13 @@ def process_lineup_data(db_file='football_data.db'):
     print(f"Total lineups processed: {processed_count}")
     print(f"Lineups skipped (already existed): {skipped_count}")
     
+    # Just get the lineup counts
+    cursor.execute("SELECT COUNT(*) FROM team_lineups")
+    total_lineups = cursor.fetchone()[0]
+    
+    print(f"\nDatabase stats:")
+    print(f"Total matches with lineups in DB: {total_lineups}")
+    
     conn.close()
     print(f"\nSuccessfully processed all lineup data and saved to {db_file}")
 

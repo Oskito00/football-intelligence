@@ -15,6 +15,7 @@ def initialize_player_database(conn):
         player_id TEXT,
         player_name TEXT,
         team_id TEXT,
+        position TEXT,
         start_time TEXT,
         match_id TEXT,
         
@@ -54,7 +55,7 @@ def initialize_player_database(conn):
 
 def calculate_player_match_importance(player_stats):
     """
-    Calculate a player's match importance score (0-35) with scaled defensive actions
+    Calculate position-specific match importance score (0-35)
     Returns None if insufficient data (>50% None values)
     """
     
@@ -69,7 +70,7 @@ def calculate_player_match_importance(player_stats):
         'shots_faced_saved',
         'shots_faced_total',
         'goals_conceded',
-        'penalties_faced',  # Added for GK penalties
+        'penalties_faced',
         
         # Distribution/Passing (both GK and outfield)
         'passes_total',
@@ -95,7 +96,10 @@ def calculate_player_match_importance(player_stats):
         'yellow_cards',
         'red_cards',
         'loss_of_possession',
-        'fouls_committed'
+        'fouls_committed',
+        
+        # New for position-specific scoring
+        'shots_on_target'
     ]
     
     # If more than 50% of stats are None, return None for match importance...
@@ -112,15 +116,9 @@ def calculate_player_match_importance(player_stats):
     
     score = 0
     minutes_weight = min(1.0, stats.get('minutes_played', 0) / 90)
+    position = player_stats.get('position', 'unknown').lower()
     
-    # Check if player has goalkeeper stats
-    is_goalkeeper = (
-        stats.get('diving_saves', 0) > 0 or 
-        stats.get('penalties_saved', 0) > 0 or
-        stats.get('shots_faced_saved', 0) > 0
-    )
-    
-    if is_goalkeeper:
+    if position == 'goalkeeper':
         # Goalkeeper scoring (reduced by ~30%)
         # 1. Shot Stopping (max 25 points, down from 35)
         save_rate = 0
@@ -151,50 +149,103 @@ def calculate_player_match_importance(player_stats):
         )
         score += min(14, distribution_score)               # Reduced from 20
         
-    else:
-        # 1. Goal Contributions (max 25 points)
-        goal_contribution_score = (
-            (stats.get('goals_scored', 0) * 10) +
-            (stats.get('assists', 0) * 8) +
-            (stats.get('chances_created', 0) * 3)
+    elif position == 'forward':
+        # Attacking Contributions (70% - max 24.5 points)
+        attack_score = (
+            (stats.get('goals_scored', 0) * 12) +         # 12 points per goal
+            (stats.get('assists', 0) * 8) +               # 8 points per assist
+            (stats.get('chances_created', 0) * 3) +       # 3 points per chance
+            (stats.get('shots_on_target', 0) * 2) +       # 2 points per shot on target
+            (stats.get('dribbles_completed', 0) * 1.5)    # 1.5 points per dribble
         )
-        score += min(25, goal_contribution_score)
+        score += min(24.5, attack_score)
         
-        # 2. Defensive Actions (scaled down by ~25%)
-        defensive_score = (
-            (stats.get('tackles_successful', 0) * 2.25) +  # Reduced from 3
-            (stats.get('clearances', 0) * 1.5) +          # Reduced from 2
-            (stats.get('interceptions', 0) * 1.5) +       # Reduced from 2
-            (stats.get('defensive_blocks', 0) * 1.5)      # Reduced from 2
-        )
-        score += min(25, defensive_score)
-        
-        # 3. Ball Control & Distribution (max 25 points)
-        pass_accuracy = 0
+        # Secondary Contributions (30% - max 10.5 points)
         if stats.get('passes_total', 0) > 0:
             pass_accuracy = (stats.get('passes_successful', 0) / stats.get('passes_total', 1)) * 100
+            secondary_score = (
+                (pass_accuracy * 0.05) +                  # Up to 5 points for passing
+                (stats.get('tackles_successful', 0) * 0.5) + # 0.5 points per tackle
+                (stats.get('interceptions', 0) * 0.5)     # 0.5 points per interception
+            )
+            score += min(10.5, secondary_score)
+            
+    elif position == 'midfielder':
+        # Playmaking (40% - max 14 points)
+        if stats.get('passes_total', 0) > 0:
+            pass_accuracy = (stats.get('passes_successful', 0) / stats.get('passes_total', 1)) * 100
+            playmaking_score = (
+                (stats.get('assists', 0) * 8) +           # 8 points per assist
+                (stats.get('chances_created', 0) * 3) +   # 3 points per chance
+                (pass_accuracy * 0.08) +                  # Up to 8 points for passing
+                (stats.get('long_passes_successful', 0) * 0.5) # 0.5 points per long pass
+            )
+            score += min(14, playmaking_score)
         
-        possession_score = (
-            (pass_accuracy * 0.15) +  # Up to 15 points for pass accuracy
-            (stats.get('dribbles_completed', 0) * 2) +
-            (min(stats.get('crosses_successful', 0) * 3, 10))  # Max 10 points from crosses
+        # Box-to-Box (40% - max 14 points)
+        box_score = (
+            (stats.get('goals_scored', 0) * 8) +         # 8 points per goal
+            (stats.get('tackles_successful', 0) * 2) +   # 2 points per tackle
+            (stats.get('interceptions', 0) * 2) +        # 2 points per interception
+            (stats.get('defensive_blocks', 0) * 1.5)     # 1.5 points per block
         )
-        score += min(25, possession_score)
+        score += min(14, box_score)
+        
+        # Ball Control (20% - max 7 points)
+        control_score = (
+            (stats.get('dribbles_completed', 0) * 2) +   # 2 points per dribble
+            (min(stats.get('crosses_successful', 0) * 2, 6)) # Up to 6 points for crosses
+        )
+        score += min(7, control_score)
+        
+    elif position == 'defender':
+        # Defensive Actions (70% - max 24.5 points)
+        defense_score = (
+            (stats.get('tackles_successful', 0) * 3) +   # 3 points per tackle
+            (stats.get('clearances', 0) * 2) +           # 2 points per clearance
+            (stats.get('interceptions', 0) * 2.5) +      # 2.5 points per interception
+            (stats.get('defensive_blocks', 0) * 2.5)     # 2.5 points per block
+        )
+        # Clean sheet bonus
+        if stats.get('goals_conceded', 0) == 0:
+            defense_score += 10                          # 10 points for clean sheet
+        elif stats.get('goals_conceded', 0) == 1:
+            defense_score += 5                           # 5 points for one goal conceded
+        score += min(24.5, defense_score)
+        
+        # Build-up Play (30% - max 10.5 points)
+        if stats.get('passes_total', 0) > 0:
+            pass_accuracy = (stats.get('passes_successful', 0) / stats.get('passes_total', 1)) * 100
+            buildup_score = (
+                (pass_accuracy * 0.06) +                 # Up to 6 points for passing
+                (stats.get('long_passes_successful', 0) * 0.8) + # 0.8 points per long pass
+                (stats.get('goals_scored', 0) * 5)       # 5 bonus points per goal
+            )
+            score += min(10.5, buildup_score)
     
-    # 4. Negative Actions (directly subtract points)
-    negative_score = (
-        (stats.get('yellow_cards', 0) * -5) +      # -5 points per yellow
-        (stats.get('red_cards', 0) * -15) +        # -15 points per red
-        (stats.get('loss_of_possession', 0) * -1) + # -1 point per loss of possession
-        (stats.get('fouls_committed', 0) * -2)      # -2 points per foul
+    # Position-specific negative actions
+    negative_score = 0
+    if position == 'defender':
+        negative_score = (
+            (stats.get('loss_of_possession', 0) * -2) +  # More punishing for defenders
+            (stats.get('fouls_committed', 0) * -3)       # More punishing for defenders
+        )
+    elif position == 'forward':
+        negative_score = (
+            (stats.get('loss_of_possession', 0) * -0.5) + # Less punishing for forwards
+            (stats.get('fouls_committed', 0) * -1)        # Less punishing for forwards
+        )
+    else:  # midfielder and others
+        negative_score = (
+            (stats.get('loss_of_possession', 0) * -1) +
+            (stats.get('fouls_committed', 0) * -2)
+        )
+    
+    # Common negative actions
+    negative_score += (
+        (stats.get('yellow_cards', 0) * -5) +
+        (stats.get('red_cards', 0) * -15)
     )
-    
-    # Additional goalkeeper penalties
-    if is_goalkeeper:
-        negative_score += (
-            (stats.get('goals_conceded', 0) * -3) +     # -3 points per goal conceded
-            (stats.get('penalties_faced', 0) * -1)      # -1 point per penalty faced
-        )
     
     score += negative_score
     
@@ -224,17 +275,18 @@ def update_player_running_stats(conn, player_stats):
         form_rating = (sum(recent_scores[:5]) / len(recent_scores[:5])) if len(recent_scores) >= 5 else overall_importance
         trend = calculate_trend(recent_scores)
 
-        # Insert new record
+        # Insert new record with position
         cursor.execute("""
             INSERT INTO player_running_stats (
-                player_id, player_name, team_id, start_time, match_id,
+                player_id, player_name, team_id, position, start_time, match_id,
                 match_importance_score, overall_importance_score,
                 form_rating, matches_counted, form_trend
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             player_stats['player_id'],
             player_stats['player_name'],
             player_stats['team_id'],
+            player_stats.get('position', 'unknown'),  # Add position from player_stats
             player_stats['start_time'],
             player_stats['match_id'],
             match_importance,
@@ -275,16 +327,32 @@ def process_match_stats(conn, fixture_id, home_team_id, away_team_id, start_time
         raise ValueError(f"Failed to process any players for match_id: {fixture_id}")
     
 
-    # Get missing key players for both teams using passed parameters
-    home_missing = get_missing_key_players(conn, fixture_id, home_team_id, start_time)
-    away_missing = get_missing_key_players(conn, fixture_id, away_team_id, start_time)
-    
     # Get key players info
     home_count, home_key_players = get_key_players_count(conn, home_team_id, start_time)
     away_count, away_key_players = get_key_players_count(conn, away_team_id, start_time)
 
-    home_team_strength = calculate_squad_strength(home_key_players, home_missing)
-    away_team_strength = calculate_squad_strength(away_key_players, away_missing)
+    # Get missing key players for both teams using passed parameters
+    home_missing = get_missing_key_players(conn, fixture_id, home_team_id, start_time)
+    away_missing = get_missing_key_players(conn, fixture_id, away_team_id, start_time)
+    
+    
+
+    # Get strengths as dictionaries
+    home_strengths = calculate_squad_strength(home_key_players, home_missing)
+    away_strengths = calculate_squad_strength(away_key_players, away_missing)
+    
+    # Extract values from dictionaries
+    home_team_gk_strength = home_strengths['goalkeeper_strength']
+    home_team_defence_strength = home_strengths['defence_strength']
+    home_team_midfield_strength = home_strengths['midfield_strength']
+    home_team_attack_strength = home_strengths['attack_strength']
+    home_team_overall_strength = home_strengths['overall_strength']
+    
+    away_team_gk_strength = away_strengths['goalkeeper_strength']
+    away_team_defence_strength = away_strengths['defence_strength']
+    away_team_midfield_strength = away_strengths['midfield_strength']
+    away_team_attack_strength = away_strengths['attack_strength']
+    away_team_overall_strength = away_strengths['overall_strength']
 
     
     print(f"\nKey players for {home_team_name}:")
@@ -295,7 +363,7 @@ def process_match_stats(conn, fixture_id, home_team_id, away_team_id, start_time
     for player in home_missing:
         print(f"  - {player['player_name']}: Importance={player['importance_score']}, Form={player['form_rating']}, Average Score={player['average_score']}")
 
-    print("Home Team Strength: ", home_team_strength)
+    print("Home Team Strength: ", home_team_overall_strength)
     
     print(f"\nKey players for {away_team_name}:")
     for player in away_key_players:
@@ -305,16 +373,26 @@ def process_match_stats(conn, fixture_id, home_team_id, away_team_id, start_time
     for player in away_missing:
         print(f"  - {player['player_name']}: Importance={player['importance_score']}, Form={player['form_rating']}, Average Score={player['average_score']}")
     
-    print("Away Team Strength: ", away_team_strength)
+    print("Away Team Strength: ", away_team_overall_strength)
     
     return {
         'processed_count': processed_count,
         'home_team_id': home_team_id,
         'away_team_id': away_team_id,
+        'home_key_players': home_key_players,
+        'away_key_players': away_key_players,
         'home_key_players_missing': home_missing,
         'away_key_players_missing': away_missing,
-        'home_squad_strength': home_team_strength,
-        'away_squad_strength': away_team_strength
+        'home_team_gk_strength': home_team_gk_strength,
+        'home_team_defence_strength': home_team_defence_strength,
+        'home_team_midfield_strength': home_team_midfield_strength,
+        'home_team_attack_strength': home_team_attack_strength,
+        'home_team_overall_strength': home_team_overall_strength,
+        'away_team_gk_strength': away_team_gk_strength,
+        'away_team_defence_strength': away_team_defence_strength,
+        'away_team_midfield_strength': away_team_midfield_strength,
+        'away_team_attack_strength': away_team_attack_strength,
+        'away_team_overall_strength': away_team_overall_strength,
     }
 
 #Helper functions
@@ -328,6 +406,7 @@ def get_missing_key_players(conn, match_id, team_id, start_time):
             SELECT 
                 prs.player_id,
                 prs.player_name,
+                prs.position,
                 prs.overall_importance_score,
                 prs.form_rating,
                 (prs.overall_importance_score * 0.4 + prs.form_rating * 0.6) as average_score,
@@ -345,6 +424,7 @@ def get_missing_key_players(conn, match_id, team_id, start_time):
         SELECT 
             player_id,
             player_name,
+            position,
             overall_importance_score,
             form_rating,
             average_score
@@ -363,9 +443,10 @@ def get_missing_key_players(conn, match_id, team_id, start_time):
         {
             'player_id': row[0],
             'player_name': row[1],
-            'importance_score': row[2],
-            'form_rating': row[3],
-            'average_score': row[4]
+            'position': row[2],        # Added position
+            'importance_score': row[3],
+            'form_rating': row[4],
+            'average_score': row[5]
         }
         for row in cursor.fetchall()
     ]
@@ -378,6 +459,7 @@ def get_key_players_count(conn, team_id, start_time):
             SELECT 
                 prs.player_id,
                 prs.player_name,
+                prs.position,
                 prs.overall_importance_score,
                 prs.form_rating,
                 (prs.overall_importance_score * 0.4 + prs.form_rating * 0.6) as average_score,
@@ -394,6 +476,7 @@ def get_key_players_count(conn, team_id, start_time):
         SELECT 
             player_id,
             player_name,
+            position,
             overall_importance_score as importance,
             form_rating as form,
             average_score
@@ -406,9 +489,10 @@ def get_key_players_count(conn, team_id, start_time):
         {
             'player_id': row[0],
             'player_name': row[1],
-            'importance': row[2],
-            'form': row[3],
-            'average_score': row[4]
+            'position': row[2],        # Added position
+            'importance': row[3],
+            'form': row[4],
+            'average_score': row[5]
         }
         for row in cursor.fetchall()
     ]
@@ -480,37 +564,113 @@ def get_match_player_stats(conn, match_id):
         raise
 
 def calculate_squad_strength(all_key_players, missing_players):
-    """
-    Calculate squad strength based on weighted importance of available players
+    """Calculate position-specific squad strengths with debug output"""
+    print("\n=== Squad Strength Calculation Debug ===")
     
-    Args:
-        all_key_players: List of all key players with their scores
-        missing_players: List of missing key players
+    # Debug: Print all key players and their positions
+    print("\nAll Key Players:")
+    for player in all_key_players:
+        print(f"Name: {player.get('player_name', 'Unknown'):<20} "
+              f"Position: {player.get('position', 'unknown'):<10} "
+              f"Score: {player.get('average_score', 0):.2f}")
     
-    Returns:
-        float: Squad strength score between 0 and 1
-    """
-    #TODO: Would be good to identify an average score across all teams and put that instead of None so we have more data.
+    # Debug: Print missing players
+    print("\nMissing Players:")
+    for player in missing_players:
+        print(f"Name: {player.get('player_name', 'Unknown'):<20} "
+              f"Position: {player.get('position', 'unknown'):<10} "
+              f"Score: {player.get('average_score', 0):.2f}")
+    
     if not all_key_players:
-        return None
-        
+        print("\nNo key players found!")
+        return {
+            'goalkeeper_strength': None,
+            'defence_strength': None,
+            'midfield_strength': None,
+            'attack_strength': None,
+            'overall_strength': None
+        }
+    
     # Create a set of missing player IDs for quick lookup
     missing_ids = {p['player_id'] for p in missing_players}
     
-    # Calculate maximum possible strength (weighted by position in ranking)
-    max_strength = 0
-    actual_strength = 0
+    # Initialize position-specific strengths
+    positions = {
+        'goalkeeper': {'max': 0, 'actual': 0, 'weight': 1.0},
+        'defender': {'max': 0, 'actual': 0, 'weight': 0.25},
+        'midfielder': {'max': 0, 'actual': 0, 'weight': 0.33},
+        'forward': {'max': 0, 'actual': 0, 'weight': 0.5},
+        'unknown': {'max': 0, 'actual': 0, 'weight': 0.3}
+    }
     
+    # Calculate strengths by position
+    print("\nPosition Calculations:")
     for i, player in enumerate(all_key_players):
-        # Weight by position (higher ranked players count more)
-        position_weight = 1 / (i + 1)  # 1st = 1.0, 2nd = 0.5, 3rd = 0.33, etc.
-        player_weight = position_weight * player['average_score']
+        position = player.get('position', 'unknown').lower()
+        ranking_weight = 1 / (i + 1)
+        player_weight = ranking_weight * player['average_score']
         
-        max_strength += player_weight
-        
-        # If player is available (not in missing_ids), add to actual strength
-        if player['player_id'] not in missing_ids:
-            actual_strength += player_weight
+        # Add to position totals
+        if position in positions:
+            position_weight = positions[position]['weight']
+            weighted_score = position_weight * player_weight
+            positions[position]['max'] += weighted_score
+            if player['player_id'] not in missing_ids:
+                positions[position]['actual'] += weighted_score
+                print(f"Position: {position:<10} Player: {player['player_name']:<20} "
+                      f"Weight: {weighted_score:.2f}")
     
-    # Return ratio of actual to maximum strength
-    return actual_strength / max_strength if max_strength > 0 else 0.0
+    # Calculate strength ratios including unknown
+    strengths = {
+        'goalkeeper_strength': (
+            positions['goalkeeper']['actual'] / positions['goalkeeper']['max'] 
+            if positions['goalkeeper']['max'] > 0 else 1.0
+        ),
+        'defence_strength': (
+            positions['defender']['actual'] / positions['defender']['max']
+            if positions['defender']['max'] > 0 else 1.0
+        ),
+        'midfield_strength': (
+            positions['midfielder']['actual'] / positions['midfielder']['max']
+            if positions['midfielder']['max'] > 0 else 1.0
+        ),
+        'attack_strength': (
+            positions['forward']['actual'] / positions['forward']['max']
+            if positions['forward']['max'] > 0 else 1.0
+        ),
+        'unknown_strength': (  # Add unknown strength calculation
+            positions['unknown']['actual'] / positions['unknown']['max']
+            if positions['unknown']['max'] > 0 else 1.0
+        )
+    }
+    
+    # Calculate overall strength including unknown positions
+    total_weight = 0
+    weighted_strength = 0
+    position_weights = {
+        'goalkeeper_strength': 1.0,
+        'defence_strength': 0.8,
+        'midfield_strength': 0.6,
+        'attack_strength': 0.7,
+        'unknown_strength': 0.5  # Add weight for unknown positions
+    }
+    
+    for pos, weight in position_weights.items():
+        if strengths[pos] is not None:
+            weighted_strength += strengths[pos] * weight
+            total_weight += weight
+            print(f"Adding {pos}: {strengths[pos]:.3f} * {weight} = {strengths[pos] * weight:.3f}")
+    
+    strengths['overall_strength'] = (
+        weighted_strength / total_weight if total_weight > 0 else None
+    )
+    
+    # Debug: Print final strengths
+    print("\nFinal Strength Values:")
+    for pos, strength in strengths.items():
+        print(f"{pos:<20}: {strength:.3f}")
+    
+    print(f"Overall Strength: {strengths['overall_strength']:.3f}")
+    print("=====================================\n")
+    
+    return strengths

@@ -2,6 +2,7 @@ import sqlite3
 import os
 from datetime import datetime
 import pandas as pd
+import traceback
 
 # Local imports
 from constants import (
@@ -43,6 +44,11 @@ def get_processed_matches(conn):
 def create_training_data(db_path, output_dir, debug_mode=False):
     """Create both basic and advanced training datasets from match database"""
     print(f"\n=== Starting training data creation at {datetime.now()} ===")
+    
+    # Add log file creation at the start
+    log_file = os.path.join(output_dir, 'processing_log.txt')
+    processed_matches = {}  # Track matches and their calculated strengths
+    
     try:
         # Ensure database exists
         if not os.path.exists(db_path):
@@ -60,9 +66,9 @@ def create_training_data(db_path, output_dir, debug_mode=False):
         initialize_database(conn)
         initialize_player_database(conn)
         
-        # # Get all processed matches once
-        # processed_match_ids, processed_team_times = get_processed_matches(conn)
-        # print(f"Found {len(processed_match_ids)} previously processed matches")
+        # Get all processed matches once
+        processed_match_ids, processed_team_times = get_processed_matches(conn)
+        print(f"Found {len(processed_match_ids)} previously processed matches")
         
         # Get completed matches
         print("\nFetching completed matches...")
@@ -77,215 +83,277 @@ def create_training_data(db_path, output_dir, debug_mode=False):
         processed_count = 0
         skipped_count = 0
         
-        for idx, match in matches_df.iterrows():
-            try:
-                match_id = match['fixture_id']
-                
-                # # Fast lookup using sets
-                # if (match_id in processed_match_ids or 
-                #     (match['home_team'], match['start_time']) in processed_team_times or 
-                #     (match['away_team'], match['start_time']) in processed_team_times):
-                #     skipped_count += 1
-                #     continue
-                
-                # Process match stats
-                add_team_stats(conn, match)
-                
-                # Calculate form using pre-match ELO ratings
-                average_home_stats, average_away_stats = calculate_form(conn, match)
-                competition_id = match['competition_id']
-                home_formation, away_formation = get_match_formations(match_id)
-                print(f"Home formation: {home_formation}, Away formation: {away_formation}")
-
-                # Now update ELO ratings based on match outcome
-                match_importance = calculate_match_importance(conn, match)
-                home_elo_rating, away_elo_rating = calculate_elo_rating(conn, match, match_importance)
-                
-                add_points_for_team(conn, match)
-
-                # H2H Stats
-                h2h_stats = getH2h_stats(conn, match['home_team_id'], match['away_team_id'], match['start_time'])
-                
-                # Skip this match if no h2h stats available
-                if h2h_stats is None:
-                    print(f"Skipping match {match['fixture_id']}: No head-to-head history")
-                    continue
-
+        with open(log_file, 'w') as f:
+            for idx, match in matches_df.iterrows():
                 try:
-                    result = process_match_stats(conn, match['fixture_id'], match['home_team_id'], 
-                                               match['away_team_id'], match['start_time'], 
-                                               match['home_team'], match['away_team'])
-                    print(f"\nProcessed {result['processed_count']} players for match {match['fixture_id']}")
-                    print(f"Home Team vs Away Team: {match['home_team']} vs {match['away_team']}")
+                    match_id = match['fixture_id']
+                    if match_id in processed_match_ids:
+                        print(f"Skipping match {match_id} as it has already been processed")
+                        skipped_count += 1
+                        continue
+                    
+                    f.write(f"\n=== Processing match {match_id} ===\n")
+                    f.write(f"Home: {match['home_team']} vs Away: {match['away_team']}\n")
+                    
+                    # Process match stats
+                    print("Adding team stats...")
+                    add_team_stats(conn, match)
+                    
+                    # Calculate form using pre-match ELO ratings
+                    print("Calculating form...")
+                    average_home_stats, average_away_stats = calculate_form(conn, match)
+                    print(f"Home advanced stats: {average_home_stats.get('has_advanced_stats')}")
+                    print(f"Away advanced stats: {average_away_stats.get('has_advanced_stats')}")
+                    
+                    competition_id = match['competition_id']
+                    home_formation, away_formation = get_match_formations(match_id)
+                    print(f"Formations - Home: {home_formation}, Away: {away_formation}")
+
+                    # Now update ELO ratings based on match outcome
+                    print("Calculating match importance and ELO...")
+                    match_importance = calculate_match_importance(conn, match)
+                    home_elo_rating, away_elo_rating = calculate_elo_rating(conn, match, match_importance)
+                    print(f"ELO ratings - Home: {home_elo_rating}, Away: {away_elo_rating}")
+                    
+                    add_points_for_team(conn, match)
+
+                    # H2H Stats
+                    print("Getting H2H stats...")
+                    h2h_stats = getH2h_stats(conn, match['home_team_id'], match['away_team_id'], match['start_time'])
+                    if h2h_stats is None:
+                        print("❌ No H2H stats available - skipping match")
+                        continue
+                    print("✓ H2H stats found")
+
+                    try:
+                        print("Processing player stats...")
+                        result = process_match_stats(conn, match['fixture_id'], match['home_team_id'], 
+                                                   match['away_team_id'], match['start_time'], 
+                                                   match['home_team'], match['away_team'])
+                        print(f"✓ Processed {result['processed_count']} players")
+                        print("Squad strengths:")
+                        print(f"Home - GK: {result.get('home_team_gk_strength')}, DEF: {result.get('home_team_defence_strength')}, "
+                              f"MID: {result.get('home_team_midfield_strength')}, ATT: {result.get('home_team_attack_strength')}")
+                        print(f"Away - GK: {result.get('away_team_gk_strength')}, DEF: {result.get('away_team_defence_strength')}, "
+                              f"MID: {result.get('away_team_midfield_strength')}, ATT: {result.get('away_team_attack_strength')}")
                                     
-                except ValueError as error:
-                    print(f"Skipping player stats for match {match['fixture_id']}: {str(error)}")
-                    continue  # Skip this match if player stats processing fails
-                except Exception as error:
-                    print(f"Error processing player stats for match {match['fixture_id']}: {str(error)}")
+                    except ValueError as error:
+                        print(f"❌ Player stats error: {str(error)}")
+                        continue
+                    except Exception as error:
+                        print(f"❌ Unexpected error in player stats: {str(error)}")
+                        if debug_mode:
+                            raise
+                        continue
+
+                    print("\nChecking conditions for dataset inclusion:")
+                    
+                    # Create basic_row for all cases
+                    basic_row = {
+                        'fixture_id': match['fixture_id'],
+                        'start_time': match['start_time'],
+                        'home_team': match['home_team'],
+                        'away_team': match['away_team'],
+                        'competition_id': competition_id,
+                        'match_importance': match_importance,
+                        'average_home_goals_scored': average_home_stats['average_goals_scored'],
+                        'average_home_goals_conceded': average_home_stats['average_goals_conceded'],
+                        'average_home_win_rate': average_home_stats['average_win_rate'],
+                        'average_home_draw_rate': average_home_stats['average_draw_rate'],
+                        'average_home_clean_sheets': average_home_stats['average_clean_sheets'],
+                        'home_fatigue': average_home_stats.get('fatigue'),
+                        'home_momentum': average_home_stats.get('momentum'),
+                        'average_away_goals_scored': average_away_stats['average_goals_scored'],
+                        'average_away_goals_conceded': average_away_stats['average_goals_conceded'],
+                        'average_away_win_rate': average_away_stats['average_win_rate'],
+                        'average_away_draw_rate': average_away_stats['average_draw_rate'],
+                        'average_away_clean_sheets': average_away_stats['average_clean_sheets'],
+                        'away_fatigue': average_away_stats.get('fatigue'),
+                        'away_momentum': average_away_stats.get('momentum'),
+                        'h2h_avg_draw_rate': h2h_stats[match['home_team_id']]['avg_draw_rate'],
+                        'home_h2h_avg_goals': h2h_stats[match['home_team_id']]['avg_goals'],
+                        'home_h2h_avg_clean_sheets': h2h_stats[match['home_team_id']]['avg_clean_sheets'],
+                        'home_h2h_avg_points': h2h_stats[match['home_team_id']]['avg_points'],
+                        'away_h2h_avg_goals': h2h_stats[match['away_team_id']]['avg_goals'],
+                        'away_h2h_avg_clean_sheets': h2h_stats[match['away_team_id']]['avg_clean_sheets'],
+                        'away_h2h_avg_points': h2h_stats[match['away_team_id']]['avg_points'],
+                    }
+
+                    if home_elo_rating is not None and away_elo_rating is not None:
+                        basic_row['home_elo_rating'] = home_elo_rating
+                        basic_row['away_elo_rating'] = away_elo_rating
+
+
+                    if (average_home_stats.get('has_advanced_stats') == 0 and average_away_stats.get('has_advanced_stats') == 0) and result['home_team_overall_strength'] is not None and result['away_team_overall_strength'] is not None:
+                        basic_row['home_team_gk_strength'] = result['home_team_gk_strength']
+                        basic_row['home_team_defence_strength'] = result['home_team_defence_strength']
+                        basic_row['home_team_midfield_strength'] = result['home_team_midfield_strength']
+                        basic_row['home_team_attack_strength'] = result['home_team_attack_strength']
+                        basic_row['away_team_gk_strength'] = result['away_team_gk_strength']
+                        basic_row['away_team_defence_strength'] = result['away_team_defence_strength']
+                        basic_row['away_team_midfield_strength'] = result['away_team_midfield_strength']
+                        basic_row['away_team_attack_strength'] = result['away_team_attack_strength']
+                        basic_row['home_team_overall_strength'] = result['home_team_overall_strength']
+                        basic_row['away_team_overall_strength'] = result['away_team_overall_strength']
+                        basic_row['home_goals'] = match['home_goals']
+                        basic_row['away_goals'] = match['away_goals']
+                        basic_data.append(basic_row)
+
+
+                    if average_home_stats.get('has_advanced_stats') == 1 and average_away_stats.get('has_advanced_stats') == 1 and result['home_team_overall_strength'] is not None and result['away_team_overall_strength'] is not None and home_formation is not None and away_formation is not None:
+                        advanced_row_with_formation = basic_row.copy()
+                        advanced_row_with_formation.update({
+                            'home_pass_effectiveness': round(average_home_stats['pass_effectiveness'], 2),
+                            'home_shot_accuracy': round(average_home_stats['shot_accuracy'], 2),
+                            'home_conversion_rate': round(average_home_stats['conversion_rate'], 2),
+                            'home_defensive_success': round(average_home_stats['defensive_success'], 2),
+                            'away_pass_effectiveness': round(average_away_stats['pass_effectiveness'], 2),
+                            'away_shot_accuracy': round(average_away_stats['shot_accuracy'], 2),
+                            'away_conversion_rate': round(average_away_stats['conversion_rate'], 2),
+                            'away_defensive_success': round(average_away_stats['defensive_success'], 2),
+                            'home_team_gk_strength': result['home_team_gk_strength'],
+                            'home_team_defence_strength': result['home_team_defence_strength'],
+                            'home_team_midfield_strength': result['home_team_midfield_strength'],
+                            'home_team_attack_strength': result['home_team_attack_strength'],
+                            'away_team_gk_strength': result['away_team_gk_strength'],
+                            'away_team_defence_strength': result['away_team_defence_strength'],
+                            'away_team_midfield_strength': result['away_team_midfield_strength'],
+                            'away_team_attack_strength': result['away_team_attack_strength'],
+                            'home_team_overall_strength': result['home_team_overall_strength'],
+                            'away_team_overall_strength': result['away_team_overall_strength'],
+                            'home_formation': refined_categorize_formation(home_formation),
+                            'away_formation': refined_categorize_formation(away_formation),
+                            'home_goals': match['home_goals'],
+                            'away_goals': match['away_goals'],
+                        })
+                        advanced_data_with_formation.append(advanced_row_with_formation)
+                    
+
+                    # Process advanced stats if available
+                    if average_home_stats.get('has_advanced_stats') == 1 and average_away_stats.get('has_advanced_stats') == 1 and result['home_team_overall_strength'] is not None and result['away_team_overall_strength'] is not None:
+                        advanced_row = basic_row.copy()
+                        advanced_row.update({
+                            'home_pass_effectiveness': round(average_home_stats['pass_effectiveness'], 2),
+                            'home_shot_accuracy': round(average_home_stats['shot_accuracy'], 2),
+                            'home_conversion_rate': round(average_home_stats['conversion_rate'], 2),
+                            'home_defensive_success': round(average_home_stats['defensive_success'], 2),
+                            'away_pass_effectiveness': round(average_away_stats['pass_effectiveness'], 2),
+                            'away_shot_accuracy': round(average_away_stats['shot_accuracy'], 2),
+                            'away_conversion_rate': round(average_away_stats['conversion_rate'], 2),
+                            'away_defensive_success': round(average_away_stats['defensive_success'], 2),
+                            'home_team_gk_strength': result['home_team_gk_strength'],
+                            'home_team_defence_strength': result['home_team_defence_strength'],
+                            'home_team_midfield_strength': result['home_team_midfield_strength'],
+                            'home_team_attack_strength': result['home_team_attack_strength'],
+                            'away_team_gk_strength': result['away_team_gk_strength'],
+                            'away_team_defence_strength': result['away_team_defence_strength'],
+                            'away_team_midfield_strength': result['away_team_midfield_strength'],
+                            'away_team_attack_strength': result['away_team_attack_strength'],
+                            'home_team_overall_strength': result['home_team_overall_strength'],
+                            'away_team_overall_strength': result['away_team_overall_strength'],
+                            'home_goals': match['home_goals'],
+                            'away_goals': match['away_goals'],
+                        })
+                        advanced_data.append(advanced_row)
+
+                    # Log key players and missing players
+                    f.write("\nKey Players Analysis:\n")
+                    f.write("Home Team Key Players:\n")
+                    for player in result['home_key_players']:
+                        f.write(f"- {player['player_name']} ({player['position']}) - "
+                               f"Score: {player.get('average_score', 0):.2f}, "
+                               f"Importance: {player.get('importance', 'N/A')}\n")
+                    
+                    f.write("\nHome Team Missing Players:\n")
+                    for player in result['home_key_players_missing']:
+                        f.write(f"- {player['player_name']} ({player['position']}) - "
+                               f"Score: {player.get('average_score', 0):.2f}, "
+                               f"Importance: {player.get('importance_score', 'N/A')}\n")
+                    
+                    f.write("\nAway Team Key Players:\n")
+                    for player in result['away_key_players']:
+                        f.write(f"- {player['player_name']} ({player['position']}) - "
+                               f"Score: {player.get('average_score', 0):.2f}, "
+                               f"Importance: {player.get('importance', 'N/A')}\n")
+                    
+                    f.write("\nAway Team Missing Players:\n")
+                    for player in result['away_key_players_missing']:
+                        f.write(f"- {player['player_name']} ({player['position']}) - "
+                               f"Score: {player.get('average_score', 0):.2f}, "
+                               f"Importance: {player.get('importance_score', 'N/A')}\n")
+                    
+                    # Then your existing squad strengths logging
+                    f.write(f"\nMatch strengths calculated:\n")
+                    f.write(f"Home squad - GK: {result.get('home_team_gk_strength')}, DEF: {result.get('home_team_defence_strength')}, "
+                           f"MID: {result.get('home_team_midfield_strength')}, ATT: {result.get('home_team_attack_strength')}\n")
+                    
+                    f.write(f"Away squad - GK: {result.get('away_team_gk_strength')}, DEF: {result.get('away_team_defence_strength')}, "
+                           f"MID: {result.get('away_team_midfield_strength')}, ATT: {result.get('away_team_attack_strength')}\n")
+                    
+                    # Log which datasets this match is being added to
+                    f.write("\nDataset additions:\n")
+                    if (average_home_stats.get('has_advanced_stats') == 0 and 
+                        average_away_stats.get('has_advanced_stats') == 0 and 
+                        result['home_team_overall_strength'] is not None and 
+                        result['away_team_overall_strength'] is not None):
+                        f.write("✓ Adding to basic dataset\n")
+                    
+                    if (home_formation is not None and 
+                        away_formation is not None and 
+                        average_home_stats.get('has_advanced_stats') == 1 and 
+                        average_away_stats.get('has_advanced_stats') == 1 and 
+                        result['home_team_overall_strength'] is not None and 
+                        result['away_team_overall_strength'] is not None):
+                        f.write("✓ Adding to advanced with formation dataset\n")
+                    
+                    if (average_home_stats.get('has_advanced_stats') == 1 and 
+                        average_away_stats.get('has_advanced_stats') == 1 and 
+                        result['home_team_overall_strength'] is not None and 
+                        result['away_team_overall_strength'] is not None):
+                        f.write("✓ Adding to advanced dataset\n")
+                    
+                    f.write(f"\nCurrent dataset sizes:\n")
+                    f.write(f"Basic: {len(basic_data)}\n")
+                    f.write(f"Advanced: {len(advanced_data)}\n")
+                    f.write(f"Advanced with formation: {len(advanced_data_with_formation)}\n")
+                    f.write("=== Finished processing match ===\n\n")
+                    
+                    # If we successfully process the match and add it to any dataset, increment the counter
+                    if (result['home_team_overall_strength'] is not None and 
+                        result['away_team_overall_strength'] is not None):
+                        processed_count += 1  # Increment counter here
+                    
+                except Exception as e:
+                    f.write(f"\nError processing match {match['fixture_id']}: {str(e)}\n")
                     if debug_mode:
                         raise
                     continue
+                    
+            # Create DataFrames once
+            basic_df = pd.DataFrame(basic_data)
+            advanced_df = pd.DataFrame(advanced_data)
+            advanced_with_formation_df = pd.DataFrame(advanced_data_with_formation)
 
-                # Create basic row data only if we have h2h stats
-                basic_row = {
-                    'fixture_id': match['fixture_id'],
-                    'start_time': match['start_time'],
-                    'home_team': match['home_team'],
-                    'away_team': match['away_team'],
-                    'competition_id': competition_id,
-                    'match_importance': match_importance,
-                    'average_home_goals_scored': average_home_stats['average_goals_scored'],
-                    'average_home_goals_conceded': average_home_stats['average_goals_conceded'],
-                    'average_home_win_rate': average_home_stats['average_win_rate'],
-                    'average_home_draw_rate': average_home_stats['average_draw_rate'],
-                    'average_home_clean_sheets': average_home_stats['average_clean_sheets'],
-                    'home_fatigue': average_home_stats.get('fatigue'),
-                    'home_momentum': average_home_stats.get('momentum'),
-                    'average_away_goals_scored': average_away_stats['average_goals_scored'],
-                    'average_away_goals_conceded': average_away_stats['average_goals_conceded'],
-                    'average_away_win_rate': average_away_stats['average_win_rate'],
-                    'average_away_draw_rate': average_away_stats['average_draw_rate'],
-                    'average_away_clean_sheets': average_away_stats['average_clean_sheets'],
-                    'away_fatigue': average_away_stats.get('fatigue'),
-                    'away_momentum': average_away_stats.get('momentum'),
-                    'h2h_avg_draw_rate': h2h_stats[match['home_team_id']]['avg_draw_rate'],
-                    'home_h2h_avg_goals': h2h_stats[match['home_team_id']]['avg_goals'],
-                    'home_h2h_avg_clean_sheets': h2h_stats[match['home_team_id']]['avg_clean_sheets'],
-                    'home_h2h_avg_points': h2h_stats[match['home_team_id']]['avg_points'],
-                    'away_h2h_avg_goals': h2h_stats[match['away_team_id']]['avg_goals'],
-                    'away_h2h_avg_clean_sheets': h2h_stats[match['away_team_id']]['avg_clean_sheets'],
-                    'away_h2h_avg_points': h2h_stats[match['away_team_id']]['avg_points'],
-                }
-
-                # # Add referee_id if it exists and is not null
-                # if 'referee_id' in match and pd.notna(match['referee_id']):
-                #     basic_row['referee_id'] = match['referee_id']
-                # else:
-                #     print(f"No referee data for match {match['fixture_id']}")
-
-                if home_elo_rating is not None and away_elo_rating is not None:
-                    basic_row['home_elo_rating'] = home_elo_rating
-                    basic_row['away_elo_rating'] = away_elo_rating
-
-                if (average_home_stats.get('has_advanced_stats') == 0 and average_away_stats.get('has_advanced_stats') == 0) and result['home_squad_strength'] is not None and result['away_squad_strength'] is not None:
-                    basic_row['home_squad_strength'] = result['home_squad_strength']
-                    basic_row['away_squad_strength'] = result['away_squad_strength']
-                    basic_row['home_goals'] = match['home_goals']
-                    basic_row['away_goals'] = match['away_goals']
-                    basic_data.append(basic_row)
-
-                if home_formation is not None and away_formation is not None and average_home_stats.get('has_advanced_stats') == 1 and average_away_stats.get('has_advanced_stats') == 1 and result['home_squad_strength'] is not None and result['away_squad_strength'] is not None:
-                    home_formation_category = refined_categorize_formation(home_formation)
-                    away_formation_category = refined_categorize_formation(away_formation)
-                    advanced_row_with_formation = basic_row.copy()
-                    advanced_row_with_formation.update({
-                        'home_pass_effectiveness': round(average_home_stats['pass_effectiveness'], 2),
-                        'home_shot_accuracy': round(average_home_stats['shot_accuracy'], 2),
-                        'home_conversion_rate': round(average_home_stats['conversion_rate'], 2),
-                        'home_defensive_success': round(average_home_stats['defensive_success'], 2),
-                        'away_pass_effectiveness': round(average_away_stats['pass_effectiveness'], 2),
-                        'away_shot_accuracy': round(average_away_stats['shot_accuracy'], 2),
-                        'away_conversion_rate': round(average_away_stats['conversion_rate'], 2),
-                        'away_defensive_success': round(average_away_stats['defensive_success'], 2),
-                        'home_squad_strength': round(result['home_squad_strength'], 2),
-                        'away_squad_strength': round(result['away_squad_strength'], 2),
-                        'home_formation': home_formation_category,
-                        'away_formation': away_formation_category,
-                        'home_goals': match['home_goals'],
-                        'away_goals': match['away_goals'],
-                    })
-                    advanced_data_with_formation.append(advanced_row_with_formation)
-                
-                # Process advanced stats if available
-                if average_home_stats.get('has_advanced_stats') == 1 and average_away_stats.get('has_advanced_stats') == 1 and result['home_squad_strength'] is not None and result['away_squad_strength'] is not None:
-
-
-                    advanced_row = basic_row.copy()
-                    advanced_row.update({ #TODO: Check if rounding here increases time complexity
-                        'home_pass_effectiveness': round(average_home_stats['pass_effectiveness'], 2),
-                        'home_shot_accuracy': round(average_home_stats['shot_accuracy'], 2),
-                        'home_conversion_rate': round(average_home_stats['conversion_rate'], 2),
-                        'home_defensive_success': round(average_home_stats['defensive_success'], 2),
-                        'away_pass_effectiveness': round(average_away_stats['pass_effectiveness'], 2),
-                        'away_shot_accuracy': round(average_away_stats['shot_accuracy'], 2),
-                        'away_conversion_rate': round(average_away_stats['conversion_rate'], 2),
-                        'away_defensive_success': round(average_away_stats['defensive_success'], 2),
-                        'home_squad_strength': round(result['home_squad_strength'], 2),
-                        'away_squad_strength': round(result['away_squad_strength'], 2),
-                        'home_goals': match['home_goals'],
-                        'away_goals': match['away_goals'],
-                    })
-                    advanced_data.append(advanced_row)
-
-                conn.commit()
-                processed_count += 1
-                if processed_count % 100 == 0:  # Print progress less frequently
-                    print(f"Matches processed: {processed_count} (Total: {idx + 1} of {total_matches}, Skipped: {skipped_count})")
-
-            except Exception as e:
-                print(f"\nError processing match {match['fixture_id']}: {str(e)}")
-                if debug_mode:
-                    raise
-                continue
-        
-        # Save datasets
-        basic_df = pd.DataFrame(basic_data)
-        advanced_df = pd.DataFrame(advanced_data)
-        advanced_with_formation_df = pd.DataFrame(advanced_data_with_formation)
-        
-        print(f"\nDataFrame sizes before saving:")
-        print(f"Basic data: {len(basic_df)} rows, {len(basic_df.columns)} columns")
-        print(f"Advanced data: {len(advanced_df)} rows, {len(advanced_df.columns)} columns")
-        print(f"Advanced with formation: {len(advanced_with_formation_df)} rows, {len(advanced_with_formation_df.columns)} columns")
-        
-        # Save to files
-        basic_output = os.path.join(output_dir, f'training_data_basic.csv')
-        advanced_output = os.path.join(output_dir, f'training_data_advanced.csv')
-        advanced_output_with_formation = os.path.join(output_dir, f'training_data_advanced_with_formation.csv')
-        
-        new_basic_matches = len(basic_df)
-        new_advanced_matches = len(advanced_df)
-        new_advanced_with_formation_matches = len(advanced_with_formation_df)
-        
-        # Append to existing files if they exist
-        if os.path.exists(basic_output) and new_basic_matches > 0:
-            existing_basic_df = pd.read_csv(basic_output)
-            basic_df = pd.concat([existing_basic_df, basic_df], ignore_index=True)
-            print(f"\nAppended {new_basic_matches} new matches to existing basic dataset")
+            basic_output = os.path.join(output_dir, 'training_data_basic.csv')
+            advanced_output = os.path.join(output_dir, 'training_data_advanced.csv')
+            advanced_output_with_formation = os.path.join(output_dir, 'training_data_advanced_with_formation.csv')
             
-        if os.path.exists(advanced_output) and new_advanced_matches > 0:
-            existing_advanced_df = pd.read_csv(advanced_output)
-            advanced_df = pd.concat([existing_advanced_df, advanced_df], ignore_index=True)
-            print(f"Appended {new_advanced_matches} new matches to existing advanced dataset")
+            # Log final stats
+            f.write("\n=== Final Statistics ===\n")
+            f.write(f"Total matches processed: {processed_count}\n")
+            f.write(f"Matches skipped: {skipped_count}\n")
+
+            # Append new matches to csv files
+            append_to_dataset(basic_df, basic_output)
+            append_to_dataset(advanced_df, advanced_output)
+            append_to_dataset(advanced_with_formation_df, advanced_output_with_formation)
+
+            print(f"\nProcessing summary:")
+            print(f"Total matches found: {total_matches}")
+            print(f"Matches processed: {processed_count}")
+            print(f"Matches skipped: {skipped_count}")
             
-        if os.path.exists(advanced_output_with_formation) and new_advanced_with_formation_matches > 0:
-            existing_advanced_with_formation_df = pd.read_csv(advanced_output_with_formation)
-            advanced_with_formation_df = pd.concat([existing_advanced_with_formation_df, advanced_with_formation_df], ignore_index=True)
-            print(f"Appended {new_advanced_with_formation_matches} new matches to existing advanced dataset with formation")
-            
-        # Save the updated dataframes
-        if len(basic_df) > 0:
-            basic_df.to_csv(basic_output, index=False)
-        if len(advanced_df) > 0:
-            advanced_df.to_csv(advanced_output, index=False)
-            
-        if len(advanced_with_formation_df) > 0:
-            advanced_with_formation_df.to_csv(advanced_output_with_formation, index=False)
-        
-        print(f"\nProcessing summary:")
-        print(f"Total matches found: {total_matches}")
-        print(f"New matches processed: {processed_count}")
-        print(f"Matches skipped (already processed): {skipped_count}")
-        
-        if new_basic_matches == 0 and new_advanced_matches == 0:
-            print("\nNo new matches to add to the datasets")
-        else:
-            print(f"\nTotal matches in basic dataset: {len(basic_df)}")
-            print(f"Total matches in advanced dataset: {len(advanced_df)}")
-            print(f"Total matches in advanced dataset with formation: {len(advanced_with_formation_df)}")
-        
-        return basic_df, advanced_df, advanced_with_formation_df
+            return basic_df, advanced_df, advanced_with_formation_df
         
     except Exception as e:
         print(f"\nFatal error: {str(e)}")
@@ -294,6 +362,64 @@ def create_training_data(db_path, output_dir, debug_mode=False):
         if 'conn' in locals():
             conn.close()
             print("\nDatabase connection closed")
+
+#**********************************************************************************************************************
+#HELPER FUNCTIONS
+#**********************************************************************************************************************
+
+def append_to_dataset(new_df, output_path, id_column='fixture_id'):
+    """
+    Append new data to existing CSV, handling duplicates
+    Args:
+        new_df: DataFrame containing new records
+        output_path: Path to output CSV file
+        id_column: Column to use for duplicate checking
+    """
+    try:
+        if new_df.empty:
+            print(f"No new data to append to {output_path}")
+            return
+            
+        if os.path.exists(output_path):
+            try:
+                # Load existing data
+                existing_df = pd.read_csv(output_path)
+                print(f"Loaded existing dataset from {output_path} with {len(existing_df)} records")
+            except Exception as e:
+                print(f"Error reading existing CSV {output_path}: {str(e)}")
+                raise
+                
+            try:
+                # Combine with new data
+                combined_df = pd.concat([existing_df, new_df], ignore_index=True)
+                print(f"Combined with {len(new_df)} new records")
+                
+                # Remove duplicates
+                original_len = len(combined_df)
+                combined_df.drop_duplicates(subset=[id_column], keep='last', inplace=True)
+                duplicates_removed = original_len - len(combined_df)
+                print(f"Removed {duplicates_removed} duplicate records")
+                
+                # Save updated dataset
+                combined_df.to_csv(output_path, index=False)
+                print(f"Saved updated dataset with {len(combined_df)} total records")
+                
+            except Exception as e:
+                print(f"Error processing and saving combined dataset: {str(e)}")
+                raise
+        else:
+            try:
+                # Create new file
+                new_df.to_csv(output_path, index=False)
+                print(f"Created new dataset at {output_path} with {len(new_df)} records")
+            except Exception as e:
+                print(f"Error creating new CSV {output_path}: {str(e)}")
+                raise
+                
+    except Exception as e:
+        print(f"Fatal error in append_to_dataset for {output_path}: {str(e)}")
+        print(traceback.format_exc())
+        raise
 
 if __name__ == "__main__":
     try:
