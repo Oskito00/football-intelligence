@@ -4,6 +4,7 @@ from datetime import datetime
 from numpy import log
 import pandas as pd
 import traceback
+import json
 
 import requests
 
@@ -19,6 +20,9 @@ from team_processing import (
     initialize_database, 
     getH2h_stats
 )
+
+from dotenv import load_dotenv
+load_dotenv()
 
 def get_upcoming_matches_query():
     """Get matches within next 10 days that haven't been played yet"""
@@ -43,7 +47,7 @@ def get_upcoming_matches_query():
     FROM matches m
     WHERE m.match_status != 'ended'
     AND datetime(m.start_time) BETWEEN datetime('now') 
-    AND datetime('now', '+3 days')
+    AND datetime('now', '+1 days')
     ORDER BY m.start_time
     """
 
@@ -95,13 +99,13 @@ def get_match_lineups(match_id):
         for competitor in data.get('lineups', {}).get('competitors', []):
             players_list = []
             for player in competitor.get('players', []):
-                if player.get('starter', False):  # Only include starting players
-                    players_list.append({
-                        'player_id': player['id'],
-                        'name': player['name'],
-                        'position': player['type'],
-                        'jersey_number': player['jersey_number']
-                    })
+                players_list.append({
+                    'player_id': player['id'],
+                    'player_name': player['name'],
+                    'position': player['type'],
+                    'jersey_number': player.get('jersey_number'),
+                    'starter': player.get('starter', False)  # Keep track of who's starting
+                })
             
             # Determine if this is home or away team based on qualifier
             if competitor.get('qualifier') == 'home':
@@ -325,9 +329,9 @@ def get_last_lineup(conn, team_id, reference_time):
             print(f"No previous matches found for team {team_id}")
             return []
             
-        # Get player IDs and positions from the last match
+        # First try to get from player_running_stats
         cursor.execute("""
-            SELECT player_id,player_name, position
+            SELECT player_id, player_name, position
             FROM player_running_stats 
             WHERE match_id = ? 
             AND team_id = ?
@@ -342,6 +346,32 @@ def get_last_lineup(conn, team_id, reference_time):
             for row in cursor.fetchall()
         ]
         
+        # If no running stats, try the lineups table
+        if not lineup:
+            print(f"No running stats found for team {team_id}, checking team_lineups table...")
+            cursor.execute("""
+                SELECT 
+                    CASE 
+                        WHEN home_team_id = ? THEN home_players
+                        ELSE away_players 
+                    END as players
+                FROM team_lineups 
+                WHERE match_id = ? 
+                AND (home_team_id = ? OR away_team_id = ?)
+            """, (team_id, last_match[0], team_id, team_id))
+            
+            result = cursor.fetchone()
+            if result and result[0]:  # Check if we got a result and it's not None
+                players_json = json.loads(result[0])
+                lineup = [
+                    {
+                        'player_id': player['id'],
+                        'player_name': player['name'],
+                        'position': player['type']
+                    }
+                    for player in players_json
+                ]
+            
         print(f"Found {len(lineup)} players in last lineup for team {team_id}")
         
         return lineup
@@ -443,15 +473,36 @@ def create_test_data(db_path, output_dir):
                 log(f"\nAway team key players: {away_key_count}")
                 for player in away_key_players:
                     log(f"- {player['player_name']} ({player['position']}) - Importance: {player['importance']}, Form: {player['form']}")
+
+                 # Only get lineups for matches with advanced stats
+                if not (average_home_stats.get('has_advanced_stats') and average_away_stats.get('has_advanced_stats')):
+                    log("→ Skipping lineup check - not an advanced stats match")
+                    continue
                 
-                # Get expected lineups for the match
-                #TODO: Should schedule this to run 45 minutes before the match starts, so that we get the most accurate lineup, before that we should use the last lineup...
-                # home_lineup, away_lineup = get_match_lineups(match['fixture_id'])
-                home_lineup = get_last_lineup(conn, match['home_team_id'], match['start_time'])
-                print("Hello")
-                print(f"Home lineup: {home_lineup}")
-                away_lineup = get_last_lineup(conn, match['away_team_id'], match['start_time'])
-                print(f"Away lineup: {away_lineup}")
+                # Check if match is less than 45 mins away and lineups haven't been saved yet
+                match_time = pd.to_datetime(match['start_time'])
+                time_until_match = match_time - pd.Timestamp.now(tz='UTC')
+                lineups_path = f"sportradar/data/future_lineups/{match['fixture_id']}.json"
+                
+                if time_until_match.total_seconds() < 2700 and not os.path.exists(lineups_path):  # 2700 seconds = 45 minutes
+                    home_lineup, away_lineup = get_match_lineups(match['fixture_id'])
+                    
+                    # Save lineups to file
+                    with open(lineups_path, 'w') as f:
+                        json.dump({
+                            'home_lineup': home_lineup,
+                            'away_lineup': away_lineup
+                        }, f)
+                else:
+                    # Load previously saved lineups if they exist
+                    if os.path.exists(lineups_path):
+                        with open(lineups_path, 'r') as f:
+                            lineups = json.load(f)
+                            home_lineup = lineups['home_lineup']
+                            away_lineup = lineups['away_lineup']
+                    else:
+                        # Use last known lineup or default lineup logic here
+                        home_lineup, away_lineup = get_last_lineup(conn, match['home_team_id'], match['start_time']), get_last_lineup(conn, match['away_team_id'], match['start_time'])
 
                 log("\nLineup analysis:")
                 log("Home team lineup:")
@@ -818,17 +869,19 @@ if __name__ == "__main__":
     #     print(f"Away team avg goals: {h2h_stats['sr:competitor:17']['avg_goals']}")
     #     print(f"Draw rate: {h2h_stats['avg_draw_rate']}")
 
-    # # Test the function
-    # home_players, away_players = get_match_lineups('sr:sport_event:53160771')
+    # Test the function
+    # home_players, away_players = get_match_lineups('sr:sport_event:51269345')
     # # home_players, away_players = get_match_lineups('sr:sport_event:53160785')
+
+
     
     # print("\nHome team lineup:")
     # for player in home_players:
-    #     print(f"- #{player['jersey_number']} {player['name']} ({player['position']})")
+    #     print(f"- #{player['jersey_number']} {player['player_name']} ({player['position']})")
     
     # print("\nAway team lineup:")
     # for player in away_players:
-    #     print(f"- #{player['jersey_number']} {player['name']} ({player['position']})")
+    #     print(f"- #{player['jersey_number']} {player['player_name']} ({player['position']})")
 
     try:
         output_dir = 'sportradar/data/processed_data'

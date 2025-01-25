@@ -119,46 +119,46 @@ def calculate_player_match_importance(player_stats):
     position = player_stats.get('position', 'unknown').lower()
     
     if position == 'goalkeeper':
-        # Goalkeeper scoring (reduced by ~30%)
-        # 1. Shot Stopping (max 25 points, down from 35)
+        # Goalkeeper scoring (reduce further)
+        # 1. Shot Stopping (max 20 points, down from 25)
         save_rate = 0
         if stats.get('shots_faced_total', 0) > 0:
             save_rate = (stats.get('shots_faced_saved', 0) / stats.get('shots_faced_total', 1)) * 100
         
         shot_stopping_score = (
-            (stats.get('diving_saves', 0) * 2) +           # Reduced from 3
-            (save_rate * 0.14) +                           # Reduced from 0.2
-            (stats.get('penalties_saved', 0) * 5.5)        # Reduced from 8
+            (stats.get('diving_saves', 0) * 1.5) +     # Down from 2
+            (save_rate * 0.12) +                       # Down from 0.14
+            (stats.get('penalties_saved', 0) * 4)      # Down from 5.5
         )
-        score += min(25, shot_stopping_score)              # Reduced from 35
+        score += min(20, shot_stopping_score)          # Down from 25
         
-        # 2. Clean Sheet Bonus (max 14 points, down from 20)
+        # 2. Clean Sheet Bonus (max 10 points, down from 14)
         if stats.get('goals_conceded', 0) == 0:
-            score += 14                                    # Reduced from 20
+            score += 10                                # Down from 14
         elif stats.get('goals_conceded', 0) == 1:
-            score += 7                                     # Reduced from 10
+            score += 5                                 # Down from 7
         
-        # 3. Distribution (max 14 points, down from 20)
+        # 3. Distribution (max 10 points, down from 14)
         pass_accuracy = 0
         if stats.get('passes_total', 0) > 0:
             pass_accuracy = (stats.get('passes_successful', 0) / stats.get('passes_total', 1)) * 100
         
         distribution_score = (
-            (pass_accuracy * 0.1) +                        # Reduced from 0.15
-            (min(stats.get('long_passes_successful', 0) * 0.35, 3.5))  # Reduced from 0.5 and 5
+            (pass_accuracy * 0.08) +                   # Down from 0.1
+            (min(stats.get('long_passes_successful', 0) * 0.3, 3))  # Down from 0.35
         )
-        score += min(14, distribution_score)               # Reduced from 20
+        score += min(10, distribution_score)           # Down from 14
         
     elif position == 'forward':
-        # Attacking Contributions (70% - max 24.5 points)
+        # Attacking Contributions (75% - max 26 points, up from 24.5)
         attack_score = (
-            (stats.get('goals_scored', 0) * 12) +         # 12 points per goal
-            (stats.get('assists', 0) * 8) +               # 8 points per assist
-            (stats.get('chances_created', 0) * 3) +       # 3 points per chance
-            (stats.get('shots_on_target', 0) * 2) +       # 2 points per shot on target
-            (stats.get('dribbles_completed', 0) * 1.5)    # 1.5 points per dribble
+            (stats.get('goals_scored', 0) * 14) +     # Up from 12
+            (stats.get('assists', 0) * 10) +          # Up from 8
+            (stats.get('chances_created', 0) * 4) +   # Up from 3
+            (stats.get('shots_on_target', 0) * 2.5) + # Up from 2
+            (stats.get('dribbles_completed', 0) * 2)  # Up from 1.5
         )
-        score += min(24.5, attack_score)
+        score += min(26, attack_score)
         
         # Secondary Contributions (30% - max 10.5 points)
         if stats.get('passes_total', 0) > 0:
@@ -171,25 +171,25 @@ def calculate_player_match_importance(player_stats):
             score += min(10.5, secondary_score)
             
     elif position == 'midfielder':
-        # Playmaking (40% - max 14 points)
+        # Playmaking (45% - max 16 points, up from 14)
         if stats.get('passes_total', 0) > 0:
             pass_accuracy = (stats.get('passes_successful', 0) / stats.get('passes_total', 1)) * 100
             playmaking_score = (
-                (stats.get('assists', 0) * 8) +           # 8 points per assist
-                (stats.get('chances_created', 0) * 3) +   # 3 points per chance
-                (pass_accuracy * 0.08) +                  # Up to 8 points for passing
-                (stats.get('long_passes_successful', 0) * 0.5) # 0.5 points per long pass
+                (stats.get('assists', 0) * 10) +          # Up from 8
+                (stats.get('chances_created', 0) * 4) +   # Up from 3
+                (pass_accuracy * 0.1) +                   # Up from 0.08
+                (stats.get('long_passes_successful', 0) * 0.8)  # Up from 0.5
             )
-            score += min(14, playmaking_score)
+            score += min(16, playmaking_score)
         
-        # Box-to-Box (40% - max 14 points)
+        # Box-to-Box (45% - max 16 points, up from 14)
         box_score = (
-            (stats.get('goals_scored', 0) * 8) +         # 8 points per goal
-            (stats.get('tackles_successful', 0) * 2) +   # 2 points per tackle
-            (stats.get('interceptions', 0) * 2) +        # 2 points per interception
-            (stats.get('defensive_blocks', 0) * 1.5)     # 1.5 points per block
+            (stats.get('goals_scored', 0) * 10) +     # Up from 8
+            (stats.get('tackles_successful', 0) * 2) + 
+            (stats.get('interceptions', 0) * 2) +
+            (stats.get('defensive_blocks', 0) * 2)     # Up from 1.5
         )
-        score += min(14, box_score)
+        score += min(16, box_score)
         
         # Ball Control (20% - max 7 points)
         control_score = (
@@ -199,19 +199,19 @@ def calculate_player_match_importance(player_stats):
         score += min(7, control_score)
         
     elif position == 'defender':
-        # Defensive Actions (70% - max 24.5 points)
+        # Defensive Actions (60% - max 21 points, down from 24.5)
         defense_score = (
-            (stats.get('tackles_successful', 0) * 3) +   # 3 points per tackle
-            (stats.get('clearances', 0) * 2) +           # 2 points per clearance
-            (stats.get('interceptions', 0) * 2.5) +      # 2.5 points per interception
-            (stats.get('defensive_blocks', 0) * 2.5)     # 2.5 points per block
+            (stats.get('tackles_successful', 0) * 2.5) +   # Down from 3
+            (stats.get('clearances', 0) * 1.5) +          # Down from 2
+            (stats.get('interceptions', 0) * 2) +         # Down from 2.5
+            (stats.get('defensive_blocks', 0) * 2)        # Down from 2.5
         )
-        # Clean sheet bonus
+        # Clean sheet bonus reduced
         if stats.get('goals_conceded', 0) == 0:
-            defense_score += 10                          # 10 points for clean sheet
+            defense_score += 8                            # Down from 10
         elif stats.get('goals_conceded', 0) == 1:
-            defense_score += 5                           # 5 points for one goal conceded
-        score += min(24.5, defense_score)
+            defense_score += 4                            # Down from 5
+        score += min(21, defense_score)
         
         # Build-up Play (30% - max 10.5 points)
         if stats.get('passes_total', 0) > 0:
@@ -269,10 +269,24 @@ def update_player_running_stats(conn, player_stats):
         """, (player_stats['player_id'],))
         recent_scores = [row[0] for row in cursor.fetchall()]
 
-        # Calculate new stats
+        # Calculate importance and form
         match_importance = calculate_player_match_importance(player_stats)
-        overall_importance = (sum(recent_scores) / len(recent_scores)) if recent_scores else 0
-        form_rating = (sum(recent_scores[:5]) / len(recent_scores[:5])) if len(recent_scores) >= 5 else overall_importance
+        
+        # Overall importance - average of all recent scores
+        if recent_scores:
+            overall_importance = sum(recent_scores) / len(recent_scores)
+        else:
+            overall_importance = 0
+        
+        # Form rating - average of last 5 matches or all matches if less than 5
+        if recent_scores:
+            if len(recent_scores) >= 5:
+                form_rating = sum(recent_scores[:5]) / 5  # Last 5 matches
+            else:
+                form_rating = sum(recent_scores) / len(recent_scores)  # All available matches
+        else:
+            form_rating = 0
+
         trend = calculate_trend(recent_scores)
 
         # Insert new record with position
@@ -335,8 +349,6 @@ def process_match_stats(conn, fixture_id, home_team_id, away_team_id, start_time
     home_missing = get_missing_key_players(conn, fixture_id, home_team_id, start_time)
     away_missing = get_missing_key_players(conn, fixture_id, away_team_id, start_time)
     
-    
-
     # Get strengths as dictionaries
     home_strengths = calculate_squad_strength(home_key_players, home_missing)
     away_strengths = calculate_squad_strength(away_key_players, away_missing)
@@ -398,11 +410,11 @@ def process_match_stats(conn, fixture_id, home_team_id, away_team_id, start_time
 #Helper functions
 #TODO: Simplify both of these functions to do it in one check, get all key players, are they missing?
 def get_missing_key_players(conn, match_id, team_id, start_time):
-    """Get key players who didn't play in this match"""
+    """Get key players (top 40%) who didn't play in this match"""
     cursor = conn.cursor()
     
     cursor.execute("""
-        WITH latest_stats AS (
+        WITH player_rankings AS (
             SELECT 
                 prs.player_id,
                 prs.player_name,
@@ -414,11 +426,13 @@ def get_missing_key_players(conn, match_id, team_id, start_time):
                 ROW_NUMBER() OVER (
                     PARTITION BY prs.player_id 
                     ORDER BY prs.start_time DESC
-                ) as rn
+                ) as recency_rank,
+                NTILE(10) OVER (
+                    PARTITION BY prs.team_id 
+                    ORDER BY (prs.overall_importance_score * 0.4 + prs.form_rating * 0.6) DESC
+                ) as percentile
             FROM player_running_stats prs
             WHERE prs.team_id = ?
-            AND prs.overall_importance_score >= 15
-            AND prs.form_rating >= 15
             AND datetime(prs.start_time) >= datetime(?, '-30 days')
         )
         SELECT 
@@ -428,8 +442,9 @@ def get_missing_key_players(conn, match_id, team_id, start_time):
             overall_importance_score,
             form_rating,
             average_score
-        FROM latest_stats
-        WHERE rn = 1
+        FROM player_rankings
+        WHERE recency_rank = 1
+        AND percentile <= 4  -- Top 40% (4 out of 10 tiles)
         AND player_id NOT IN (
             SELECT player_id 
             FROM player_running_stats 
@@ -443,7 +458,7 @@ def get_missing_key_players(conn, match_id, team_id, start_time):
         {
             'player_id': row[0],
             'player_name': row[1],
-            'position': row[2],        # Added position
+            'position': row[2],
             'importance_score': row[3],
             'form_rating': row[4],
             'average_score': row[5]
@@ -452,10 +467,10 @@ def get_missing_key_players(conn, match_id, team_id, start_time):
     ]
 
 def get_key_players_count(conn, team_id, start_time):
-    """Get count and details of key players for a team"""
+    """Get count and details of key players for a team (top 40% by performance)"""
     cursor = conn.cursor()
     cursor.execute("""
-        WITH latest_stats AS (
+        WITH player_rankings AS (
             SELECT 
                 prs.player_id,
                 prs.player_name,
@@ -466,11 +481,13 @@ def get_key_players_count(conn, team_id, start_time):
                 ROW_NUMBER() OVER (
                     PARTITION BY prs.player_id 
                     ORDER BY prs.start_time DESC
-                ) as rn
+                ) as recency_rank,
+                NTILE(10) OVER (
+                    PARTITION BY prs.team_id 
+                    ORDER BY (prs.overall_importance_score * 0.4 + prs.form_rating * 0.6) DESC
+                ) as percentile
             FROM player_running_stats prs
             WHERE team_id = ?
-            AND prs.overall_importance_score >= 15
-            AND prs.form_rating >= 15
             AND datetime(prs.start_time) >= datetime(?, '-30 days')
         )
         SELECT 
@@ -480,8 +497,9 @@ def get_key_players_count(conn, team_id, start_time):
             overall_importance_score as importance,
             form_rating as form,
             average_score
-        FROM latest_stats
-        WHERE rn = 1
+        FROM player_rankings
+        WHERE recency_rank = 1
+        AND percentile <= 4  -- Top 40% (4 out of 10 tiles)
         ORDER BY average_score DESC
     """, (team_id, start_time))
     
@@ -489,7 +507,7 @@ def get_key_players_count(conn, team_id, start_time):
         {
             'player_id': row[0],
             'player_name': row[1],
-            'position': row[2],        # Added position
+            'position': row[2],
             'importance': row[3],
             'form': row[4],
             'average_score': row[5]
