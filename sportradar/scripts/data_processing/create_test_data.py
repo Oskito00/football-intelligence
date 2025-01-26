@@ -24,6 +24,22 @@ from team_processing import (
 from dotenv import load_dotenv
 load_dotenv()
 
+def create_h2h_table(conn):
+    """Create h2h_matches table if it doesn't exist"""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS h2h_matches (
+            match_id TEXT PRIMARY KEY,
+            home_team_id TEXT,
+            away_team_id TEXT,
+            home_score INTEGER,
+            away_score INTEGER,
+            start_time TEXT,
+            match_status TEXT,
+            UNIQUE(match_id)
+        )
+    """)
+    conn.commit()
+
 def get_upcoming_matches_query():
     """Get matches within next 10 days that haven't been played yet"""
     return """
@@ -47,7 +63,7 @@ def get_upcoming_matches_query():
     FROM matches m
     WHERE m.match_status != 'ended'
     AND datetime(m.start_time) BETWEEN datetime('now') 
-    AND datetime('now', '+1 days')
+    AND datetime('now', '+12 hours')
     ORDER BY m.start_time
     """
 
@@ -381,6 +397,8 @@ def get_last_lineup(conn, team_id, reference_time):
         print(traceback.format_exc())
         return []
 
+
+
 def create_test_data(db_path, output_dir):
     """Create test dataset from upcoming matches"""
     # Create log file with timestamp
@@ -397,6 +415,9 @@ def create_test_data(db_path, output_dir):
     try:
         conn = sqlite3.connect(db_path)
         os.makedirs(output_dir, exist_ok=True)
+        
+        # Create necessary tables
+        create_h2h_table(conn)
         
         upcoming_matches_df = pd.read_sql_query(get_upcoming_matches_query(), conn)
         total_matches = len(upcoming_matches_df)
@@ -449,15 +470,18 @@ def create_test_data(db_path, output_dir):
                 # Get H2H stats from database first
                 h2h_stats = getH2h_stats(conn, match['home_team_id'], match['away_team_id'], match['start_time'])
                 
-                # If no H2H stats found in database, try the API
                 if not h2h_stats:
-                    print("❌ Skipped because no H2H stats found in database")
+                    # Only try API for matches with advanced stats
+                    if not (average_home_stats.get('has_advanced_stats') and average_away_stats.get('has_advanced_stats')):
+                        log("→ Skipping H2H API call - not an advanced stats match")
+                        skipped_no_h2h += 1
+                        continue
+                        
                     print(f"No H2H stats found in database for {match['home_team']} vs {match['away_team']}, trying API...")
-                    # h2h_stats = get_h2h_from_api(match['home_team_id'], match['away_team_id'])
-                    #TODO: Choose whether to use API or not
+                    h2h_stats = get_h2h_from_api(conn, match['home_team_id'], match['away_team_id'])
                 
                 if not h2h_stats:
-                    log(f"→ Skipping match: No H2H history available from database or API")
+                    log(f"❌ Skipping match: No H2H history available from database or API")
                     skipped_no_h2h += 1
                     continue
 
@@ -754,10 +778,11 @@ def check_upcoming_matches(db_path):
         if 'conn' in locals():
             conn.close()
 
-def get_h2h_from_api(home_team_id, away_team_id):
+def get_h2h_from_api(conn, home_team_id, away_team_id):
     """
-    Get head-to-head statistics from Sportradar API
+    Get head-to-head statistics from Sportradar API and store in database
     Args:
+        conn: Database connection
         home_team_id: URN of home team (e.g., 'sr:competitor:17')
         away_team_id: URN of away team (e.g., 'sr:competitor:42')
     """
@@ -771,6 +796,7 @@ def get_h2h_from_api(home_team_id, away_team_id):
         print(f"Fetching H2H data from API...")
         
         response = requests.get(api_url)
+        print(f"Response: {response.json()}")
         if response.status_code != 200:
             print(f"API request failed with status code: {response.status_code}")
             print(f"Response text: {response.text}")
@@ -780,14 +806,8 @@ def get_h2h_from_api(home_team_id, away_team_id):
         last_meetings = data.get('last_meetings', [])
         print(f"\nFound {len(last_meetings)} last meetings")
         
-        h2h_stats = {
-            home_team_id: {'goals': 0, 'clean_sheets': 0, 'points': 0, 'matches': 0},
-            away_team_id: {'goals': 0, 'clean_sheets': 0, 'points': 0, 'matches': 0}
-        }
-        
-        draw_count = 0
-        total_matches = 0
-        
+        # Store matches in h2h_matches table
+        matches_stored = 0
         for meeting in last_meetings:
             sport_event = meeting.get('sport_event', {})
             status = meeting.get('sport_event_status', {})
@@ -795,78 +815,81 @@ def get_h2h_from_api(home_team_id, away_team_id):
             if status.get('status') != 'closed':
                 print(f"Skipping - match status is {status.get('status')}")
                 continue
-                
-            total_matches += 1
             
-            # Get teams and scores
-            teams = {}  # Will store both teams and their roles
-            for competitor in sport_event.get('competitors', []):
-                team_id = competitor.get('id')
-                teams[team_id] = {
-                    'score': status.get('home_score' if competitor.get('qualifier') == 'home' else 'away_score', 0),
-                    'is_home': competitor.get('qualifier') == 'home'
-                }
+            # Get home and away teams
+            home_team = next((c for c in sport_event.get('competitors', []) if c.get('qualifier') == 'home'), None)
+            away_team = next((c for c in sport_event.get('competitors', []) if c.get('qualifier') == 'away'), None)
             
-            # Process stats for both teams if they're our target teams
-            for team_id, team_data in teams.items():
-                if team_id not in [home_team_id, away_team_id]:
-                    continue
-                    
-                opponent_id = away_team_id if team_id == home_team_id else home_team_id
-                opponent_data = teams.get([t for t in teams.keys() if t != team_id][0])
+            if not home_team or not away_team:
+                continue
                 
-                team_score = team_data['score']
-                opponent_score = opponent_data['score']
-                
-                print(f"Processing {team_id}: scored {team_score}, conceded {opponent_score}")
-                
-                # Update stats
-                h2h_stats[team_id]['goals'] += team_score
-                if opponent_score == 0:
-                    h2h_stats[team_id]['clean_sheets'] += 1
-                if team_score > opponent_score:
-                    h2h_stats[team_id]['points'] += 3
-                elif team_score == opponent_score:
-                    h2h_stats[team_id]['points'] += 1
-                    if team_id == home_team_id:  # Only count draws once
-                        draw_count += 1
-                h2h_stats[team_id]['matches'] += 1
+            try:
+                conn.execute("""
+                    INSERT OR IGNORE INTO h2h_matches (
+                        match_id,
+                        home_team_id,
+                        away_team_id,
+                        home_score,
+                        away_score,
+                        start_time,
+                        match_status
+                    ) VALUES (?, ?, ?, ?, ?, ?, 'ended')
+                """, (
+                    sport_event.get('id'),
+                    home_team.get('id'),
+                    away_team.get('id'),
+                    status.get('home_score'),
+                    status.get('away_score'),
+                    sport_event.get('start_time')
+                ))
+                matches_stored += 1
+            except Exception as e:
+                print(f"Error storing match {sport_event.get('id')}: {str(e)}")
+                continue
         
-        if total_matches == 0:
-            print("No completed H2H matches found")
-            return None
-            
-        # Calculate averages and ensure all required fields exist
-        draw_rate = round(draw_count / total_matches, 2) if total_matches > 0 else 0
+        conn.commit()
+        print(f"Stored {matches_stored} matches in h2h_matches table")
         
-        for team_id in [home_team_id, away_team_id]:
-            matches = h2h_stats[team_id]['matches']
-            if matches > 0:
-                h2h_stats[team_id].update({
-                    'avg_goals': round(h2h_stats[team_id]['goals'] / matches, 2),
-                    'avg_clean_sheets': round(h2h_stats[team_id]['clean_sheets'] / matches, 2),
-                    'avg_points': round(h2h_stats[team_id]['points'] / matches, 2),
-                    'avg_draw_rate': draw_rate  # Add this to both teams
-                })
-        
-        print(f"\nProcessed {total_matches} completed H2H matches")
-        print(f"Final stats: {h2h_stats}")
-        
-        return h2h_stats
+        # Convert timestamp to string format for SQLite
+        current_time = pd.Timestamp.now(tz='UTC').strftime('%Y-%m-%d %H:%M:%S')
+        return getH2h_stats(conn, home_team_id, away_team_id, current_time)
         
     except Exception as e:
         print(f"Error fetching H2H data from API: {str(e)}")
         print(traceback.format_exc())
         return None
 
+def store_h2h_data(conn, h2h_data):
+    """Store H2H match data in database"""
+    try:
+        conn.executemany("""
+            INSERT OR IGNORE INTO h2h_matches (
+                match_id, home_team_id, away_team_id, 
+                home_score, away_score, start_time, match_status
+            ) VALUES (?, ?, ?, ?, ?, ?, 'ended')
+        """, [(
+            match['id'],
+            match['home_team_id'],
+            match['away_team_id'],
+            match['home_score'],
+            match['away_score'],
+            match['start_time']
+        ) for match in h2h_data])
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error storing H2H data: {str(e)}")
+        return False
+
 if __name__ == "__main__":
-    # # Test H2H data
-    # h2h_stats = get_h2h_from_api("sr:competitor:42", "sr:competitor:17")
+    # Test H2H data
+    # conn = sqlite3.connect('football_data.db')
+    # h2h_stats = get_h2h_from_api(conn, "sr:competitor:2692", "sr:competitor:2690")
     # if h2h_stats:
     #     print("\nHead-to-head statistics:")
-    #     print(f"Total matches: {h2h_stats['sr:competitor:42']['matches']}")
-    #     print(f"Home team avg goals: {h2h_stats['sr:competitor:42']['avg_goals']}")
-    #     print(f"Away team avg goals: {h2h_stats['sr:competitor:17']['avg_goals']}")
+    #     print(f"Total matches: {h2h_stats['sr:competitor:2692']['matches']}")
+    #     print(f"Home team avg goals: {h2h_stats['sr:competitor:2692']['avg_goals']}")
+    #     print(f"Away team avg goals: {h2h_stats['sr:competitor:2690']['avg_goals']}")
     #     print(f"Draw rate: {h2h_stats['avg_draw_rate']}")
 
     # Test the function

@@ -1195,7 +1195,8 @@ def getH2h_stats(conn, team1_id, team2_id, current_match_time):
         if count == 0:
             raise ValueError(f"Team ID {team_id} not found in database")
 
-    query = """
+    # First try getting matches from the main matches table
+    matches_query = """
     SELECT
         home_team_id,
         away_team_id,
@@ -1210,9 +1211,35 @@ def getH2h_stats(conn, team1_id, team2_id, current_match_time):
     ORDER BY start_time DESC
     """
     
-    # Check if there are any completed matches between these teams
-    matches = list(conn.execute(query, (current_match_time, team1_id, team2_id, team2_id, team1_id)))
+    # Check main matches table first
+    matches = list(conn.execute(matches_query, (current_match_time, team1_id, team2_id, team2_id, team1_id)))
+    if not matches or len(matches) < 1:
+        print(f"Insufficient matches in main database ({len(matches) if matches else 0}), checking h2h_matches...")
+        
+        # Try h2h_matches table
+        h2h_query = """
+        SELECT
+            home_team_id,
+            away_team_id,
+            home_score,
+            away_score,
+            start_time
+        FROM h2h_matches 
+        WHERE match_status = 'ended'
+            AND start_time < ?
+            AND ((home_team_id = ? AND away_team_id = ?)
+            OR (home_team_id = ? AND away_team_id = ?))
+        ORDER BY start_time DESC
+        """
+        
+        matches = list(conn.execute(h2h_query, (current_match_time, team1_id, team2_id, team2_id, team1_id)))
+    
+    # Final check for sufficient matches
     if not matches:
+        return None
+        
+    if len(matches) < 1:
+        print(f"Insufficient H2H history between teams {team1_id} and {team2_id}. Only {len(matches)} matches found.")
         return None
 
     # Initialize stats dictionaries for both teams
