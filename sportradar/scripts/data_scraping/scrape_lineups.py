@@ -8,6 +8,29 @@ from urllib.parse import quote
 
 load_dotenv()
 
+def scrape_all_lineups():
+    """Scrapes all the lineups for all the top seasons that have been identified"""
+
+    # This is the file that contains the seasons to scrape
+    with open('sportradar/data/sportradar_jsons/top_seasons_24_25.json', 'r') as f:
+        competitions = json.load(f)
+    
+    # Iterate over each competition and season
+    for competition_name, competition_data in competitions.items():
+        print(f"\nProcessing {competition_name}...")
+        
+        for season in competition_data['seasons']:
+            season_id = season['id']
+            season_name = season['name']
+            
+            # Extract lineup data for each match in the season
+            season_data = get_season_lineups(season_id, competition_name, season_name)
+            
+            if season_data:
+                print(f"Successfully fetched lineups for {competition_name} - {season_name}")
+            else:
+                print(f"Failed to fetch lineups for {competition_name} - {season_name}")
+
 def get_season_lineups(season_id, competition_name, season_name):
     """
     Fetch all lineups for a specific season using the Sportradar API
@@ -20,7 +43,7 @@ def get_season_lineups(season_id, competition_name, season_name):
     Returns:
         dict: JSON response containing season's lineup data if successful, None otherwise
     """
-    # Get API key from environment variables
+    # Get API key from .env file
     api_key = os.getenv('SPORTRADAR_API_KEY')
     
     try:
@@ -31,11 +54,11 @@ def get_season_lineups(season_id, competition_name, season_name):
         limit = 200
         
         while True:
-            # URL encode the season_id and construct the URL properly
+            # API request to get lineups for all matches in the season so far
             encoded_season_id = quote(season_id)
             api_url = f"https://api.sportradar.com/soccer-extended/trial/v4/en/seasons/{encoded_season_id}/lineups.json"
             
-            # Add pagination parameters
+            # Parameters for the API request
             params = {
                 'api_key': api_key,
                 'offset': offset,
@@ -59,10 +82,11 @@ def get_season_lineups(season_id, competition_name, season_name):
             
             if batch_size == 0:  # No more lineups to fetch
                 break
-                
+
+            # Add the lineups to the list of all lineups
             all_lineups.extend(lineups)
             
-            # Get total available from headers
+            # Get total lineup info from the response header
             max_results = int(response.headers.get('X-Max-Results', 0))
             print(f"Fetched {batch_size} lineups (total so far: {len(all_lineups)} of {max_results})")
             
@@ -85,10 +109,12 @@ def get_season_lineups(season_id, competition_name, season_name):
         output_dir = Path.cwd() / 'sportradar' / 'data' / 'lineups_data'
         output_dir.mkdir(parents=True, exist_ok=True)
         
+        # Change competition and season name to a more readable format
         clean_comp_name = competition_name.replace(' ', '_')
         clean_season_name = season_name.replace(' ', '_').replace('/', '_')
         
         output_file = output_dir / f"{clean_comp_name}_{clean_season_name}_{season_id}_lineups.json"
+        #Create the file and overwrite if it already exists
         with open(output_file, "w") as file:
             json.dump(complete_data, file, indent=4)
         
@@ -101,27 +127,6 @@ def get_season_lineups(season_id, competition_name, season_name):
     except json.JSONDecodeError as e:
         print(f"Error parsing JSON for {competition_name} - {season_name} (ID: {season_id}): {e}")
         return None
-
-def scrape_all_lineups():
-    """Scrape lineups for all seasons in top_seasons.json"""
-    # Load the seasons data
-    with open('sportradar/data/sportradar_jsons/top_seasons_24_25.json', 'r') as f:
-        competitions = json.load(f)
-    
-    for competition_name, competition_data in competitions.items():
-        print(f"\nProcessing {competition_name}...")
-        
-        for season in competition_data['seasons']:
-            season_id = season['id']
-            season_name = season['name']
-            
-            # Get lineups for the season
-            season_data = get_season_lineups(season_id, competition_name, season_name)
-            
-            if season_data:
-                print(f"Successfully fetched lineups for {competition_name} - {season_name}")
-            else:
-                print(f"Failed to fetch lineups for {competition_name} - {season_name}")
 
 if __name__ == "__main__":
     scrape_all_lineups()
