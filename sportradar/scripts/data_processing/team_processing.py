@@ -1,15 +1,17 @@
 from datetime import datetime, timedelta
+import os
+import sys
 from typing import Tuple, Optional
 
 import sqlite3
 import pandas as pd
 import numpy as np
 
-from constants import DERBIES
+# Add the project root to the Python path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
+sys.path.append(project_root)
 
-#Need to implement: 
-#Update team_table
-#Get team_table
+from sportradar.scripts.constants.constants import DERBIES
 
 def initialize_database(conn):
     """Create necessary tables if they don't exist and clean existing data"""

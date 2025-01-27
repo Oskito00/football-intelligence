@@ -827,8 +827,18 @@ def predict_test_matches(test_data_csv="sportradar/AI/processed_data/test_prepro
     train_features = set(train_df.columns) - set(["start_time", "home_team", "away_team", "home_goals", "away_goals", "outcome"])
     common_features = list(test_features.intersection(train_features))
     
+    # Find features unique to each dataset
+    test_only_features = test_features - train_features
+    train_only_features = train_features - test_features
+
     print(f"\nUsing {len(common_features)} common features for prediction:")
     print(", ".join(sorted(common_features)))
+
+    print(f"\nFeatures only in test data ({len(test_only_features)}):")
+    print(", ".join(sorted(test_only_features)) if test_only_features else "None")
+
+    print(f"\nFeatures only in training data ({len(train_only_features)}):")
+    print(", ".join(sorted(train_only_features)) if train_only_features else "None")
     
     # Prepare data
     X_train = train_df[common_features]

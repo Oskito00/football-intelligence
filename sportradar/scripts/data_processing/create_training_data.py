@@ -5,41 +5,13 @@ import pandas as pd
 import traceback
 
 # Local imports
-from constants import (
-    PREVIOUS_MATCHES_QUERY,
+from sportradar.scripts.constants.constants import (
     ENDED_MATCHES_QUERY,
-    STATS_CHECK_QUERY,
     DEBUG_ENDED_MATCHES_QUERY
 )
 from player_stats import initialize_player_database, process_match_stats
-from team_processing import add_points_for_team, add_team_stats, calculate_elo_rating, calculate_match_importance, calculate_form, get_league_positions, get_match_formations, get_stats_coverage, get_team_points, getH2h_stats, initialize_database, get_previous_matches, refined_categorize_formation
+from team_processing import add_points_for_team, add_team_stats, calculate_elo_rating, calculate_match_importance, calculate_form, get_match_formations, getH2h_stats, initialize_database, refined_categorize_formation
 
-
-def get_processed_matches(conn):
-    """Get all processed matches in one query"""
-    cursor = conn.cursor()
-    
-    # Get all unique combinations of match_id, team names and start times
-    cursor.execute('''
-        SELECT DISTINCT 
-            match_id,
-            team_name,
-            start_time
-        FROM team_running_stats
-    ''')
-    
-    # Create sets for fast lookup
-    processed_match_ids = set()
-    processed_team_times = set()
-    
-    for row in cursor.fetchall():
-        match_id, team_name, start_time = row
-        if match_id:
-            processed_match_ids.add(match_id)
-        if team_name and start_time:
-            processed_team_times.add((team_name, start_time))
-    
-    return processed_match_ids, processed_team_times
 
 def create_training_data(db_path, output_dir, debug_mode=False):
     """Create both basic and advanced training datasets from match database"""
@@ -366,6 +338,32 @@ def create_training_data(db_path, output_dir, debug_mode=False):
 #**********************************************************************************************************************
 #HELPER FUNCTIONS
 #**********************************************************************************************************************
+
+def get_processed_matches(conn):
+    """Get all processed matches in one query"""
+    cursor = conn.cursor()
+    
+    # Get all unique combinations of match_id, team names and start times
+    cursor.execute('''
+        SELECT DISTINCT 
+            match_id,
+            team_name,
+            start_time
+        FROM team_running_stats
+    ''')
+    
+    # Create sets for fast lookup
+    processed_match_ids = set()
+    processed_team_times = set()
+    
+    for row in cursor.fetchall():
+        match_id, team_name, start_time = row
+        if match_id:
+            processed_match_ids.add(match_id)
+        if team_name and start_time:
+            processed_team_times.add((team_name, start_time))
+    
+    return processed_match_ids, processed_team_times
 
 def append_to_dataset(new_df, output_path, id_column='fixture_id'):
     """

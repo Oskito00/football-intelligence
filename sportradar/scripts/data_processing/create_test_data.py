@@ -8,11 +8,6 @@ import json
 
 import requests
 
-# Local imports
-from constants import (
-    PREVIOUS_MATCHES_QUERY,
-    STATS_CHECK_QUERY
-)
 from player_stats import get_key_players_count, initialize_player_database, process_match_stats
 from team_processing import (
     calculate_match_importance, 
@@ -61,9 +56,9 @@ def get_upcoming_matches_query():
         m.referee_id,
         m.match_status
     FROM matches m
-    WHERE m.match_status != 'ended'
-    AND datetime(m.start_time) BETWEEN datetime('now') 
-    AND datetime('now', '+12 hours')
+    WHERE (m.match_status IS NULL OR m.match_status = '' OR m.match_status != 'ended')
+    AND m.start_time >= datetime('now')
+    AND m.start_time <= datetime('now', '+12 hours')
     ORDER BY m.start_time
     """
 
@@ -419,9 +414,10 @@ def create_test_data(db_path, output_dir):
         # Create necessary tables
         create_h2h_table(conn)
         
+        print("Getting upcoming matches...")
         upcoming_matches_df = pd.read_sql_query(get_upcoming_matches_query(), conn)
         total_matches = len(upcoming_matches_df)
-        log(f"Found {total_matches} upcoming matches")
+        print(upcoming_matches_df)
         
         basic_data = []
         advanced_data = []
