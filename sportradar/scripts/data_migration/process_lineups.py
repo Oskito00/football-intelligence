@@ -25,15 +25,17 @@ def process_lineup_data(db_file='football_data.db'):
     # Create lineup table
     create_lineup_table(cursor)
     
-    # Get all JSON files from lineups_data directory
+    # Get all JSON lineup files from the lineups_data directory
+    # This data includes all lineups for all matches in a season
     lineups_dir = Path('sportradar/data/lineups_data')
     lineup_files = list(lineups_dir.glob('*_lineups.json'))
     
-    print(f"\nFound {len(lineup_files)} lineup files")
+    print(f"\nFound {len(lineup_files)} lineup files/seasons")
     
     processed_count = 0
     skipped_count = 0
     
+    # For every season/file, process all lineups
     for lineup_file in lineup_files:
         print(f"\nProcessing {lineup_file.name}")
         
@@ -41,19 +43,21 @@ def process_lineup_data(db_file='football_data.db'):
         with open(lineup_file, 'r') as f:
             data = json.load(f)
         
-        # Process each lineup
+        # For every match in the season, process the lineup
         for match_data in data.get("lineups", []):
-            # Get match details
+            # Get generic match details
             sport_event = match_data.get("sport_event", {})
             match_id = sport_event.get("id")
             
-            # Check if match already exists
+            # Check if match already exists in the team_lineups table
             cursor.execute('SELECT 1 FROM team_lineups WHERE match_id = ?', (match_id,))
             if cursor.fetchone():
+                # If it exists we don't need to process it again, to avoid duplicates
                 print(f"Skipping existing match {match_id}")
                 skipped_count += 1
                 continue
-                
+
+            # Get the start time of the match    
             start_time = sport_event.get("start_time")
             
             # Get lineup data
@@ -65,53 +69,21 @@ def process_lineup_data(db_file='football_data.db'):
             home_team = next((team for team in lineup_data if team.get("qualifier") == "home"), {})
             away_team = next((team for team in lineup_data if team.get("qualifier") == "away"), {})
             
+            # If there is no data for either team, skip this match
             if not home_team or not away_team:
                 continue
             
-            # Process players with formation positions
-            def process_players(team):
-                players = []
-                for player in team.get("players", []):
-                    players.append({
-                        'id': player.get('id'),
-                        'name': player.get('name'),
-                        'type': player.get('type'),  # goalkeeper, defender, midfielder, forward
-                        'position': player.get('position'),  # specific position if they played
-                        'shirt_number': player.get('jersey_number'),
-                        'starter': player.get('starter', False),
-                        'played': player.get('played', False),
-                    })
-                return players  # No need to sort since we're including everyone
-            
             # Insert lineup data
-            cursor.execute('''
-                INSERT OR REPLACE INTO team_lineups (
-                    match_id,
-                    start_time,
-                    home_team_id,
-                    home_team_name,
-                    away_team_id,
-                    away_team_name,
-                    home_formation,
-                    away_formation,
-                    home_players,
-                    away_players
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                match_id,
-                start_time,
-                home_team.get("id"),
-                home_team.get("name"),
-                away_team.get("id"),
-                away_team.get("name"),
-                home_team.get("formation", {}).get("type"),
-                away_team.get("formation", {}).get("type"),
-                json.dumps(process_players(home_team)),
-                json.dumps(process_players(away_team))
-            ))
+            insert_lineup_data(
+                cursor=cursor,
+                conn=conn,
+                match_id=match_id,
+                start_time=start_time,
+                home_team=home_team,
+                away_team=away_team
+            )
             
             processed_count += 1
-            conn.commit()
     
     print(f"\nProcessing complete:")
     print(f"Total lineups processed: {processed_count}")
@@ -126,6 +98,64 @@ def process_lineup_data(db_file='football_data.db'):
     
     conn.close()
     print(f"\nSuccessfully processed all lineup data and saved to {db_file}")
+
+#********************************************************************************
+#HELPER FUNCTIONS
+#********************************************************************************
+
+def process_players(team):
+    players = []
+    for player in team.get("players", []):
+        players.append({
+            'id': player.get('id'),
+            'name': player.get('name'),
+            'type': player.get('type'),  # goalkeeper, defender, midfielder, forward
+            'position': player.get('position'),  # specific position if they played
+            'shirt_number': player.get('jersey_number'),
+            'starter': player.get('starter', False),
+            'played': player.get('played', False),
+        })
+    return players  # No need to sort since we're including everyone
+
+def insert_lineup_data(cursor, conn, match_id: str, start_time: str, 
+                      home_team: dict, away_team: dict) -> None:
+    """Insert lineup data into the database and commit the transaction.
+    
+    Args:
+        cursor: SQLite cursor object
+        conn: SQLite connection object
+        match_id: ID of the match
+        start_time: Match start time
+        home_team: Dictionary containing home team data
+        away_team: Dictionary containing away team data
+    """
+    cursor.execute('''
+        INSERT OR REPLACE INTO team_lineups (
+            match_id,
+            start_time,
+            home_team_id,
+            home_team_name,
+            away_team_id,
+            away_team_name,
+            home_formation,
+            away_formation,
+            home_players,
+            away_players
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        match_id,
+        start_time,
+        home_team.get("id"),
+        home_team.get("name"),
+        away_team.get("id"),
+        away_team.get("name"),
+        home_team.get("formation", {}).get("type"),
+        away_team.get("formation", {}).get("type"),
+        json.dumps(process_players(home_team)),
+        json.dumps(process_players(away_team))
+    ))
+    
+    conn.commit()
 
 if __name__ == "__main__":
     process_lineup_data()
