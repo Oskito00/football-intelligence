@@ -259,8 +259,6 @@ def calculate_form_stats(conn, match):
                 away_stats[stat]['sum'] += value
                 away_stats[stat]['divisor'] += 1
             
-    
-
     # Set has_advanced_stats flag
     home_stats['has_advanced_stats'] = 1 if has_enough_advanced_stats(home_stats) else 0
     away_stats['has_advanced_stats'] = 1 if has_enough_advanced_stats(away_stats) else 0
@@ -281,37 +279,13 @@ def calculate_form_stats(conn, match):
     away_metrics = calculate_metrics(away_stats)
 
     return home_metrics, away_metrics
-
-
-#**************************************
+    
+#************************************************************************************
 #HELPER FUNCTIONS
-#**************************************
-
-# Advanced stats check
-def has_enough_advanced_stats(stats):
-    advanced_stat_requirements = {
-            'pass_effectiveness': ['passes_successful', 'passes_total'],
-            'shot_accuracy': ['shots_on_target', 'shots_total'],
-            'defensive_success': ['tackles_successful', 'tackles_total']
-        }
-        
-    all_required_stats = set()
-    for stats_pair in advanced_stat_requirements.values():
-        all_required_stats.update(stats_pair)
-    all_required_stats.update(['goals_scored', 'shots_on_target'])
-        
-    for stat in all_required_stats:
-        if stats[stat]['divisor'] < 2:
-            return False
-        
-    for metric, required_stats in advanced_stat_requirements.items():
-        stat1, stat2 = required_stats
-        if stats[stat1]['divisor'] != stats[stat2]['divisor']:
-            return False
-        
-    return True
+#************************************************************************************
 
 def get_previous_matches(conn, team_name, before_match_date):
+    """Get the previous 5 matches for a team before a certain date"""
     cursor = conn.cursor()
     cursor.execute("""
         SELECT 
@@ -351,293 +325,52 @@ def get_previous_matches(conn, team_name, before_match_date):
     columns = [description[0] for description in cursor.description]
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
-
-
-def add_team_stats(conn, match):
-    cursor = conn.cursor()
-    
-    try:
-        # Convert pandas Series to dict if the match is a pandas Series
-        if isinstance(match, pd.Series):
-            # Convert the pandas Series to a dictionary and handle NaN values
-            match_dict = {}
-            for key, value in match.items():
-                if pd.isna(value):
-                    match_dict[key] = None
-                else:
-                    match_dict[key] = value
-            match = match_dict
-
-        # Check that the required fields are present
-        required_fields = [
-            'home_team', 'away_team',
-            'home_team_id', 'away_team_id',
-            'start_time', 'season_id',
-            'competition_id', 'fixture_id',
-            'home_goals', 'away_goals'
-        ]
-        missing_fields = [field for field in required_fields if field not in match or match[field] is None]
-        if missing_fields:
-            raise ValueError(f"Missing required fields: {missing_fields} for match ID: {match.get('fixture_id', 'unknown')}")
-
-        home_stats = {
-            'team_name': match['home_team'],
-            'team_id': match['home_team_id'],
-            'start_time': match['start_time'],
-            'season_id': match['season_id'],
-            'competition_id': match['competition_id'],
-            'match_id': match['fixture_id'],
-            'match_status': 'ended',
-            'qualifier': 'home',
-            'opponent_team_name': match['away_team'],
-            'opponent_team_id': match['away_team_id'],
-            'goals_scored': match['home_goals'],
-            'goals_conceded': match['away_goals'],
-            'match_outcome': 'win' if match['home_goals'] > match['away_goals'] else 'loss' if match['home_goals'] < match['away_goals'] else 'draw',
-            'clean_sheet': match['away_goals'] == 0,
-            'passes_successful': match.get('home_passes_successful'),
-            'passes_total': match.get('home_passes_total'),
-            'shots_on_target': match.get('home_shots_on_target'),
-            'shots_total': match.get('home_shots_total'),
-            'chances_created': match.get('home_chances_created'),
-            'tackles_successful': match.get('home_tackles_successful'),
-            'tackles_total': match.get('home_tackles_total')
-        }
-
-        # Checks if the home team has basic and advanced stats, basic stats are goals and clean sheets etc. Advanced stats are like passes successfull shots on target etc.
-        home_stats['has_basic_stats'] = has_basic_stats(home_stats)
-        home_stats['has_advanced_stats'] = has_advanced_stats(home_stats)
-
-        away_stats = {
-            'team_name': match['away_team'],
-            'team_id': match['away_team_id'],
-            'start_time': match['start_time'],
-            'season_id': match['season_id'],
-            'competition_id': match['competition_id'],
-            'match_id': match['fixture_id'],
-            'match_status': 'ended',
-            'qualifier': 'away',
-            'opponent_team_name': match['home_team'],
-            'opponent_team_id': match['home_team_id'],
-            'goals_scored': match['away_goals'],
-            'goals_conceded': match['home_goals'],
-            'match_outcome': 'win' if match['away_goals'] > match['home_goals'] else 'loss' if match['away_goals'] < match['home_goals'] else 'draw',
-            'clean_sheet': match['home_goals'] == 0,
-            'passes_successful': match.get('away_passes_successful'),
-            'passes_total': match.get('away_passes_total'),
-            'shots_on_target': match.get('away_shots_on_target'),
-            'shots_total': match.get('away_shots_total'),
-            'chances_created': match.get('away_chances_created'),
-            'tackles_successful': match.get('away_tackles_successful'),
-            'tackles_total': match.get('away_tackles_total')
-        }
-
-        away_stats['has_basic_stats'] = has_basic_stats(away_stats)
-        away_stats['has_advanced_stats'] = has_advanced_stats(away_stats)
-
-        # Inser team stats into team_running_stats table
-        insert_team_stats(cursor, conn, home_stats, away_stats)
-
-    except Exception as e:
-        print(f"Error adding match: {str(e)}")
-        conn.rollback()
-        raise
-
-    return 0
-
-def calculate_elo_rating(conn, match, match_importance):
-    """Calculate the Elo rating for home and away team"""
-    cursor = conn.cursor()
-    
-    # Get or create Elo ratings for both teams
-    def get_or_create_elo(team_id, team_name):
-        cursor.execute("""
-            INSERT OR IGNORE INTO elo_rating (team_id, team_name, elo_rating)
-            VALUES (?, ?, 1500)
-        """, (team_id, team_name, ))
-        cursor.execute("SELECT elo_rating FROM elo_rating WHERE team_id = ?", (team_id,))
-        return cursor.fetchone()[0]
-    
-    # Get current Elo ratings
-    home_elo = get_or_create_elo(match['home_team_id'], match['home_team'])
-    away_elo = get_or_create_elo(match['away_team_id'], match['away_team'])
-    
-    # Calculate expected scores
-    elo_diff = home_elo - away_elo + 100  # +100 for home advantage
-    expected_home = 1 / (1 + 10 ** (-elo_diff / 400))
-    expected_away = 1 - expected_home
-    
-    # Calculate actual scores based on goals
-    if 'home_goals' in match and 'away_goals' in match:
-        goal_diff = abs(match['home_goals'] - match['away_goals'])
-        
-        if match['home_goals'] > match['away_goals']:
-            actual_home = 1
-            actual_away = 0
-            # Goal margin multiplier for winner (home)
-            goal_multiplier = np.log(goal_diff + 1) * (2.2 / ((home_elo - away_elo) * 0.001 + 2.2))
-        elif match['home_goals'] < match['away_goals']:
-            actual_home = 0
-            actual_away = 1
-            # Goal margin multiplier for winner (away)
-            goal_multiplier = np.log(goal_diff + 1) * (2.2 / ((away_elo - home_elo) * 0.001 + 2.2))
-        else:
-            actual_home = 0.5
-            actual_away = 0.5
-            goal_multiplier = 1.0
-            
-        # Calculate K-factor (importance multiplier)
-        # Scale match_importance to reasonable K-factor range (20-40)
-        base_k = 30  # Base K-factor
-        k_factor = base_k * (match_importance / 10.0) * goal_multiplier
-        
-        # Calculate new Elo ratings
-        home_elo_new = home_elo + k_factor * (actual_home - expected_home)
-        away_elo_new = away_elo + k_factor * (actual_away - expected_away)
-        
-        # Update database with new ratings
-        cursor.execute("""
-            UPDATE elo_rating 
-            SET elo_rating = ? 
-            WHERE team_id = ?
-        """, (home_elo_new, match['home_team_id']))
-        
-        cursor.execute("""
-            UPDATE elo_rating 
-            SET elo_rating = ? 
-            WHERE team_id = ?
-        """, (away_elo_new, match['away_team_id']))
-        
-        conn.commit()
-        
-    return home_elo, away_elo
-
-
-
-#********************************************************************************
-#Helper functions
-#********************************************************************************
-
-def refined_categorize_formation(formation):
+def calculate_team_fatigue(recent_matches, reference_date):
     """
-    Categorize a football formation as very defensive, defensive, balanced, offensive, or very offensive,
-    and encode them as numerical values. Handles formations with varying lengths (e.g., "4-4-2" or "4-1-4-1").
-    """
-    try:
-        # Split formation into parts (e.g., "4-4-2" -> [4, 4, 2], "4-1-4-1" -> [4, 1, 4, 1])
-        parts = list(map(int, formation.split('-')))
-        num_parts = len(parts)
-
-        # If the formation has less than 3 parts, it's invalid
-        if num_parts < 3:
-            return -1  # Unknown category
-
-        # Define defenders, midfielders, and attackers based on formation length
-        if num_parts == 3:
-            # Standard format (e.g., "4-4-2")
-            num_defenders, num_midfielders, num_attackers = parts
-        elif num_parts == 4:
-            # Extended format (e.g., "4-1-4-1")
-            num_defenders = parts[0]
-            num_midfielders = parts[1] + parts[2]  # Combine central and attacking midfielders
-            num_attackers = parts[3]
-        else:
-            return -1  # Unsupported or unusual formation
-
-        # Define rules for categorization and return numerical encoding
-        if num_defenders >= 5:
-            if num_midfielders >= 4:
-                return 0  # Very Defensive
-            else:
-                return 1  # Defensive
-        elif num_defenders == 4:
-            if num_midfielders >= 5:
-                return 1  # Defensive
-            elif num_attackers >= 3:
-                return 2  # Balanced
-            else:
-                return 2  # Balanced
-        elif num_defenders <= 3:
-            if num_attackers >= 4:
-                return 4  # Very Offensive
-            else:
-                return 3  # Offensive
-        else:
-            return -1  # Unknown
-    except Exception as e:
-        print(f"Error processing formation '{formation}': {e}")
-        return -1  # Unknown
-
-def get_match_formations(match_id: str, db_file: str = 'football_data.db') -> Tuple[Optional[str], Optional[str]]:
-    """This function uses the team_lineups database that we 
-    have to get the formations of each team in a match"""
-
-    conn = sqlite3.connect(db_file)
-    cursor = conn.cursor()
-    
-    print(f"\nLooking for match_id: {match_id}")  # Debug print
-    
-    cursor.execute('''
-        SELECT 
-            home_formation,
-            away_formation,
-            home_team_name,  -- Added these for debugging
-            away_team_name   -- Added these for debugging
-        FROM team_lineups
-        WHERE match_id = ?
-    ''', (match_id,))
-    
-    result = cursor.fetchone()
-    
-    if result:
-        print(f"Found match: {result}")
-        return result[0], result[1]
-    else:
-        print(f"No match found for ID: {match_id}")
-    
-    conn.close()
-    return None, None
-
-def get_elo_rating(conn, team_id):
-    """Get the current Elo rating for a team"""
-    cursor = conn.cursor()
-    
-    try:
-        cursor.execute("""
-            SELECT elo_rating 
-            FROM elo_rating 
-            WHERE team_id = ?
-        """, (team_id,))
-        
-        result = cursor.fetchone()
-        
-        if result is None:
-            raise ValueError(f"Team ID {team_id} not found in elo_rating table")
-        
-        return result[0]
-        
-    except Exception as e:
-        print(f"Error getting Elo rating for team {team_id}: {str(e)}")
-        raise  # Re-raise the exception to be handled by the caller
-
-def safe_ratio(match, numerator, denominator, default=0.0):
-    """
-    Safely calculate ratio between two match statistics.
+    Calculate team fatigue based on:
+    1. Days since last match
+    2. Number of matches in last 10 days
     
     Args:
-        match: Dictionary containing match statistics
-        numerator: Key for numerator statistic
-        denominator: Key for denominator statistic
-        default: Default value to return in case of division by zero
-    
+        recent_matches: List of match dictionaries with 'start_time'
+        reference_date: The date to calculate fatigue relative to (usually upcoming match date)
+        
     Returns:
-        float: Calculated ratio or default value
+        float: Fatigue score between 0-1 (1 being most fatigued)
     """
-    num = match.get(numerator, 0)
-    den = match.get(denominator, 1)
-    if den == 0:
-        return default
-    return num / max(1, den)
+    if not recent_matches:
+        return 0.0
+        
+    # Convert reference_date to datetime if it's a string
+    if isinstance(reference_date, str):
+        reference_date = datetime.fromisoformat(reference_date.replace('Z', '+00:00'))
+    
+    # Convert all dates to datetime objects
+    match_dates = [datetime.fromisoformat(match['start_time'].replace('Z', '+00:00')) 
+                  for match in recent_matches]
+    match_dates.sort(reverse=True)  # Most recent first
+    
+    # Calculate days since last match
+    if match_dates:
+        days_since_last_match = (reference_date - match_dates[0]).total_seconds() / (24 * 3600)
+    else:
+        return 0.0
+    
+    # Calculate matches in last 10 days
+    ten_days_ago = reference_date - timedelta(days=10)
+    matches_in_ten_days = sum(1 for date in match_dates if date >= ten_days_ago)
+    
+    # Calculate fatigue components
+    # Days since last match: 0 days = 1.0, 7+ days = 0.0
+    time_fatigue = max(0, 1 - (days_since_last_match / 7))
+    
+    # Matches in 10 days: 0 matches = 0.0, 5+ matches = 1.0
+    match_fatigue = min(1, matches_in_ten_days / 5)
+    
+    # Combine factors (equal weighting)
+    fatigue_score = (time_fatigue + match_fatigue) / 2
+    
+    return round(fatigue_score, 3)
 
 def calculate_momentum(conn,matches, team_name, weights=[0.35, 0.25, 0.20, 0.12, 0.08]):
     """
@@ -745,8 +478,74 @@ def calculate_momentum(conn,matches, team_name, weights=[0.35, 0.25, 0.20, 0.12,
 
     return round(momentum, 3)
 
-#Helper function for calculate_form
+def get_elo_rating(conn, team_id):
+    """Get the current Elo rating for a team"""
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+            SELECT elo_rating 
+            FROM elo_rating 
+            WHERE team_id = ?
+        """, (team_id,))
+        
+        result = cursor.fetchone()
+        
+        if result is None:
+            raise ValueError(f"Team ID {team_id} not found in elo_rating table")
+        
+        return result[0]
+        
+    except Exception as e:
+        print(f"Error getting Elo rating for team {team_id}: {str(e)}")
+        raise  # Re-raise the exception to be handled by the caller
+
+def safe_ratio(match, numerator, denominator, default=0.0):
+    """
+    Safely calculate ratio between two match statistics.
+    
+    Args:
+        match: Dictionary containing match statistics
+        numerator: Key for numerator statistic
+        denominator: Key for denominator statistic
+        default: Default value to return in case of division by zero
+    
+    Returns:
+        float: Calculated ratio or default value
+    """
+    num = match.get(numerator, 0)
+    den = match.get(denominator, 1)
+    if den == 0:
+        return default
+    return num / max(1, den)
+
+# Advanced stats check
+def has_enough_advanced_stats(stats):
+    advanced_stat_requirements = {
+            'pass_effectiveness': ['passes_successful', 'passes_total'],
+            'shot_accuracy': ['shots_on_target', 'shots_total'],
+            'defensive_success': ['tackles_successful', 'tackles_total']
+        }
+        
+    all_required_stats = set()
+    for stats_pair in advanced_stat_requirements.values():
+        all_required_stats.update(stats_pair)
+    all_required_stats.update(['goals_scored', 'shots_on_target'])
+        
+    for stat in all_required_stats:
+        if stats[stat]['divisor'] < 2:
+            return False
+        
+    for metric, required_stats in advanced_stat_requirements.items():
+        stat1, stat2 = required_stats
+        if stats[stat1]['divisor'] != stats[stat2]['divisor']:
+            return False
+        
+    return True
+
 def calculate_metrics(stats):
+    """Calculate the metrics/ averages for a team for their 
+    last 5 matches based on their stats of the last 5 matches"""
     if stats['has_advanced_stats'] == 1:
         return {
             # Basic metrics
@@ -779,72 +578,6 @@ def calculate_metrics(stats):
             'has_advanced_stats': 0
         }
 
-def get_stats_coverage(conn):
-    query = """
-        SELECT 
-            COUNT(*) as total_matches,
-            SUM(CASE WHEN has_basic_stats = 1 THEN 1 ELSE 0 END) as matches_with_basic_stats,
-            SUM(CASE WHEN has_advanced_stats = 1 THEN 1 ELSE 0 END) as matches_with_advanced_stats
-        FROM team_running_stats
-    """
-    cursor = conn.cursor()
-    result = cursor.execute(query).fetchone()
-    return result
-
-from datetime import datetime, timedelta
-
-def calculate_team_fatigue(recent_matches, reference_date):
-    """
-    Calculate team fatigue based on:
-    1. Days since last match
-    2. Number of matches in last 10 days
-    
-    Args:
-        recent_matches: List of match dictionaries with 'start_time'
-        reference_date: The date to calculate fatigue relative to (usually upcoming match date)
-        
-    Returns:
-        float: Fatigue score between 0-1 (1 being most fatigued)
-    """
-    if not recent_matches:
-        return 0.0
-        
-    # Convert reference_date to datetime if it's a string
-    if isinstance(reference_date, str):
-        reference_date = datetime.fromisoformat(reference_date.replace('Z', '+00:00'))
-    
-    # Convert all dates to datetime objects
-    match_dates = [datetime.fromisoformat(match['start_time'].replace('Z', '+00:00')) 
-                  for match in recent_matches]
-    match_dates.sort(reverse=True)  # Most recent first
-    
-    # Calculate days since last match
-    if match_dates:
-        days_since_last_match = (reference_date - match_dates[0]).total_seconds() / (24 * 3600)
-    else:
-        return 0.0
-    
-    # Calculate matches in last 10 days
-    ten_days_ago = reference_date - timedelta(days=10)
-    matches_in_ten_days = sum(1 for date in match_dates if date >= ten_days_ago)
-    
-    # Calculate fatigue components
-    # Days since last match: 0 days = 1.0, 7+ days = 0.0
-    time_fatigue = max(0, 1 - (days_since_last_match / 7))
-    
-    # Matches in 10 days: 0 matches = 0.0, 5+ matches = 1.0
-    match_fatigue = min(1, matches_in_ten_days / 5)
-    
-    # Combine factors (equal weighting)
-    fatigue_score = (time_fatigue + match_fatigue) / 2
-    
-    return round(fatigue_score, 3)
-
-
-    
-#************************************************************************************
-#HELPER FUNCTIONS
-#************************************************************************************
 
 # Function to check if basic stats are present
 def has_basic_stats(stats):
@@ -1331,3 +1064,248 @@ def get_h2h_averages(matches, team1_id, team2_id):
     except Exception as e:
         print(f"Error processing match statistics: {str(e)}")
         return None
+    
+#********************************************************************************
+# Functions not directly used in this file but used in other files
+#********************************************************************************
+
+#This function is used in create_training_data.py
+def refined_categorize_formation(formation):
+    """
+    Categorize a football formation as very defensive, defensive, balanced, offensive, or very offensive,
+    and encode them as numerical values. Handles formations with varying lengths (e.g., "4-4-2" or "4-1-4-1").
+    """
+    try:
+        # Split formation into parts (e.g., "4-4-2" -> [4, 4, 2], "4-1-4-1" -> [4, 1, 4, 1])
+        parts = list(map(int, formation.split('-')))
+        num_parts = len(parts)
+
+        # If the formation has less than 3 parts, it's invalid
+        if num_parts < 3:
+            return -1  # Unknown category
+
+        # Define defenders, midfielders, and attackers based on formation length
+        if num_parts == 3:
+            # Standard format (e.g., "4-4-2")
+            num_defenders, num_midfielders, num_attackers = parts
+        elif num_parts == 4:
+            # Extended format (e.g., "4-1-4-1")
+            num_defenders = parts[0]
+            num_midfielders = parts[1] + parts[2]  # Combine central and attacking midfielders
+            num_attackers = parts[3]
+        else:
+            return -1  # Unsupported or unusual formation
+
+        # Define rules for categorization and return numerical encoding
+        if num_defenders >= 5:
+            if num_midfielders >= 4:
+                return 0  # Very Defensive
+            else:
+                return 1  # Defensive
+        elif num_defenders == 4:
+            if num_midfielders >= 5:
+                return 1  # Defensive
+            elif num_attackers >= 3:
+                return 2  # Balanced
+            else:
+                return 2  # Balanced
+        elif num_defenders <= 3:
+            if num_attackers >= 4:
+                return 4  # Very Offensive
+            else:
+                return 3  # Offensive
+        else:
+            return -1  # Unknown
+    except Exception as e:
+        print(f"Error processing formation '{formation}': {e}")
+        return -1  # Unknown
+
+def get_match_formations(match_id: str, db_file: str = 'football_data.db') -> Tuple[Optional[str], Optional[str]]:
+    """This function uses the team_lineups database that we 
+    have to get the formations of each team in a match"""
+
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+    
+    print(f"\nLooking for match_id: {match_id}")  # Debug print
+    
+    cursor.execute('''
+        SELECT 
+            home_formation,
+            away_formation,
+            home_team_name,  -- Added these for debugging
+            away_team_name   -- Added these for debugging
+        FROM team_lineups
+        WHERE match_id = ?
+    ''', (match_id,))
+    
+    result = cursor.fetchone()
+    
+    if result:
+        print(f"Found match: {result}")
+        return result[0], result[1]
+    else:
+        print(f"No match found for ID: {match_id}")
+    
+    conn.close()
+    return None, None
+
+def calculate_elo_rating(conn, match, match_importance):
+    """Calculate the Elo rating for home and away team"""
+    cursor = conn.cursor()
+    
+    # Get or create Elo ratings for both teams
+    def get_or_create_elo(team_id, team_name):
+        cursor.execute("""
+            INSERT OR IGNORE INTO elo_rating (team_id, team_name, elo_rating)
+            VALUES (?, ?, 1500)
+        """, (team_id, team_name, ))
+        cursor.execute("SELECT elo_rating FROM elo_rating WHERE team_id = ?", (team_id,))
+        return cursor.fetchone()[0]
+    
+    # Get current Elo ratings
+    home_elo = get_or_create_elo(match['home_team_id'], match['home_team'])
+    away_elo = get_or_create_elo(match['away_team_id'], match['away_team'])
+    
+    # Calculate expected scores
+    elo_diff = home_elo - away_elo + 100  # +100 for home advantage
+    expected_home = 1 / (1 + 10 ** (-elo_diff / 400))
+    expected_away = 1 - expected_home
+    
+    # Calculate actual scores based on goals
+    if 'home_goals' in match and 'away_goals' in match:
+        goal_diff = abs(match['home_goals'] - match['away_goals'])
+        
+        if match['home_goals'] > match['away_goals']:
+            actual_home = 1
+            actual_away = 0
+            # Goal margin multiplier for winner (home)
+            goal_multiplier = np.log(goal_diff + 1) * (2.2 / ((home_elo - away_elo) * 0.001 + 2.2))
+        elif match['home_goals'] < match['away_goals']:
+            actual_home = 0
+            actual_away = 1
+            # Goal margin multiplier for winner (away)
+            goal_multiplier = np.log(goal_diff + 1) * (2.2 / ((away_elo - home_elo) * 0.001 + 2.2))
+        else:
+            actual_home = 0.5
+            actual_away = 0.5
+            goal_multiplier = 1.0
+            
+        # Calculate K-factor (importance multiplier)
+        # Scale match_importance to reasonable K-factor range (20-40)
+        base_k = 30  # Base K-factor
+        k_factor = base_k * (match_importance / 10.0) * goal_multiplier
+        
+        # Calculate new Elo ratings
+        home_elo_new = home_elo + k_factor * (actual_home - expected_home)
+        away_elo_new = away_elo + k_factor * (actual_away - expected_away)
+        
+        # Update database with new ratings
+        cursor.execute("""
+            UPDATE elo_rating 
+            SET elo_rating = ? 
+            WHERE team_id = ?
+        """, (home_elo_new, match['home_team_id']))
+        
+        cursor.execute("""
+            UPDATE elo_rating 
+            SET elo_rating = ? 
+            WHERE team_id = ?
+        """, (away_elo_new, match['away_team_id']))
+        
+        conn.commit()
+        
+    return home_elo, away_elo
+
+def add_team_stats(conn, match):
+    """Add the teams' stats for a match to the team_running_stats table"""
+    cursor = conn.cursor()
+    
+    try:
+        # Convert pandas Series to dict if the match is a pandas Series
+        if isinstance(match, pd.Series):
+            # Convert the pandas Series to a dictionary and handle NaN values
+            match_dict = {}
+            for key, value in match.items():
+                if pd.isna(value):
+                    match_dict[key] = None
+                else:
+                    match_dict[key] = value
+            match = match_dict
+
+        # Check that the required fields are present
+        required_fields = [
+            'home_team', 'away_team',
+            'home_team_id', 'away_team_id',
+            'start_time', 'season_id',
+            'competition_id', 'fixture_id',
+            'home_goals', 'away_goals'
+        ]
+        missing_fields = [field for field in required_fields if field not in match or match[field] is None]
+        if missing_fields:
+            raise ValueError(f"Missing required fields: {missing_fields} for match ID: {match.get('fixture_id', 'unknown')}")
+
+        home_stats = {
+            'team_name': match['home_team'],
+            'team_id': match['home_team_id'],
+            'start_time': match['start_time'],
+            'season_id': match['season_id'],
+            'competition_id': match['competition_id'],
+            'match_id': match['fixture_id'],
+            'match_status': 'ended',
+            'qualifier': 'home',
+            'opponent_team_name': match['away_team'],
+            'opponent_team_id': match['away_team_id'],
+            'goals_scored': match['home_goals'],
+            'goals_conceded': match['away_goals'],
+            'match_outcome': 'win' if match['home_goals'] > match['away_goals'] else 'loss' if match['home_goals'] < match['away_goals'] else 'draw',
+            'clean_sheet': match['away_goals'] == 0,
+            'passes_successful': match.get('home_passes_successful'),
+            'passes_total': match.get('home_passes_total'),
+            'shots_on_target': match.get('home_shots_on_target'),
+            'shots_total': match.get('home_shots_total'),
+            'chances_created': match.get('home_chances_created'),
+            'tackles_successful': match.get('home_tackles_successful'),
+            'tackles_total': match.get('home_tackles_total')
+        }
+
+        # Checks if the home team has basic and advanced stats, basic stats are goals and clean sheets etc. Advanced stats are like passes successfull shots on target etc.
+        home_stats['has_basic_stats'] = has_basic_stats(home_stats)
+        home_stats['has_advanced_stats'] = has_advanced_stats(home_stats)
+
+        away_stats = {
+            'team_name': match['away_team'],
+            'team_id': match['away_team_id'],
+            'start_time': match['start_time'],
+            'season_id': match['season_id'],
+            'competition_id': match['competition_id'],
+            'match_id': match['fixture_id'],
+            'match_status': 'ended',
+            'qualifier': 'away',
+            'opponent_team_name': match['home_team'],
+            'opponent_team_id': match['home_team_id'],
+            'goals_scored': match['away_goals'],
+            'goals_conceded': match['home_goals'],
+            'match_outcome': 'win' if match['away_goals'] > match['home_goals'] else 'loss' if match['away_goals'] < match['home_goals'] else 'draw',
+            'clean_sheet': match['home_goals'] == 0,
+            'passes_successful': match.get('away_passes_successful'),
+            'passes_total': match.get('away_passes_total'),
+            'shots_on_target': match.get('away_shots_on_target'),
+            'shots_total': match.get('away_shots_total'),
+            'chances_created': match.get('away_chances_created'),
+            'tackles_successful': match.get('away_tackles_successful'),
+            'tackles_total': match.get('away_tackles_total')
+        }
+
+        away_stats['has_basic_stats'] = has_basic_stats(away_stats)
+        away_stats['has_advanced_stats'] = has_advanced_stats(away_stats)
+
+        # Inser team stats into team_running_stats table
+        insert_team_stats(cursor, conn, home_stats, away_stats)
+
+    except Exception as e:
+        print(f"Error adding match: {str(e)}")
+        conn.rollback()
+        raise
+
+    return 0

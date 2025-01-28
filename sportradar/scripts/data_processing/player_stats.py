@@ -86,15 +86,15 @@ def process_match_stats(conn, fixture_id, home_team_id, away_team_id, start_time
         raise ValueError(f"Failed to process any players for match_id: {fixture_id}")
     
 
-    # Get key players info
+    # Get the key players for both teams based on their importance/rating
     home_count, home_key_players = get_key_players_count(conn, home_team_id, start_time)
     away_count, away_key_players = get_key_players_count(conn, away_team_id, start_time)
 
-    # Get missing key players for both teams using passed parameters
+    # Of these key players which ones are missing in this match?
     home_missing = get_missing_key_players(conn, fixture_id, home_team_id, start_time)
     away_missing = get_missing_key_players(conn, fixture_id, away_team_id, start_time)
     
-    # Get strengths as dictionaries
+    # Based on which players are missing, calculate the strength of the squad
     home_strengths = calculate_squad_strength(home_key_players, home_missing)
     away_strengths = calculate_squad_strength(away_key_players, away_missing)
     
@@ -110,28 +110,8 @@ def process_match_stats(conn, fixture_id, home_team_id, away_team_id, start_time
     away_team_midfield_strength = away_strengths['midfield_strength']
     away_team_attack_strength = away_strengths['attack_strength']
     away_team_overall_strength = away_strengths['overall_strength']
-
     
-    print(f"\nKey players for {home_team_name}:")
-    for player in home_key_players:
-        print(f"  - {player['player_name']}: Importance={player['importance']}, Form={player['form']}, Average Score={player['average_score']}")
-    
-    print("Home key players missing:")
-    for player in home_missing:
-        print(f"  - {player['player_name']}: Importance={player['importance_score']}, Form={player['form_rating']}, Average Score={player['average_score']}")
-
-    print("Home Team Strength: ", home_team_overall_strength)
-    
-    print(f"\nKey players for {away_team_name}:")
-    for player in away_key_players:
-        print(f"  - {player['player_name']}: Importance={player['importance']}, Form={player['form']}, Average Score={player['average_score']}")
-
-    print("Away key players missing:")
-    for player in away_missing:
-        print(f"  - {player['player_name']}: Importance={player['importance_score']}, Form={player['form_rating']}, Average Score={player['average_score']}")
-    
-    print("Away Team Strength: ", away_team_overall_strength)
-    
+    # Returns all the player information needed for this match
     return {
         'processed_count': processed_count,
         'home_team_id': home_team_id,
@@ -210,6 +190,7 @@ def update_player_running_stats(conn, player_stats):
         recent_scores = [row[0] for row in cursor.fetchall()]
 
         # Calculate the player's importance for this match
+        #TODO: Change importance to rating§
         match_importance = calculate_player_match_importance(player_stats)
         
         # Overall importance = the average player's importance over the last 20 matches
@@ -231,7 +212,7 @@ def update_player_running_stats(conn, player_stats):
         # Has the player's importance/rating
         trend = calculate_trend(recent_scores)
 
-        # Insert new record with position
+        # Insert new record into the player running stats table
         cursor.execute("""
             INSERT INTO player_running_stats (
                 player_id, player_name, team_id, position, start_time, match_id,
@@ -456,6 +437,33 @@ def calculate_player_match_importance(player_stats):
     final_score = score * minutes_weight
     return min(35, max(0, final_score))
 
+def calculate_trend(scores):
+    """
+    Calculate trend based on available scores (up to 5 matches)
+    Returns: 'increasing', 'decreasing', or 'stable'
+    """
+    if len(scores) <= 1:
+        return 'stable'
+    
+    # Use up to 5 most recent scores
+    recent_five = scores[:5]
+    
+    # Calculate differences between consecutive matches
+    differences = [recent_five[i] - recent_five[i+1] for i in range(len(recent_five)-1)]
+    
+    # Count positive and negative differences
+    positives = sum(1 for d in differences if d > 0)
+    negatives = sum(1 for d in differences if d < 0)
+    
+    # Calculate trend based on majority direction
+    if len(differences) >= 2:  # Need at least 3 matches for meaningful trend
+        if positives > len(differences) / 2:
+            return 'increasing'
+        elif negatives > len(differences) / 2:
+            return 'decreasing'
+    
+    # If no clear trend or not enough matches
+    return 'stable'
 
 #TODO: Simplify both of these functions to do it in one check, get all key players, are they missing?
 def get_missing_key_players(conn, match_id, team_id, start_time):
@@ -565,35 +573,6 @@ def get_key_players_count(conn, team_id, start_time):
     ]
     
     return len(players), players
-
-def calculate_trend(scores):
-    """
-    Calculate trend based on available scores (up to 5 matches)
-    Returns: 'increasing', 'decreasing', or 'stable'
-    """
-    if len(scores) <= 1:
-        return 'stable'
-    
-    # Use up to 5 most recent scores
-    recent_five = scores[:5]
-    
-    # Calculate differences between consecutive matches
-    differences = [recent_five[i] - recent_five[i+1] for i in range(len(recent_five)-1)]
-    
-    # Count positive and negative differences
-    positives = sum(1 for d in differences if d > 0)
-    negatives = sum(1 for d in differences if d < 0)
-    
-    # Calculate trend based on majority direction
-    if len(differences) >= 2:  # Need at least 3 matches for meaningful trend
-        if positives > len(differences) / 2:
-            return 'increasing'
-        elif negatives > len(differences) / 2:
-            return 'decreasing'
-    
-    # If no clear trend or not enough matches
-    return 'stable'
-
 
 
 def calculate_squad_strength(all_key_players, missing_players):

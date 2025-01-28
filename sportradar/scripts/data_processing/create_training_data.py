@@ -131,7 +131,7 @@ def create_training_data(db_path, output_dir, debug_mode=False):
 
                     print("\nChecking conditions for dataset inclusion:")
                     
-                    # Create basic_row for all cases
+                    # Create basic row for all matches becuase all matches have basic stats
                     basic_row = {
                         'fixture_id': match['fixture_id'],
                         'start_time': match['start_time'],
