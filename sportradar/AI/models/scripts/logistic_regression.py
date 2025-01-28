@@ -1,10 +1,12 @@
+import os
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc_auc_score, confusion_matrix, recall_score, precision_score
+from sklearn.metrics import accuracy_score, f1_score, precision_recall_fscore_support, roc_auc_score, confusion_matrix, recall_score, precision_score
 import matplotlib.pyplot as plt
+from collections import defaultdict
 
 def run_experiment_3_class(n_runs=10):
     """
@@ -636,11 +638,11 @@ def run_hybrid_model(n_runs=10, elo_threshold=40, weight_elo=0.3):
     
     return metrics, best_model, best_scaler, test_data
 
-def print_four_way_comparison(full_metrics, elo_metrics, threshold_metrics, hybrid_metrics):
+def print_five_way_comparison(full_metrics, elo_metrics, threshold_metrics, hybrid_metrics, hybrid_metrics_no_h2h):
     print("\n" + "="*180)
     print("Four-Way Model Comparison:")
     print("-"*180)
-    print(f"{'Metric':<20} {'Full Model':<38} {'ELO ML Model':<38} {'ELO Threshold Model':<38} {'Hybrid Model':<38}")
+    print(f"{'Metric':<20} {'Full Model':<38} {'ELO ML Model':<38} {'ELO Threshold Model':<38} {'Hybrid Model':<38} {'Hybrid Model (No H2H)':<38}")
     print("-"*180)
     
     metrics_to_print = [
@@ -665,11 +667,14 @@ def print_four_way_comparison(full_metrics, elo_metrics, threshold_metrics, hybr
         threshold_std = np.std(threshold_metrics[metric_key])
         hybrid_mean = np.mean(hybrid_metrics[metric_key])
         hybrid_std = np.std(hybrid_metrics[metric_key])
-        
+        hybrid_mean_no_h2h = np.mean(hybrid_metrics_no_h2h[metric_key])
+        hybrid_std_no_h2h = np.std(hybrid_metrics_no_h2h[metric_key])
+
         print(f"{metric_name:<20} {full_mean:>6.2%} (±{full_std:>5.2%}) {' '*10} "
               f"{elo_mean:>6.2%} (±{elo_std:>5.2%}) {' '*10} "
               f"{threshold_mean:>6.2%} (±{threshold_std:>5.2%}) {' '*10} "
-              f"{hybrid_mean:>6.2%} (±{hybrid_std:>5.2%})")
+              f"{hybrid_mean:>6.2%} (±{hybrid_std:>5.2%}) {' '*10} "
+              f"{hybrid_mean_no_h2h:>6.2%} (±{hybrid_std_no_h2h:>5.2%})")
     
     print("="*180)
 
@@ -974,9 +979,181 @@ def create_data_splits(data, test_size=100, random_seed=42):
     
     return train_data, dev_data, test_data
 
+def get_common_features(train_csv, test_csv):
+    """Get features that exist in both training and test datasets"""
+    train_df = pd.read_csv(train_csv)
+    test_df = pd.read_csv(test_csv)
+    
+    # Get feature columns (exclude non-feature columns)
+    non_feature_cols = ['start_time', 'home_team', 'away_team', 'outcome']
+    train_features = [col for col in train_df.columns if col not in non_feature_cols]
+    test_features = [col for col in test_df.columns if col not in non_feature_cols]
+    
+    # Find common features
+    common_features = list(set(train_features) & set(test_features))
+    print(f"\nUsing {len(common_features)} common features between datasets")
+    return common_features
+
+def predict_test_matches(test_data_csv, train_data_csv, home_advantage=100):
+    """Predict matches using only common features between datasets"""
+    # Get common features
+    common_features = get_common_features(train_data_csv, test_data_csv)
+    
+    # Load data
+    train_df = pd.read_csv(train_data_csv)
+    test_df = pd.read_csv(test_data_csv)
+    
+    # Prepare training data
+    X_train = train_df[common_features]
+    y_train = train_df['outcome']
+    
+    # Prepare test data
+    X_test = test_df[common_features]
+    
+    # Train model
+    model = LogisticRegression(multi_class='multinomial', max_iter=1000)
+    model.fit(X_train, y_train)
+    
+    # Make predictions
+    predictions = model.predict(X_test)
+    probabilities = model.predict_proba(X_test)
+    
+    return predictions, probabilities
+
+def run_hybrid_model_no_h2h(n_runs=50, elo_threshold=40, weight_elo=0.3):
+    """Run hybrid model that combines ML predictions with ELO thresholds, excluding H2H features."""
+    metrics = {
+        'dev_accuracies': [],
+        'home_precision': [],
+        'home_recall': [],
+        'home_f1': [],
+        'draw_precision': [],
+        'draw_recall': [],
+        'draw_f1': [],
+        'away_precision': [],
+        'away_recall': [],
+        'away_f1': []
+    }
+
+    h2h_features = [
+        'h2h_avg_draw_rate',
+        'home_h2h_avg_goals',
+        'home_h2h_avg_clean_sheets',
+        'home_h2h_avg_points',
+        'away_h2h_avg_goals',
+        'away_h2h_avg_clean_sheets',
+        'away_h2h_avg_points'
+    ]
+    
+    # Load data
+    train_data = pd.read_csv("sportradar/AI/processed_data/preprocessed_features.csv")
+    test_data = pd.read_csv("sportradar/AI/processed_data/test_preprocessed_features.csv")
+    
+    # Remove H2H features
+    train_data = train_data.drop(columns=h2h_features, errors='ignore')
+    test_data = test_data.drop(columns=h2h_features, errors='ignore')
+    
+    # Prepare feature columns (excluding target and metadata)
+    feature_cols = [col for col in train_data.columns 
+                   if col not in ['outcome', 'home_goals', 'away_goals', 
+                                 'home_team', 'away_team', 'start_time']]
+    
+    # Create target variable
+    y = train_data.apply(
+        lambda row: 2 if row['home_goals'] > row['away_goals']
+        else 1 if row['home_goals'] == row['away_goals']
+        else 0, axis=1
+    )
+    
+    # Prepare features
+    X = train_data[feature_cols]
+    
+    for run in range(n_runs):
+        # Split data
+        X_train, X_val, y_train, y_val = train_test_split(
+            X, y, test_size=0.2, random_state=run
+        )
+        
+        # Scale features
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_val_scaled = scaler.transform(X_val)
+        
+        # Train model
+        model = LogisticRegression(
+            multi_class='multinomial',
+            max_iter=2000,
+            random_state=42
+        )
+        model.fit(X_train_scaled, y_train)
+        
+        # Get ML probabilities
+        ml_probs = model.predict_proba(X_val_scaled)
+        
+        # Get ELO predictions
+        elo_preds = []
+        for idx in range(len(X_val)):
+            home_elo = X_val.iloc[idx]['home_elo_rating']
+            away_elo = X_val.iloc[idx]['away_elo_rating']
+            elo_diff = home_elo - away_elo
+            
+            if abs(elo_diff) >= elo_threshold:
+                if elo_diff > 0:
+                    elo_preds.append(2)  # Home win
+                else:
+                    elo_preds.append(0)  # Away win
+            else:
+                # Use weighted ML probabilities when ELO difference is small
+                probs = ml_probs[idx]
+                pred = np.argmax(probs)
+                elo_preds.append(pred)
+        
+        # Combine predictions
+        final_preds = []
+        for idx in range(len(X_val)):
+            if abs(X_val.iloc[idx]['home_elo_rating'] - X_val.iloc[idx]['away_elo_rating']) >= elo_threshold:
+                final_preds.append(elo_preds[idx])
+            else:
+                # Weight ML and ELO predictions
+                ml_prob = ml_probs[idx]
+                elo_prob = np.zeros(3)
+                elo_prob[elo_preds[idx]] = 1
+                
+                combined_prob = (1 - weight_elo) * ml_prob + weight_elo * elo_prob
+                final_preds.append(np.argmax(combined_prob))
+        
+        # Calculate metrics
+        metrics['dev_accuracies'].append(accuracy_score(y_val, final_preds))
+        
+        # Calculate per-class metrics
+        precision = precision_score(y_val, final_preds, average=None)
+        recall = recall_score(y_val, final_preds, average=None)
+        f1 = f1_score(y_val, final_preds, average=None)
+        
+        # Store per-class metrics (away=0, draw=1, home=2)
+        metrics['away_precision'].append(precision[0])
+        metrics['draw_precision'].append(precision[1])
+        metrics['home_precision'].append(precision[2])
+        
+        metrics['away_recall'].append(recall[0])
+        metrics['draw_recall'].append(recall[1])
+        metrics['home_recall'].append(recall[2])
+        
+        metrics['away_f1'].append(f1[0])
+        metrics['draw_f1'].append(f1[1])
+        metrics['home_f1'].append(f1[2])
+        
+        if run % 10 == 0:
+            print(f"Completed run {run + 1}/{n_runs}")
+    
+    # Print final metrics
+    print("\nFinal Metrics (No H2H Features):")
+    print(f"Accuracy: {np.mean(metrics['dev_accuracies']):.3f} ± {np.std(metrics['dev_accuracies']):.3f}")
+    
+    return metrics, model, scaler, test_data
+
 # Main execution
 if __name__ == "__main__":
-    # # Remove these lines at the bottom of the file
     print("Running Full Model:")
     full_metrics, full_model, scaler, test_data = run_experiment_3_class(n_runs=50)
     print("\nRunning ELO ML Model:")
@@ -985,33 +1162,68 @@ if __name__ == "__main__":
     threshold_metrics, test_data = run_elo_threshold_baseline(n_runs=400, threshold=40)
     print("\nRunning Hybrid Model:")
     hybrid_metrics, full_model, scaler, test_data = run_hybrid_model(n_runs=50, elo_threshold=40, weight_elo=0.3)
-    print_four_way_comparison(full_metrics, elo_metrics, threshold_metrics, hybrid_metrics)
+    print("\nRunning Hybrid Model (No H2H):")
+    hybrid_metrics_no_h2h, full_model_no_h2h, scaler_no_h2h, test_data = run_hybrid_model_no_h2h(n_runs=50, elo_threshold=40, weight_elo=0.3)
 
-    # import seaborn as sns
-    # results_df, best_params = optimize_elo_parameters(n_runs=5)
-    # Remove all the model comparison code and just run predictions
+    print_five_way_comparison(full_metrics, elo_metrics, threshold_metrics, hybrid_metrics, hybrid_metrics_no_h2h)
 
 
 
     # print("Predicting Test Matches:")
-    # predictions, probabilities = predict_test_matches(
-    #     test_data_csv="sportradar/AI/processed_data/test_preprocessed_features.csv",
-    #     train_data_csv="sportradar/AI/processed_data/preprocessed_features.csv",
-    #     home_advantage=100
-    # )
-    
-    # # Save predictions to CSV
-    # test_df = pd.read_csv("sportradar/AI/processed_data/test_preprocessed_features.csv")
-    # results_df = pd.DataFrame({
-    #     'start_time': test_df['start_time'],
-    #     'home_team': test_df['home_team'],
-    #     'away_team': test_df['away_team'],
-    #     'predicted_outcome': [['Away Win', 'Draw', 'Home Win'][p] for p in predictions],
-    #     'home_win_prob': [round(p[2], 2) for p in probabilities],
-    #     'draw_prob': [round(p[1], 2) for p in probabilities],
-    #     'away_win_prob': [round(p[0], 2) for p in probabilities]
-    # })
-    
-    # output_path = "sportradar/AI/match_predictions.csv"
-    # results_df.to_csv(output_path, index=False)
-    # print(f"\nPredictions saved to {output_path}")
+
+    # # Initialize empty list to store all predictions
+    # all_predictions = []
+
+    # # Process matches with H2H features
+    # if os.path.exists("sportradar/AI/processed_data/test_preprocessed_features.csv"):
+    #     predictions_h2h, probabilities_h2h = predict_test_matches(
+    #         test_data_csv="sportradar/AI/processed_data/test_preprocessed_features.csv",
+    #         train_data_csv="sportradar/AI/processed_data/preprocessed_features.csv",
+    #         home_advantage=100
+    #     )
+        
+    #     test_df_h2h = pd.read_csv("sportradar/AI/processed_data/test_preprocessed_features.csv")
+    #     for i in range(len(predictions_h2h)):
+    #         all_predictions.append({
+    #             'start_time': test_df_h2h['start_time'].iloc[i],
+    #             'home_team': test_df_h2h['home_team'].iloc[i],
+    #             'away_team': test_df_h2h['away_team'].iloc[i],
+    #             'predicted_outcome': ['Away Win', 'Draw', 'Home Win'][predictions_h2h[i]],
+    #             'home_win_prob': round(probabilities_h2h[i][2], 2),
+    #             'draw_prob': round(probabilities_h2h[i][1], 2),
+    #             'away_win_prob': round(probabilities_h2h[i][0], 2),
+    #             'model_type': 'with_h2h'
+    #         })
+
+    # # Process matches without H2H features
+    # if os.path.exists("sportradar/AI/processed_data/test_no_h2h_preprocessed_features.csv"):
+    #     predictions_no_h2h, probabilities_no_h2h = predict_test_matches(
+    #         test_data_csv="sportradar/AI/processed_data/test_no_h2h_preprocessed_features.csv",
+    #         train_data_csv="sportradar/AI/processed_data/preprocessed_features.csv",
+    #         home_advantage=100
+    #     )
+        
+    #     test_df_no_h2h = pd.read_csv("sportradar/AI/processed_data/test_no_h2h_preprocessed_features.csv")
+    #     for i in range(len(predictions_no_h2h)):
+    #         all_predictions.append({
+    #             'start_time': test_df_no_h2h['start_time'].iloc[i],
+    #             'home_team': test_df_no_h2h['home_team'].iloc[i],
+    #             'away_team': test_df_no_h2h['away_team'].iloc[i],
+    #             'predicted_outcome': ['Away Win', 'Draw', 'Home Win'][predictions_no_h2h[i]],
+    #             'home_win_prob': round(probabilities_no_h2h[i][2], 2),
+    #             'draw_prob': round(probabilities_no_h2h[i][1], 2),
+    #             'away_win_prob': round(probabilities_no_h2h[i][0], 2),
+    #             'model_type': 'no_h2h'
+    #         })
+
+    # # Save all predictions to a single file
+    # if all_predictions:
+    #     results_df = pd.DataFrame(all_predictions)
+    #     # Sort by start time to keep matches in chronological order
+    #     results_df = results_df.sort_values('start_time')
+    #     output_path = "sportradar/AI/match_predictions.csv"
+    #     results_df.to_csv(output_path, index=False)
+    #     print(f"\nSaved {len(results_df)} predictions to {output_path}")
+    # else:
+    #     print("\nNo predictions to save")
+

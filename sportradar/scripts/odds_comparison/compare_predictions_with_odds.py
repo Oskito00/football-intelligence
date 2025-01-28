@@ -23,6 +23,60 @@ def analyze_predictions():
     # Connect to odds database
     conn = sqlite3.connect('odds.db')
     
+    website_data = []
+    
+    for _, row in predictions_df.iterrows():
+        odds = get_match_odds(conn, row['home_team'], row['away_team'], row['start_time'])
+        
+        if odds is None:
+            print(f"No odds found for {row['home_team']} vs {row['away_team']}")
+            continue
+            
+        home_odds, draw_odds, away_odds = odds
+        
+        # Calculate all probabilities and values
+        home_bookie_prob = calculate_bookie_probability(home_odds)
+        draw_bookie_prob = calculate_bookie_probability(draw_odds)
+        away_bookie_prob = calculate_bookie_probability(away_odds)
+        
+        home_value = calculate_value(row['home_win_prob'], home_odds)
+        draw_value = calculate_value(row['draw_prob'], draw_odds)
+        away_value = calculate_value(row['away_win_prob'], away_odds)
+        
+        home_kelly = calculate_kelly(home_odds, row['home_win_prob'])
+        draw_kelly = calculate_kelly(draw_odds, row['draw_prob'])
+        away_kelly = calculate_kelly(away_odds, row['away_win_prob'])
+        
+        match_data = {
+            'home_team': row['home_team'],
+            'away_team': row['away_team'],
+            'start_time': row['start_time'],
+            'predicted_outcome': row['predicted_outcome'],
+            'model_type': row['model_type'],
+            'home_win_prob': row['home_win_prob'],
+            'draw_prob': row['draw_prob'],
+            'away_win_prob': row['away_win_prob'],
+            'home_odds': home_odds,
+            'draw_odds': draw_odds,
+            'away_odds': away_odds,
+            'home_bookie_prob': home_bookie_prob,
+            'draw_bookie_prob': draw_bookie_prob,
+            'away_bookie_prob': away_bookie_prob,
+            'home_value': home_value * 100,
+            'draw_value': draw_value * 100,
+            'away_value': away_value * 100,
+            'home_kelly': home_kelly * 100,
+            'draw_kelly': draw_kelly * 100,
+            'away_kelly': away_kelly * 100
+        }
+        
+        website_data.append(match_data)
+    
+    
+    # Save to CSV for website
+    website_df = pd.DataFrame(website_data)
+    website_df.to_csv('website/data/prediction_analysis.csv', index=False)
+    
     results = []
     
     for _, row in predictions_df.iterrows():
@@ -76,8 +130,6 @@ def analyze_predictions():
                 'value': value,
                 'kelly_stake': kelly
             })
-    
-    conn.close()
     
     # Convert results to DataFrame and sort by value
     results_df = pd.DataFrame(results)
@@ -171,6 +223,9 @@ def analyze_predictions():
     
     # Also print to console for debugging
     print(message)
+
+    conn.close()
+
 
 #********************************************************************************
 #HELPER FUNCTIONS

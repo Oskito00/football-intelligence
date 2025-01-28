@@ -48,8 +48,10 @@ def create_test_data(db_path, output_dir):
         total_matches = len(upcoming_matches_df)
         print(upcoming_matches_df)
         
-        basic_data = []
-        advanced_data = []
+        # Initialize three datasets
+        advanced_data = []  # For matches with all features including h2h
+        basic_data = []    # For matches with basic stats and h2h
+        no_h2h_data = []   # For matches without h2h stats
         
         # Debugging counters
         skipped_not_next = 0
@@ -99,16 +101,13 @@ def create_test_data(db_path, output_dir):
                     # Only try API for matches with advanced stats
                     if not (average_home_stats.get('has_advanced_stats') and average_away_stats.get('has_advanced_stats')):
                         log("→ Skipping H2H API call - not an advanced stats match")
-                        skipped_no_h2h += 1
-                        continue
                         
                     # print(f"No H2H stats found in database for {match['home_team']} vs {match['away_team']}, trying API...")
                     # h2h_stats = get_h2h_from_api(conn, match['home_team_id'], match['away_team_id'])
                 
                 if not h2h_stats:
-                    log(f"❌ Skipping match: No H2H history available from database or API")
-                    skipped_no_h2h += 1
-                    continue
+                    log(f"❌ No H2H stats found in database for {match['home_team']} vs {match['away_team']}")
+
 
                 # Get key players for both teams
                 home_key_count, home_key_players = get_key_players_count(conn, match['home_team_id'], match['start_time'])
@@ -219,7 +218,7 @@ def create_test_data(db_path, output_dir):
                     skipped_no_squad_strength += 1
                     continue
 
-                # Create basic row
+                # Create basic row without h2h stats
                 basic_row = {
                     'fixture_id': match['fixture_id'],
                     'start_time': match['start_time'],
@@ -240,14 +239,7 @@ def create_test_data(db_path, output_dir):
                     'average_away_draw_rate': average_away_stats['average_draw_rate'],
                     'average_away_clean_sheets': average_away_stats['average_clean_sheets'],
                     'away_fatigue': average_away_stats.get('fatigue'),
-                    'away_momentum': average_away_stats.get('momentum'),
-                    'h2h_avg_draw_rate': h2h_stats[match['home_team_id']]['avg_draw_rate'],
-                    'home_h2h_avg_goals': h2h_stats[match['home_team_id']]['avg_goals'],
-                    'home_h2h_avg_clean_sheets': h2h_stats[match['home_team_id']]['avg_clean_sheets'],
-                    'home_h2h_avg_points': h2h_stats[match['home_team_id']]['avg_points'],
-                    'away_h2h_avg_goals': h2h_stats[match['away_team_id']]['avg_goals'],
-                    'away_h2h_avg_clean_sheets': h2h_stats[match['away_team_id']]['avg_clean_sheets'],
-                    'away_h2h_avg_points': h2h_stats[match['away_team_id']]['avg_points']
+                    'away_momentum': average_away_stats.get('momentum')
                 }
                 
                 if home_elo_rating is not None and away_elo_rating is not None:
@@ -260,44 +252,77 @@ def create_test_data(db_path, output_dir):
                 
                 log(f"→ Advanced stats available - Home: {has_advanced_home}, Away: {has_advanced_away}")
                 
-                if not has_advanced_home and not has_advanced_away and home_team_overall_strength is not None and away_team_overall_strength is not None:
-                    basic_row['home_team_gk_strength'] = home_team_gk_strength
-                    basic_row['home_team_defence_strength'] = home_team_defence_strength
-                    basic_row['home_team_midfield_strength'] = home_team_midfield_strength
-                    basic_row['home_team_attack_strength'] = home_team_attack_strength
-                    basic_row['away_team_gk_strength'] = away_team_gk_strength
-                    basic_row['away_team_defence_strength'] = away_team_defence_strength
-                    basic_row['away_team_midfield_strength'] = away_team_midfield_strength
-                    basic_row['away_team_attack_strength'] = away_team_attack_strength
-                    basic_row['home_team_overall_strength'] = home_team_overall_strength['overall_strength']
-                    basic_row['away_team_overall_strength'] = away_team_overall_strength['overall_strength']
-                    basic_data.append(basic_row)
-                    log("→ Added to basic dataset")
-                
-                if has_advanced_home and has_advanced_away and home_team_overall_strength is not None and away_team_overall_strength is not None:
-                    advanced_row = basic_row.copy()
-                    advanced_row.update({
-                        'home_pass_effectiveness': round(average_home_stats['pass_effectiveness'], 2),
-                        'home_shot_accuracy': round(average_home_stats['shot_accuracy'], 2),
-                        'home_conversion_rate': round(average_home_stats['conversion_rate'], 2),
-                        'home_defensive_success': round(average_home_stats['defensive_success'], 2),
-                        'away_pass_effectiveness': round(average_away_stats['pass_effectiveness'], 2),
-                        'away_shot_accuracy': round(average_away_stats['shot_accuracy'], 2),
-                        'away_conversion_rate': round(average_away_stats['conversion_rate'], 2),
-                        'away_defensive_success': round(average_away_stats['defensive_success'], 2),
-                        'home_team_gk_strength': home_team_gk_strength,
-                        'home_team_defence_strength': home_team_defence_strength,
-                        'home_team_midfield_strength': home_team_midfield_strength,
-                        'home_team_attack_strength': home_team_attack_strength,
-                        'away_team_gk_strength': away_team_gk_strength,
-                        'away_team_defence_strength': away_team_defence_strength,
-                        'away_team_midfield_strength': away_team_midfield_strength,
-                        'away_team_attack_strength': away_team_attack_strength,
-                        'home_team_overall_strength': home_team_overall_strength['overall_strength'],
-                        'away_team_overall_strength': away_team_overall_strength['overall_strength']
+                # Check if h2h stats are available
+                has_h2h = (h2h_stats and match['home_team_id'] in h2h_stats 
+                           and match['away_team_id'] in h2h_stats)
+
+                if has_h2h:
+                    # Add h2h stats to the row
+                    h2h_row = basic_row.copy()
+                    h2h_row.update({
+                        'h2h_avg_draw_rate': h2h_stats[match['home_team_id']]['avg_draw_rate'],
+                        'home_h2h_avg_goals': h2h_stats[match['home_team_id']]['avg_goals'],
+                        'home_h2h_avg_clean_sheets': h2h_stats[match['home_team_id']]['avg_clean_sheets'],
+                        'home_h2h_avg_points': h2h_stats[match['home_team_id']]['avg_points'],
+                        'away_h2h_avg_goals': h2h_stats[match['away_team_id']]['avg_goals'],
+                        'away_h2h_avg_clean_sheets': h2h_stats[match['away_team_id']]['avg_clean_sheets'],
+                        'away_h2h_avg_points': h2h_stats[match['away_team_id']]['avg_points']
                     })
-                    advanced_data.append(advanced_row)
-                    log("→ Added to advanced dataset")
+                    
+                    # Add to appropriate dataset based on advanced stats
+                    if has_advanced_home and has_advanced_away and home_team_overall_strength and away_team_overall_strength:
+                        advanced_row = h2h_row.copy()
+                        advanced_row.update({
+                            'home_pass_effectiveness': round(average_home_stats['pass_effectiveness'], 2),
+                            'home_shot_accuracy': round(average_home_stats['shot_accuracy'], 2),
+                            'home_conversion_rate': round(average_home_stats['conversion_rate'], 2),
+                            'home_defensive_success': round(average_home_stats['defensive_success'], 2),
+                            'away_pass_effectiveness': round(average_away_stats['pass_effectiveness'], 2),
+                            'away_shot_accuracy': round(average_away_stats['shot_accuracy'], 2),
+                            'away_conversion_rate': round(average_away_stats['conversion_rate'], 2),
+                            'away_defensive_success': round(average_away_stats['defensive_success'], 2),
+                            'home_team_gk_strength': home_team_gk_strength,
+                            'home_team_defence_strength': home_team_defence_strength,
+                            'home_team_midfield_strength': home_team_midfield_strength,
+                            'home_team_attack_strength': home_team_attack_strength,
+                            'away_team_gk_strength': away_team_gk_strength,
+                            'away_team_defence_strength': away_team_defence_strength,
+                            'away_team_midfield_strength': away_team_midfield_strength,
+                            'away_team_attack_strength': away_team_attack_strength,
+                            'home_team_overall_strength': home_team_overall_strength['overall_strength'],
+                            'away_team_overall_strength': away_team_overall_strength['overall_strength']
+                        })
+                        advanced_data.append(advanced_row)
+                        log("→ Added to advanced dataset (with H2H)")
+                    else:
+                        basic_data.append(h2h_row)
+                        log("→ Added to basic dataset (with H2H)")
+                else:
+                    # No h2h stats available - add to no_h2h dataset
+                    if home_team_overall_strength and away_team_overall_strength:
+                        no_h2h_row = basic_row.copy()
+                        no_h2h_row.update({
+                            'home_pass_effectiveness': round(average_home_stats['pass_effectiveness'], 2),
+                            'home_shot_accuracy': round(average_home_stats['shot_accuracy'], 2),
+                            'home_conversion_rate': round(average_home_stats['conversion_rate'], 2),
+                            'home_defensive_success': round(average_home_stats['defensive_success'], 2),
+                            'away_pass_effectiveness': round(average_away_stats['pass_effectiveness'], 2),
+                            'away_shot_accuracy': round(average_away_stats['shot_accuracy'], 2),
+                            'away_conversion_rate': round(average_away_stats['conversion_rate'], 2),
+                            'away_defensive_success': round(average_away_stats['defensive_success'], 2),
+                            'home_team_gk_strength': home_team_gk_strength,
+                            'home_team_defence_strength': home_team_defence_strength,
+                            'home_team_midfield_strength': home_team_midfield_strength,
+                            'home_team_attack_strength': home_team_attack_strength,
+                            'away_team_gk_strength': away_team_gk_strength,
+                            'away_team_defence_strength': away_team_defence_strength,
+                            'away_team_midfield_strength': away_team_midfield_strength,
+                            'away_team_attack_strength': away_team_attack_strength,
+                            'home_team_overall_strength': home_team_overall_strength['overall_strength'],
+                            'away_team_overall_strength': away_team_overall_strength['overall_strength']
+                        })
+                        no_h2h_data.append(no_h2h_row)
+                        log("→ Added to no H2H dataset")
 
             except Exception as e:
                 log(f"→ Error processing match: {str(e)}")
@@ -319,19 +344,23 @@ Successfully processed - advanced: {len(advanced_data)}
         log(summary)
         
         # Save datasets
-        basic_df = pd.DataFrame(basic_data)
-        advanced_df = pd.DataFrame(advanced_data)
-        
-        basic_output = os.path.join(output_dir, 'test_data_basic.csv')
-        advanced_output = os.path.join(output_dir, 'test_data_advanced.csv')
-        
-        basic_df.to_csv(basic_output, index=False)
-        advanced_df.to_csv(advanced_output, index=False)
-        
-        log(f"\nSaved basic dataset with {len(basic_df)} matches to {basic_output}")
-        log(f"Saved advanced dataset with {len(advanced_df)} matches to {advanced_output}")
-        
-        return basic_df, advanced_df
+        advanced_df = None
+        no_h2h_df = None
+
+        if len(advanced_data) > 0:
+            advanced_df = pd.DataFrame(advanced_data)
+            advanced_output = os.path.join(output_dir, 'test_data_advanced.csv')
+            advanced_df.to_csv(advanced_output, index=False)
+            log(f"\nSaved advanced dataset with {len(advanced_df)} matches to {advanced_output}")
+
+        if len(no_h2h_data) > 0:
+            no_h2h_df = pd.DataFrame(no_h2h_data)
+            no_h2h_output = os.path.join(output_dir, 'test_data_no_h2h.csv')
+            no_h2h_df.to_csv(no_h2h_output, index=False)
+            log(f"\nSaved no H2H dataset with {len(no_h2h_df)} matches to {no_h2h_output}")
+
+        # Just return the DataFrames directly
+        return advanced_df, no_h2h_df
         
     except Exception as e:
         log(f"\nError: {str(e)}")
@@ -883,177 +912,15 @@ def store_h2h_data(conn, h2h_data):
     except Exception as e:
         print(f"Error storing H2H data: {str(e)}")
         return False
-    
-def add_manual_h2h_match(db_file='football_data.db', match_data=None):
-    """
-    Manually add a head-to-head match to the database.
-    
-    Args:
-        db_file (str): Path to the SQLite database
-        match_data (dict): Dictionary containing match details:
-            {
-                'match_id': 'manual_match_YYYYMMDD_team1_team2',  # Unique identifier
-                'home_team_id': 'sr:competitor:XXXX',
-                'away_team_id': 'sr:competitor:XXXX',
-                'home_score': int,
-                'away_score': int,
-                'start_time': 'YYYY-MM-DD',  # Date of the match
-                'match_status': 'ended'  # Usually 'ended' for historical matches
-            }
-    
-    Returns:
-        bool: True if successful, False if error
-    """
-    try:
-        # Input validation
-        if not match_data:
-            print("No match data provided")
-            return False
-            
-        required_fields = ['match_id', 'home_team_id', 'away_team_id', 
-                          'home_score', 'away_score', 'start_time']
-        
-        # Check all required fields are present
-        for field in required_fields:
-            if field not in match_data:
-                print(f"Missing required field: {field}")
-                return False
-        
-        conn = sqlite3.connect(db_file)
-        cursor = conn.cursor()
-        
-        # Insert the match data
-        cursor.execute('''
-            INSERT OR REPLACE INTO h2h_matches (
-                match_id,
-                home_team_id,
-                away_team_id,
-                home_score,
-                away_score,
-                start_time,
-                match_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            match_data['match_id'],
-            match_data['home_team_id'],
-            match_data['away_team_id'],
-            match_data['home_score'],
-            match_data['away_score'],
-            match_data['start_time'],
-            match_data.get('match_status', 'ended')  # Default to 'ended' if not provided
-        ))
-        
-        conn.commit()
-        print(f"Successfully added match: {match_data['home_team_id']} vs {match_data['away_team_id']}")
-        
-        # Verify the insertion
-        cursor.execute('''
-            SELECT * FROM h2h_matches 
-            WHERE match_id = ?
-        ''', (match_data['match_id'],))
-        
-        result = cursor.fetchone()
-        if result:
-            print(f"Verified match in database: {result}")
-        
-        conn.close()
-        return True
-        
-    except Exception as e:
-        print(f"Error adding manual match: {str(e)}")
-        if 'conn' in locals():
-            conn.close()
-        return False
-    
-def get_team_id_from_name(db_file='football_data.db', team_name=None):
-    """
-    Get the team ID from a team name by searching the matches table.
-    Will return partial matches to help with different name formats.
-    
-    Args:
-        db_file (str): Path to the SQLite database
-        team_name (str): Name of the team to search for
-        
-    Returns:
-        list: List of tuples containing (team_id, team_name) for matching teams
-    """
-    try:
-        if not team_name:
-            print("No team name provided")
-            return []
-            
-        conn = sqlite3.connect(db_file)
-        cursor = conn.cursor()
-        
-        # Search both home and away team names
-        cursor.execute('''
-            SELECT DISTINCT home_team_id, home_team_name 
-            FROM matches 
-            WHERE home_team_name LIKE ?
-            UNION
-            SELECT DISTINCT away_team_id, away_team_name
-            FROM matches 
-            WHERE away_team_name LIKE ?
-        ''', (f'%{team_name}%', f'%{team_name}%'))
-        
-        results = cursor.fetchall()
-        
-        if not results:
-            print(f"No teams found matching: {team_name}")
-        else:
-            print(f"\nFound {len(results)} matching teams:")
-            for team_id, full_name in results:
-                print(f"ID: {team_id} - Name: {full_name}")
-                
-        conn.close()
-        return results
-        
-    except Exception as e:
-        print(f"Error searching for team: {str(e)}")
-        if 'conn' in locals():
-            conn.close()
-        return []
 
 if __name__ == "__main__":
-    # Test H2H data
-    # conn = sqlite3.connect('football_data.db')
-    # h2h_stats = get_h2h_from_api(conn, "sr:competitor:2692", "sr:competitor:2690")
-    # if h2h_stats:
-    #     print("\nHead-to-head statistics:")
-    #     print(f"Total matches: {h2h_stats['sr:competitor:2692']['matches']}")
-    #     print(f"Home team avg goals: {h2h_stats['sr:competitor:2692']['avg_goals']}")
-    #     print(f"Away team avg goals: {h2h_stats['sr:competitor:2690']['avg_goals']}")
-    #     print(f"Draw rate: {h2h_stats['avg_draw_rate']}")
-
-    # Test the function
-    # home_players, away_players = get_match_lineups('sr:sport_event:51269345')
-    # # home_players, away_players = get_match_lineups('sr:sport_event:53160785')
-
-
-    
-    # print("\nHome team lineup:")
-    # for player in home_players:
-    #     print(f"- #{player['jersey_number']} {player['player_name']} ({player['position']})")
-    
-    # print("\nAway team lineup:")
-    # for player in away_players:
-    #     print(f"- #{player['jersey_number']} {player['player_name']} ({player['position']})")
-
-    # try:
-    #     output_dir = 'sportradar/data/processed_data'
-    #     basic_df, advanced_df = create_test_data('football_data.db', output_dir)
-    # except Exception as e:
-    #     print(f"\nScript failed: {str(e)}")
-
-    team1_id = get_team_id_from_name('football_data.db', 'Manchester United')
-    team2_id = get_team_id_from_name('football_data.db', 'Liverpool')
-    
-    match_data = {
-        'match_id': 'manual_match_1',
-        'home_team_id': team1_id[0][0],
-        'away_team_id': team2_id[0][0],
-        'home_score': 2,
-        'away_score': 1,
-        'start_time': '2025-01-28'
-    }
-    add_manual_h2h_match('football_data.db', match_data)
+    try:
+        output_dir = 'sportradar/data/processed_data'
+        advanced_df, no_h2h_df = create_test_data('football_data.db', output_dir)
+        
+        # No need to print again since we already log in the create_test_data function
+        # Just add a final summary
+        print("\nProcessing complete!")
+        
+    except Exception as e:
+        print(f"\nScript failed: {str(e)}")

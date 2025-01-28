@@ -3,7 +3,7 @@ from sklearn.preprocessing import LabelEncoder
 import joblib  # for saving the LabelEncoder
 
 # Load and preprocess data
-df = pd.read_csv('sportradar/data/processed_data/test_data_advanced.csv')
+df = pd.read_csv('sportradar/data/processed_data/training_data_advanced.csv')
 
 # Drop non-feature columns
 df_features = df.drop(["fixture_id"], axis=1)
@@ -79,12 +79,12 @@ columns_to_drop = [
 ]
 df_features = df_features.drop(columns=columns_to_drop)
 
-# # Automatically move 'home_goals' and 'away_goals' to the end
-# target_columns = ["home_goals", "away_goals"]
-# feature_columns = [col for col in df_features.columns if col not in target_columns]
-# df_features = df_features[feature_columns + target_columns]
+# Automatically move 'home_goals' and 'away_goals' to the end
+target_columns = ["home_goals", "away_goals"]
+feature_columns = [col for col in df_features.columns if col not in target_columns]
+df_features = df_features[feature_columns + target_columns]
 
 # Save preprocessed features
-df_features.to_csv('sportradar/AI/processed_data/test_preprocessed_features.csv', index=False)
+df_features.to_csv('sportradar/AI/processed_data/preprocessed_features.csv', index=False)
 
 print("Preprocessed features saved!")
