@@ -1,17 +1,21 @@
-import sqlite3
 import os
+import sys
+
+# Add the project root to Python path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
+sys.path.append(project_root)
+
+import sqlite3
+
 from datetime import datetime
 import pandas as pd
 import traceback
-
 # Local imports
 from sportradar.scripts.constants.constants import (
-    ENDED_MATCHES_QUERY,
-    DEBUG_ENDED_MATCHES_QUERY
+    ENDED_MATCHES_QUERY
 )
 from player_stats import initialize_player_database, process_match_stats
-from team_processing import add_points_for_team, add_team_stats, calculate_elo_rating, calculate_match_importance, calculate_form, get_match_formations, getH2h_stats, initialize_database, refined_categorize_formation
-
+from team_processing import add_points_for_team, add_team_stats, calculate_elo_rating, calculate_match_importance, calculate_form_stats, get_match_formations, getH2h_stats, initialize_database, refined_categorize_formation
 
 def create_training_data(db_path, output_dir, debug_mode=False):
     """Create both basic and advanced training datasets from match database"""
@@ -35,16 +39,17 @@ def create_training_data(db_path, output_dir, debug_mode=False):
         conn = sqlite3.connect(db_path)
         print("Successfully connected to database")
 
-        initialize_database(conn)
-        initialize_player_database(conn)
+        # If we need to re-initialize the database, uncomment the following two lines
+        # initialize_database(conn)
+        # initialize_player_database(conn)
         
-        # Get all processed matches once
+        # Get all of the matches that have already been processed
         processed_match_ids, processed_team_times = get_processed_matches(conn)
         print(f"Found {len(processed_match_ids)} previously processed matches")
         
-        # Get completed matches
+        # Get all matches that have already been completed to analyse the data/stats
         print("\nFetching completed matches...")
-        matches_query = DEBUG_ENDED_MATCHES_QUERY if debug_mode else ENDED_MATCHES_QUERY
+        matches_query = ENDED_MATCHES_QUERY
         matches_df = pd.read_sql_query(matches_query, conn)
         print(f"Found {len(matches_df)} completed matches")
         
@@ -56,9 +61,13 @@ def create_training_data(db_path, output_dir, debug_mode=False):
         skipped_count = 0
         
         with open(log_file, 'w') as f:
+            # For every match that has been completed, process the stats
             for idx, match in matches_df.iterrows():
                 try:
+                    # Extract the match_id
                     match_id = match['fixture_id']
+                    
+                    # If the match has already been processed, skip it to avoid duplicates
                     if match_id in processed_match_ids:
                         print(f"Skipping match {match_id} as it has already been processed")
                         skipped_count += 1
@@ -71,13 +80,14 @@ def create_training_data(db_path, output_dir, debug_mode=False):
                     print("Adding team stats...")
                     add_team_stats(conn, match)
                     
-                    # Calculate form using pre-match ELO ratings
-                    print("Calculating form...")
-                    average_home_stats, average_away_stats = calculate_form(conn, match)
+                    # Calculate the form of each team based on their previous 5 match stats.
+                    print("Calculating form based on previous 5 match stats...")
+                    average_home_stats, average_away_stats = calculate_form_stats(conn, match)
                     print(f"Home advanced stats: {average_home_stats.get('has_advanced_stats')}")
                     print(f"Away advanced stats: {average_away_stats.get('has_advanced_stats')}")
                     
                     competition_id = match['competition_id']
+                    # Get the formations of each team
                     home_formation, away_formation = get_match_formations(match_id)
                     print(f"Formations - Home: {home_formation}, Away: {away_formation}")
 
@@ -87,6 +97,7 @@ def create_training_data(db_path, output_dir, debug_mode=False):
                     home_elo_rating, away_elo_rating = calculate_elo_rating(conn, match, match_importance)
                     print(f"ELO ratings - Home: {home_elo_rating}, Away: {away_elo_rating}")
                     
+                    #Update the season points table based on the outcome of this match
                     add_points_for_team(conn, match)
 
                     # H2H Stats

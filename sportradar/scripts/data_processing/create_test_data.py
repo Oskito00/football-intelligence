@@ -11,7 +11,7 @@ import requests
 from player_stats import get_key_players_count, initialize_player_database, process_match_stats
 from team_processing import (
     calculate_match_importance, 
-    calculate_form, 
+    calculate_form_stats, 
     initialize_database, 
     getH2h_stats
 )
@@ -451,7 +451,7 @@ def create_test_data(db_path, output_dir):
                 log("→ Is next match for both teams")
                 
                 # Calculate form
-                average_home_stats, average_away_stats = calculate_form(conn, match)
+                average_home_stats, average_away_stats = calculate_form_stats(conn, match)
                 log("→ Form calculated")
                 log(f"  Home stats: {average_home_stats}")
                 log(f"  Away stats: {average_away_stats}")
