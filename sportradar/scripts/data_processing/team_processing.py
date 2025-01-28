@@ -989,7 +989,7 @@ def get_h2h_averages(matches, team1_id, team2_id):
     Process match statistics and calculate averages for two teams.
     
     Args:
-        matches (list): List of tuples containing (home_id, away_id, home_score, away_score)
+        matches (list): List of tuples containing (home_id, away_id, home_score, away_score, match_time)
         team1_id (str): ID of first team
         team2_id (str): ID of second team
         
@@ -1004,7 +1004,7 @@ def get_h2h_averages(matches, team1_id, team2_id):
         }
         
         # Process each match
-        for home_id, away_id, home_score, away_score in matches:
+        for home_id, away_id, home_score, away_score, match_time in matches:
             # Skip matches with missing scores
             if home_score is None or away_score is None:
                 continue
