@@ -20,21 +20,29 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-@keyframes ticker {
-    0% {
-        transform: translateX(100%);
-    }
-    100% {
-        transform: translateX(-100%);
-    }
+.ticker-wrapper {
+  width: 100%;
+  overflow: hidden;
+  display: flex;
 }
 
-.animate-ticker {
-    display: inline-block;
-    white-space: nowrap;
-    animation: ticker 100s linear infinite;
+.ticker-content {
+  display: flex;
+  white-space: nowrap;
+  animation: ticker-animation 50s linear infinite;
 }
 
-.animate-ticker:hover {
-    animation-play-state: paused;
+/* Keyframes for smooth infinite scrolling */
+@keyframes ticker-animation {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Pause animation on hover */
+.ticker-content:hover {
+  animation-play-state: paused;
 }
