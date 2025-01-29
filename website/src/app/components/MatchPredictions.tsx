@@ -380,14 +380,19 @@ export default function MatchPredictions() {
           ))}
         </div>
         <div className="container mx-auto px-4 mb-6">
-          <div className="flex flex-col sm:flex-row justify-center sm:space-x-8 space-y-2 sm:space-y-0 text-sm">
-            <div className="flex items-center text-green-600 justify-center">
-              <span className="mr-2">✅</span>
-              <span>More secure bet (betting on the most likely outcome)</span>
+          <div className="flex flex-col space-y-4">
+            <div className="flex flex-col sm:flex-row justify-center sm:space-x-8 space-y-2 sm:space-y-0 text-sm">
+              <div className="flex items-center text-green-600 justify-center">
+                <span className="mr-2">✅</span>
+                <span>More secure bet (betting on the most likely outcome)</span>
+              </div>
+              <div className="flex items-center text-yellow-600 justify-center">
+                <span className="mr-2">⚠️</span>
+                <span>Riskier bet (betting on a less likely outcome)</span>
+              </div>
             </div>
-            <div className="flex items-center text-yellow-600 justify-center">
-              <span className="mr-2">⚠️</span>
-              <span>Riskier bet (betting on a less likely outcome)</span>
+            <div className="text-sm text-center text-gray-600">
+              For the most accurate predictions please wait until 45 minutes before the match starts so that the model can consider the team lineups
             </div>
           </div>
         </div>
