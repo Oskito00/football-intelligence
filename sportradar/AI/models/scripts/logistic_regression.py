@@ -1177,6 +1177,7 @@ if __name__ == "__main__":
                 'model_type': 'with_h2h'
             })
 
+    # #TODO: Fix because I don't think it is processing the no h2h data and making predictions for this no h2h data...
     # # Process matches without H2H features
     # if os.path.exists("sportradar/AI/processed_data/test_no_h2h_preprocessed_features.csv"):
     #     predictions_no_h2h, probabilities_no_h2h = predict_test_matches(

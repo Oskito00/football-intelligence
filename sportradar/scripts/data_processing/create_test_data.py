@@ -312,6 +312,7 @@ def create_test_data(db_path, output_dir):
                             'home_team_overall_strength': home_team_overall_strength['overall_strength'],
                             'away_team_overall_strength': away_team_overall_strength['overall_strength']
                         })
+                        #TODO: I don't think it is appending to the no_h2h_data list
                         no_h2h_data.append(no_h2h_row)
                         log("→ Added to no H2H dataset")
 

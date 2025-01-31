@@ -20,6 +20,7 @@ def run_scripts():
         subprocess.run(['python', 'sportradar/scripts/data_processing/create_test_data.py'], check=True)
         logging.info("Finished create_test_data.py")
 
+        #TODO: Add test_pre_process_basic_features.py
         # Run pre-processing scripts
         logging.info("Starting pre_process_features_no_h2h.py...")
         subprocess.run(['python', 'sportradar/AI/feature_engineering/scripts/pre_process_features_no_h2h.py'], check=True)

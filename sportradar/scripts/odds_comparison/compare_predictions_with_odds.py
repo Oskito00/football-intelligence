@@ -219,7 +219,7 @@ def analyze_predictions():
         message += "❌ No significant value bets (positive or negative) found for upcoming matches."
     
     # Send message through Telegram
-    bot.send_message(message)
+    # bot.send_message(message)
     
     # Also print to console for debugging
     print(message)

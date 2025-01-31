@@ -47,12 +47,11 @@ columns_to_drop = [
     # "average_home_win_rate", "average_away_win_rate",
     # "average_home_draw_rate", "average_away_draw_rate",
     # "average_home_clean_sheets", "average_away_clean_sheets",
-    #h2h_avg_draw_rate
+    # "home_momentum", "away_momentum",
+    # "home_elo_rating", "away_elo_rating",
     
     # Drop these comparison metrics
-    "home_fatigue", "away_fatigue", 
-    # "home_team_gk_strength", "home_team_defence_strength", "home_team_midfield_strength", "home_team_attack_strength", "home_team_overall_strength", "away_team_gk_sway_team_defence_strength", "away_team_midfield_strength","away_team_midfield_strength","away_team_attack_strength","away_team_overall_strength"
-    # , "home_team_midfield_strength", "home_team_attack_strength", "away_team_gk_strength", "away_team_defence_strength", "away_team_midfield_strength", "away_team_attack_strength", "home_team_overall_strength", "away_team_overall_strength"
+    "home_fatigue", "away_fatigue"
 ]
 df_features = df_features.drop(columns=columns_to_drop)
 
@@ -63,13 +62,9 @@ ordered_columns = [
     'home_momentum',
     'average_away_goals_scored', 'average_away_goals_conceded',
     'average_away_win_rate', 'average_away_draw_rate', 'average_away_clean_sheets',
-    'away_momentum',
+    'away_momentum', "home_elo_rating", "away_elo_rating",
     'goals_scored_difference', 'goals_conceded_difference',
-    'win_rate_difference', 'squad_strength_difference',
-    'fatigue_difference', 'h2h_points_difference',
-    'clean_sheets_difference', 'h2h_goals_difference',
-    'h2h_clean_sheets_difference', 'momentum_difference',
-    'home_goals', 'away_goals'
+    'win_rate_difference', "draw_rate_difference","fatigue_difference", "clean_sheets_difference","momentum_difference","elo_rating_difference","elo_similarity","draw_rate_similarity","form_similarity"
 ]
 
 # Automatically move 'home_goals' and 'away_goals' to the end
