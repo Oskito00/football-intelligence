@@ -207,7 +207,10 @@ export default function MatchPredictions() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-
+        <div className="text-sm text-center text-gray-600">
+          For the most accurate predictions please wait until 45 minutes before
+          the match starts so that the model can update to consider the team lineups
+            </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 py-4">
           {filteredMatches.map((match, index) => (
             <div
@@ -381,11 +384,6 @@ export default function MatchPredictions() {
                 <span className="mr-2">⚠️</span>
                 <span>Riskier bet (betting on a less likely outcome)</span>
               </div>
-            </div>
-            <div className="text-sm text-center text-gray-600">
-              For the most accurate predictions please wait until 45 minutes
-              before the match starts so that the model can consider the team
-              lineups
             </div>
           </div>
         </div>
