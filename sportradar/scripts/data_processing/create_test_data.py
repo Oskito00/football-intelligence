@@ -97,18 +97,6 @@ def create_test_data(db_path, output_dir):
                 # Get H2H stats from database first
                 h2h_stats = getH2h_stats(conn, match['home_team_id'], match['away_team_id'], match['start_time'])
                 
-                if not h2h_stats:
-                    # Only try API for matches with advanced stats
-                    if not (average_home_stats.get('has_advanced_stats') and average_away_stats.get('has_advanced_stats')):
-                        log("→ Skipping H2H API call - not an advanced stats match")
-                        
-                    # print(f"No H2H stats found in database for {match['home_team']} vs {match['away_team']}, trying API...")
-                    # h2h_stats = get_h2h_from_api(conn, match['home_team_id'], match['away_team_id'])
-                
-                if not h2h_stats:
-                    log(f"❌ No H2H stats found in database for {match['home_team']} vs {match['away_team']}")
-
-
                 # Get key players for both teams
                 home_key_count, home_key_players = get_key_players_count(conn, match['home_team_id'], match['start_time'])
                 away_key_count, away_key_players = get_key_players_count(conn, match['away_team_id'], match['start_time'])
@@ -122,44 +110,52 @@ def create_test_data(db_path, output_dir):
                 for player in away_key_players:
                     log(f"- {player['player_name']} ({player['position']}) - Importance: {player['importance']}, Form: {player['form']}")
 
-                 # Only get lineups for matches with advanced stats
-                if not (average_home_stats.get('has_advanced_stats') and average_away_stats.get('has_advanced_stats')):
-                    log("→ Skipping lineup check - not an advanced stats match")
-                    continue
-                
-                # Check if match is less than 45 mins away and lineups haven't been saved yet
-                match_time = pd.to_datetime(match['start_time'])
-                time_until_match = match_time - pd.Timestamp.now(tz='UTC')
-                lineups_path = f"sportradar/data/future_lineups/{match['fixture_id']}.json"
-                
-                if time_until_match.total_seconds() < 2700 and not os.path.exists(lineups_path):  # 2700 seconds = 45 minutes
-                    home_lineup, away_lineup = get_match_lineups(match['fixture_id'])
+                 # Only get future lineups for matches with advanced stats
+                if (average_home_stats.get('has_advanced_stats') and average_away_stats.get('has_advanced_stats')):
+                    # Check if match is less than 45 mins away and lineups haven't been saved yet
+                    match_time = pd.to_datetime(match['start_time'])
+                    time_until_match = match_time - pd.Timestamp.now(tz='UTC')
+                    lineups_path = f"sportradar/data/future_lineups/{match['fixture_id']}.json"
                     
-                    # Save lineups to file
-                    with open(lineups_path, 'w') as f:
-                        json.dump({
+                    if time_until_match.total_seconds() < 2700 and not os.path.exists(lineups_path):  # 2700 seconds = 45 minutes
+                        home_lineup, away_lineup = get_match_lineups(match['fixture_id'])
+                        
+                        # Save lineups to file
+                        with open(lineups_path, 'w') as f:
+                            json.dump({
                             'home_lineup': home_lineup,
                             'away_lineup': away_lineup
-                        }, f)
-                else:
-                    # Load previously saved lineups if they exist
-                    if os.path.exists(lineups_path):
-                        with open(lineups_path, 'r') as f:
-                            lineups = json.load(f)
-                            home_lineup = lineups['home_lineup']
-                            away_lineup = lineups['away_lineup']
+                        }   , f)
                     else:
-                        # Use last known lineup or default lineup logic here
-                        home_lineup, away_lineup = get_last_lineup(conn, match['home_team_id'], match['start_time']), get_last_lineup(conn, match['away_team_id'], match['start_time'])
+                        log(f"→ Skipping lineup check - not within 45 minutes or lineups already saved")
+                        # Load previously saved lineups if they exist
+                        if os.path.exists(lineups_path):
+                            with open(lineups_path, 'r') as f:
+                                lineups = json.load(f)
+                                home_lineup = lineups['home_lineup']
+                                away_lineup = lineups['away_lineup']
+                        else:
+                            log(f"→ Skipping lineup check - no saved lineups found")
+                            # Use last known lineup or default lineup logic here
+                            home_lineup, away_lineup = get_last_lineup(conn, match['home_team_id'], match['start_time']), get_last_lineup(conn, match['away_team_id'], match['start_time'])
+                else:
+                    home_lineup = []
+                    away_lineup = []
 
                 log("\nLineup analysis:")
                 log("Home team lineup:")
-                for player in home_lineup:
-                    log(f"- #{player['player_name']} ({player['position']})")
+                if home_lineup:
+                    for player in home_lineup:
+                        log(f"- #{player['player_name']} ({player['position']})")
+                else:
+                    log("→ No home lineup found")
                 
                 log("\nAway team lineup:")
-                for player in away_lineup:
-                    log(f"- #{player['player_name']} ({player['position']})")
+                if away_lineup:
+                    for player in away_lineup:
+                        log(f"- #{player['player_name']} ({player['position']})")
+                else:
+                    log("→ No away lineup found")
                 
                 # Compare with key players to find who's missing
                 home_missing_players = [
@@ -213,11 +209,6 @@ def create_test_data(db_path, output_dir):
                     away_team_overall_strength['overall_strength']
                 ]
     
-                if any(pd.isna(x) for x in home_strength_components) or any(pd.isna(x) for x in away_strength_components):
-                    log(f"→ Skipping: Missing squad strength data for {match['home_team']} vs {match['away_team']}")
-                    skipped_no_squad_strength += 1
-                    continue
-
                 # Create basic row without h2h stats
                 basic_row = {
                     'fixture_id': match['fixture_id'],
@@ -246,16 +237,19 @@ def create_test_data(db_path, output_dir):
                     basic_row['home_elo_rating'] = home_elo_rating
                     basic_row['away_elo_rating'] = away_elo_rating
 
+                # Check if h2h stats are available
+                has_h2h = (h2h_stats and match['home_team_id'] in h2h_stats 
+                           and match['away_team_id'] in h2h_stats)
+                
                 # Add to appropriate dataset
                 has_advanced_home = average_home_stats.get('has_advanced_stats') == 1
                 has_advanced_away = average_away_stats.get('has_advanced_stats') == 1
                 
-                log(f"→ Advanced stats available - Home: {has_advanced_home}, Away: {has_advanced_away}")
+                if not has_advanced_home or not has_advanced_away or not home_team_overall_strength or not away_team_overall_strength or not has_h2h:
+                    basic_data.append(basic_row)
+                    log(f"→ Added to basic dataset (This matches advanced stats were: {has_advanced_home} and {has_advanced_away}, this match has h2h stats: {has_h2h}, this match has squad strength: {home_team_overall_strength} and {away_team_overall_strength})")
                 
-                # Check if h2h stats are available
-                has_h2h = (h2h_stats and match['home_team_id'] in h2h_stats 
-                           and match['away_team_id'] in h2h_stats)
-
+                
                 if has_h2h:
                     # Add h2h stats to the row
                     h2h_row = basic_row.copy()
@@ -294,12 +288,9 @@ def create_test_data(db_path, output_dir):
                         })
                         advanced_data.append(advanced_row)
                         log("→ Added to advanced dataset (with H2H)")
-                    else:
-                        basic_data.append(h2h_row)
-                        log("→ Added to basic dataset (with H2H)")
                 else:
-                    # No h2h stats available - add to no_h2h dataset
-                    if home_team_overall_strength and away_team_overall_strength:
+                    # No h2h stats available - add to no_h2h dataset or basic dataset
+                    if has_advanced_home and has_advanced_away and home_team_overall_strength and away_team_overall_strength:
                         no_h2h_row = basic_row.copy()
                         no_h2h_row.update({
                             'home_pass_effectiveness': round(average_home_stats['pass_effectiveness'], 2),
@@ -340,27 +331,38 @@ Skipped - missing squad strength: {skipped_no_squad_strength}
 Skipped - other errors: {skipped_other_errors}
 Successfully processed - basic: {len(basic_data)}
 Successfully processed - advanced: {len(advanced_data)}
+Successfully processed - no H2H: {len(no_h2h_data)}
 """
         log(summary)
         
         # Save datasets
+        basic_df = None
         advanced_df = None
         no_h2h_df = None
+
+        if len(basic_data) > 0:
+            basic_df = pd.DataFrame(basic_data)
+            basic_output = os.path.join(output_dir, 'test_data_basic.csv')
+            basic_df.to_csv(basic_output, index=False)
+            print(f"Length of basic data: {len(basic_df)}")
+            log(f"\nSaved basic dataset with {len(basic_df)} matches to {basic_output}")
 
         if len(advanced_data) > 0:
             advanced_df = pd.DataFrame(advanced_data)
             advanced_output = os.path.join(output_dir, 'test_data_advanced.csv')
             advanced_df.to_csv(advanced_output, index=False)
+            print(f"Length of advanced data: {len(advanced_df)}")
             log(f"\nSaved advanced dataset with {len(advanced_df)} matches to {advanced_output}")
 
         if len(no_h2h_data) > 0:
             no_h2h_df = pd.DataFrame(no_h2h_data)
             no_h2h_output = os.path.join(output_dir, 'test_data_no_h2h.csv')
             no_h2h_df.to_csv(no_h2h_output, index=False)
+            print(f"Length of no H2H data: {len(no_h2h_df)}")
             log(f"\nSaved no H2H dataset with {len(no_h2h_df)} matches to {no_h2h_output}")
 
         # Just return the DataFrames directly
-        return advanced_df, no_h2h_df
+        return advanced_df, no_h2h_df, basic_df
         
     except Exception as e:
         log(f"\nError: {str(e)}")
@@ -414,7 +416,7 @@ def get_upcoming_matches_query():
     FROM matches m
     WHERE (m.match_status IS NULL OR m.match_status = '' OR m.match_status != 'ended')
     AND m.start_time >= datetime('now')
-    AND m.start_time <= datetime('now', '+3 days')
+    AND m.start_time <= datetime('now', '+10 days')
     ORDER BY m.start_time
     """
 
@@ -916,7 +918,7 @@ def store_h2h_data(conn, h2h_data):
 if __name__ == "__main__":
     try:
         output_dir = 'sportradar/data/processed_data'
-        advanced_df, no_h2h_df = create_test_data('football_data.db', output_dir)
+        advanced_df, no_h2h_df, basic_df = create_test_data('football_data.db', output_dir)
         
         # No need to print again since we already log in the create_test_data function
         # Just add a final summary

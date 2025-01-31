@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Image from "next/image";
 import { Line } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -33,10 +34,6 @@ interface Prediction {
   away_kelly: number;
 }
 
-interface PredictionAnalysis {
-  // Add appropriate properties for PredictionAnalysis
-}
-
 interface PerformanceData {
   date: string;
   pot_value: number;
@@ -58,7 +55,6 @@ export default function MatchPredictions() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
   const [performanceData, setPerformanceData] = useState<PerformanceData[]>([]);
 
   useEffect(() => {
@@ -81,26 +77,6 @@ export default function MatchPredictions() {
     }
 
     fetchData();
-  }, []);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setIsVisible(true);
-          }
-        });
-      },
-      { threshold: 0.1 }
-    );
-
-    const element = document.getElementById("responsible-betting");
-    if (element) {
-      observer.observe(element);
-    }
-
-    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -143,10 +119,13 @@ export default function MatchPredictions() {
     <div className="min-h-screen bg-green-100 text-black">
       <header className="w-full bg--700 text-white py-4">
         <div className="flex justify-start">
-          <img
+          <Image
             src="/INBETMENTS (1).png"
             alt="InBETments Logo"
-            className="h-[40px] sm:h-[50px] md:h-[60px] lg:h-[70px] px-4"
+            width={200}
+            height={80}
+            priority
+            className="h-[40px] sm:h-[50px] md:h-[65px] lg:h-[65px] w-[100px] sm:w-[125px] md:w-[150px] lg:w-[162px]"
           />
         </div>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8"></div>
@@ -247,71 +226,81 @@ export default function MatchPredictions() {
               <p className="text-sm font-semibold mb-1">
                 Our Model Probabilities:
               </p>
-              <div className="h-4 w-full flex items-center relative group mb-4">
+              <div className="relative h-6 bg-gray-200 rounded overflow-hidden">
+                {/* Home Win (Red) */}
                 <div
-                  className="h-4 bg-red-500 relative hover:opacity-80"
+                  className="absolute left-0 h-full bg-red-500 flex items-center justify-center text-xs text-white font-bold"
                   style={{ width: `${match.home_win_prob * 100}%` }}
-                  title={`Home Win: ${(match.home_win_prob * 100).toFixed(1)}%`}
-                ></div>
+                >
+                  {(match.home_win_prob * 100).toFixed(0)}%
+                </div>
+                {/* Draw (Gray) */}
                 <div
-                  className="h-4 bg-gray-400 relative hover:opacity-80"
-                  style={{ width: `${match.draw_prob * 100}%` }}
-                  title={`Draw: ${(match.draw_prob * 100).toFixed(1)}%`}
-                ></div>
+                  className="absolute h-full bg-gray-500 flex items-center justify-center text-xs text-white font-bold"
+                  style={{
+                    left: `${match.home_win_prob * 100}%`,
+                    width: `${match.draw_prob * 100}%`,
+                  }}
+                >
+                  {(match.draw_prob * 100).toFixed(0)}%
+                </div>
+                {/* Away Win (Blue) */}
                 <div
-                  className="h-4 bg-blue-500 relative hover:opacity-80"
-                  style={{ width: `${match.away_win_prob * 100}%` }}
-                  title={`Away Win: ${(match.away_win_prob * 100).toFixed(1)}%`}
-                ></div>
+                  className="absolute h-full bg-blue-500 flex items-center justify-center text-xs text-white font-bold"
+                  style={{
+                    left: `${(match.home_win_prob + match.draw_prob) * 100}%`,
+                    width: `${match.away_win_prob * 100}%`,
+                  }}
+                >
+                  {(match.away_win_prob * 100).toFixed(0)}%
+                </div>
               </div>
 
               <p className="text-sm font-semibold mb-1">
                 Bookmaker Probabilities:
               </p>
-              <div className="h-4 w-full flex items-center relative group mb-4">
-                <div
-                  className="h-4 bg-red-300 relative hover:opacity-80"
-                  style={{
-                    width: `${
-                      (match.home_bookie_prob /
-                        (match.home_bookie_prob +
-                          match.draw_bookie_prob +
-                          match.away_bookie_prob)) *
-                      100
-                    }%`,
-                  }}
-                  title={`Home Win: ${(match.home_bookie_prob * 100).toFixed(
-                    1
-                  )}%`}
-                ></div>
-                <div
-                  className="h-4 bg-gray-300 relative hover:opacity-80"
-                  style={{
-                    width: `${
-                      (match.draw_bookie_prob /
-                        (match.home_bookie_prob +
-                          match.draw_bookie_prob +
-                          match.away_bookie_prob)) *
-                      100
-                    }%`,
-                  }}
-                  title={`Draw: ${(match.draw_bookie_prob * 100).toFixed(1)}%`}
-                ></div>
-                <div
-                  className="h-4 bg-blue-300 relative hover:opacity-80"
-                  style={{
-                    width: `${
-                      (match.away_bookie_prob /
-                        (match.home_bookie_prob +
-                          match.draw_bookie_prob +
-                          match.away_bookie_prob)) *
-                      100
-                    }%`,
-                  }}
-                  title={`Away Win: ${(match.away_bookie_prob * 100).toFixed(
-                    1
-                  )}%`}
-                ></div>
+              <div className="relative h-6 bg-gray-200 rounded overflow-hidden">
+                {(() => {
+                  // Calculate total to normalize
+                  const total =
+                    match.home_bookie_prob +
+                    match.draw_bookie_prob +
+                    match.away_bookie_prob;
+
+                  // Normalize each probability
+                  const normalizedHome = match.home_bookie_prob / total;
+                  const normalizedDraw = match.draw_bookie_prob / total;
+                  const normalizedAway = match.away_bookie_prob / total;
+
+                  return (
+                    <>
+                      <div
+                        className="absolute left-0 h-full bg-red-300 flex items-center justify-center text-xs text-white font-bold"
+                        style={{ width: `${normalizedHome * 100}%` }}
+                      >
+                        {(normalizedHome * 100).toFixed(0)}%
+                      </div>
+                      <div
+                        className="absolute h-full bg-gray-400 flex items-center justify-center text-xs text-white font-bold"
+                        style={{
+                          left: `${normalizedHome * 100}%`,
+                          width: `${normalizedDraw * 100}%`,
+                        }}
+                      >
+                        {(normalizedDraw * 100).toFixed(0)}%
+                      </div>
+                      <div
+                        className="absolute h-full bg-blue-300 flex items-center justify-center text-xs text-white font-bold"
+                        style={{
+                          left: `${(normalizedHome + normalizedDraw) * 100}%`,
+                          width: `${normalizedAway * 100}%`,
+                        }}
+                      >
+                        {(normalizedAway * 100).toFixed(0)}%
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
 
               <div className="mt-4">
@@ -384,7 +373,9 @@ export default function MatchPredictions() {
             <div className="flex flex-col sm:flex-row justify-center sm:space-x-8 space-y-2 sm:space-y-0 text-sm">
               <div className="flex items-center text-green-600 justify-center">
                 <span className="mr-2">✅</span>
-                <span>More secure bet (betting on the most likely outcome)</span>
+                <span>
+                  More secure bet (betting on the most likely outcome)
+                </span>
               </div>
               <div className="flex items-center text-yellow-600 justify-center">
                 <span className="mr-2">⚠️</span>
@@ -392,7 +383,9 @@ export default function MatchPredictions() {
               </div>
             </div>
             <div className="text-sm text-center text-gray-600">
-              For the most accurate predictions please wait until 45 minutes before the match starts so that the model can consider the team lineups
+              For the most accurate predictions please wait until 45 minutes
+              before the match starts so that the model can consider the team
+              lineups
             </div>
           </div>
         </div>
@@ -405,7 +398,7 @@ export default function MatchPredictions() {
           <div className="space-y-4 text-gray-700 text-lg">
             <p>
               Our AI-powered platform helps you make smarter betting decisions.
-              Here's how to use it:
+              Here&apos;s how to use it:
             </p>
             <ol className="list-decimal pl-6 space-y-4">
               <li>
@@ -509,12 +502,12 @@ export default function MatchPredictions() {
           </h2>
           <div className="space-y-4 text-gray-700 text-lg">
             <p>
-              At inBETments, we're committed to promoting responsible betting
-              practices. While our AI-driven predictions aim to make betting
-              smarter, it's crucial to remember that no bet is ever guaranteed.
-              The algorithm makes its predictions based on what it thinks will
-              be the most likely outcome but due to the unpredictable nature of
-              sports, it is not always right.
+              At inBETments, we&apos;re committed to promoting responsible
+              betting practices. While our AI-driven predictions aim to make
+              betting smarter, it&apos;s crucial to remember that no bet is ever
+              guaranteed. The algorithm makes its predictions based on what it
+              thinks will be the most likely outcome but due to the
+              unpredictable nature of sports, it is not always right.
             </p>
             <p>We encourage you to:</p>
             <ul className="list-disc pl-6 space-y-2">

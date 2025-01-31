@@ -3,8 +3,8 @@ from sklearn.preprocessing import LabelEncoder
 import joblib
 
 # Load and preprocess data
-df = pd.read_csv('sportradar/data/processed_data/training_data_basic.csv')
-# df = pd.read_csv('sportradar/data/processed_data/test_data_basic.csv')
+df = pd.read_csv('sportradar/data/processed_data/test_data_basic.csv')
+# df = pd.read_csv('sportradar/data/processed_data/training_data_basic.csv')
 
 # Drop non-feature columns
 df_features = df.drop(["fixture_id"], axis=1)
@@ -21,12 +21,8 @@ df_features["goals_scored_difference"] = df_features["average_home_goals_scored"
 df_features["goals_conceded_difference"] = df_features["average_home_goals_conceded"] - df_features["average_away_goals_conceded"]
 df_features["win_rate_difference"] = df_features["average_home_win_rate"] - df_features["average_away_win_rate"]
 df_features["draw_rate_difference"] = df_features["average_home_draw_rate"] - df_features["average_away_draw_rate"]
-df_features["squad_strength_difference"] = df_features["home_squad_strength"] - df_features["away_squad_strength"]
 df_features["fatigue_difference"] = df_features["home_fatigue"] - df_features["away_fatigue"]
-df_features["h2h_points_difference"] = df_features["home_h2h_avg_points"] - df_features["away_h2h_avg_points"]
 df_features["clean_sheets_difference"] = df_features["average_home_clean_sheets"] - df_features["average_away_clean_sheets"]
-df_features["h2h_goals_difference"] = df_features["home_h2h_avg_goals"] - df_features["away_h2h_avg_goals"]
-df_features["h2h_clean_sheets_difference"] = df_features["home_h2h_avg_clean_sheets"] - df_features["away_h2h_avg_clean_sheets"]
 df_features['momentum_difference'] = df_features['home_momentum'] - df_features['away_momentum']
 df_features['elo_rating_difference'] = df_features['home_elo_rating'] - df_features['away_elo_rating']
 df_features['elo_similarity'] = 1/(1+abs(df_features['elo_rating_difference'])) #Improves draw recall
@@ -54,11 +50,9 @@ columns_to_drop = [
     #h2h_avg_draw_rate
     
     # Drop these comparison metrics
-    "home_squad_strength", "away_squad_strength",
-    "home_fatigue", "away_fatigue",
-    "home_h2h_avg_points", "away_h2h_avg_points",
-    "home_h2h_avg_goals", "away_h2h_avg_goals",
-    "home_h2h_avg_clean_sheets", "away_h2h_avg_clean_sheets",
+    "home_fatigue", "away_fatigue", 
+    # "home_team_gk_strength", "home_team_defence_strength", "home_team_midfield_strength", "home_team_attack_strength", "home_team_overall_strength", "away_team_gk_sway_team_defence_strength", "away_team_midfield_strength","away_team_midfield_strength","away_team_attack_strength","away_team_overall_strength"
+    # , "home_team_midfield_strength", "home_team_attack_strength", "away_team_gk_strength", "away_team_defence_strength", "away_team_midfield_strength", "away_team_attack_strength", "home_team_overall_strength", "away_team_overall_strength"
 ]
 df_features = df_features.drop(columns=columns_to_drop)
 
@@ -78,12 +72,12 @@ ordered_columns = [
     'home_goals', 'away_goals'
 ]
 
-# # Automatically move 'home_goals' and 'away_goals' to the end
+# Automatically move 'home_goals' and 'away_goals' to the end
 # target_columns = ["home_goals", "away_goals"]
 # feature_columns = [col for col in df_features.columns if col not in target_columns]
 # df_features = df_features[feature_columns + target_columns]
 
 # Save preprocessed features
-df_features.to_csv('sportradar/AI/preprocessed_basic_features.csv', index=False)
+df_features.to_csv('sportradar/AI/processed_data/test_preprocessed_basic_features.csv', index=False)
 
 print("Preprocessed basic features saved!")

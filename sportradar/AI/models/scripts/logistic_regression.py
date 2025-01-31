@@ -8,6 +8,8 @@ from sklearn.metrics import accuracy_score, f1_score, precision_recall_fscore_su
 import matplotlib.pyplot as plt
 from collections import defaultdict
 
+print("Starting script...")  # Add at the very top
+
 def run_experiment_3_class(n_runs=10):
     """
     Train a 3-class classifier with comprehensive evaluation metrics
@@ -818,15 +820,23 @@ def predict_test_matches(test_data_csv="sportradar/AI/processed_data/test_prepro
     Predict outcomes for test matches using hybrid model (ML + ELO)
     """
     # Load training data and test matches
+    print("Loading data files...")
     train_df = pd.read_csv(train_data_csv)
+    print(f"Train data loaded. Shape: {train_df.shape}")
+    print("Training data columns:", train_df.columns.tolist())
+
     test_matches = pd.read_csv(test_data_csv)
-    
+    print(f"Test data loaded. Shape: {test_matches.shape}")
+    print("Test data columns:", test_matches.columns.tolist())
+
+    print("Creating outcome labels...")
     # Create outcome labels for training data
     train_df["outcome"] = [
         2 if h > a else (1 if h == a else 0)
         for h, a in zip(train_df["home_goals"], train_df["away_goals"])
     ]
-    
+    print("Outcome labels created")
+
     # Get common features and prepare data
     test_features = set(test_matches.columns) - set(["start_time", "home_team", "away_team"])
     train_features = set(train_df.columns) - set(["start_time", "home_team", "away_team", "home_goals", "away_goals", "outcome"])
@@ -994,32 +1004,6 @@ def get_common_features(train_csv, test_csv):
     print(f"\nUsing {len(common_features)} common features between datasets")
     return common_features
 
-def predict_test_matches(test_data_csv, train_data_csv, home_advantage=100):
-    """Predict matches using only common features between datasets"""
-    # Get common features
-    common_features = get_common_features(train_data_csv, test_data_csv)
-    
-    # Load data
-    train_df = pd.read_csv(train_data_csv)
-    test_df = pd.read_csv(test_data_csv)
-    
-    # Prepare training data
-    X_train = train_df[common_features]
-    y_train = train_df['outcome']
-    
-    # Prepare test data
-    X_test = test_df[common_features]
-    
-    # Train model
-    model = LogisticRegression(multi_class='multinomial', max_iter=1000)
-    model.fit(X_train, y_train)
-    
-    # Make predictions
-    predictions = model.predict(X_test)
-    probabilities = model.predict_proba(X_test)
-    
-    return predictions, probabilities
-
 def run_hybrid_model_no_h2h(n_runs=50, elo_threshold=40, weight_elo=0.3):
     """Run hybrid model that combines ML predictions with ELO thresholds, excluding H2H features."""
     metrics = {
@@ -1154,46 +1138,44 @@ def run_hybrid_model_no_h2h(n_runs=50, elo_threshold=40, weight_elo=0.3):
 
 # Main execution
 if __name__ == "__main__":
-    print("Running Full Model:")
-    full_metrics, full_model, scaler, test_data = run_experiment_3_class(n_runs=50)
-    print("\nRunning ELO ML Model:")
-    elo_metrics, elo_model, elo_scaler, test_data = run_elo_baseline(n_runs=400)
-    print("\nRunning ELO Threshold Model:")
-    threshold_metrics, test_data = run_elo_threshold_baseline(n_runs=400, threshold=40)
-    print("\nRunning Hybrid Model:")
-    hybrid_metrics, full_model, scaler, test_data = run_hybrid_model(n_runs=50, elo_threshold=40, weight_elo=0.3)
-    print("\nRunning Hybrid Model (No H2H):")
-    hybrid_metrics_no_h2h, full_model_no_h2h, scaler_no_h2h, test_data = run_hybrid_model_no_h2h(n_runs=50, elo_threshold=40, weight_elo=0.3)
+    # print("Running Full Model:")
+    # full_metrics, full_model, scaler, test_data = run_experiment_3_class(n_runs=50)
+    # print("\nRunning ELO ML Model:")
+    # elo_metrics, elo_model, elo_scaler, test_data = run_elo_baseline(n_runs=400)
+    # print("\nRunning ELO Threshold Model:")
+    # threshold_metrics, test_data = run_elo_threshold_baseline(n_runs=400, threshold=40)
+    # print("\nRunning Hybrid Model:")
+    # hybrid_metrics, full_model, scaler, test_data = run_hybrid_model(n_runs=50, elo_threshold=40, weight_elo=0.3)
+    # print("\nRunning Hybrid Model (No H2H):")
+    # hybrid_metrics_no_h2h, full_model_no_h2h, scaler_no_h2h, test_data = run_hybrid_model_no_h2h(n_runs=50, elo_threshold=40, weight_elo=0.3)
 
-    print_five_way_comparison(full_metrics, elo_metrics, threshold_metrics, hybrid_metrics, hybrid_metrics_no_h2h)
+    # print_five_way_comparison(full_metrics, elo_metrics, threshold_metrics, hybrid_metrics, hybrid_metrics_no_h2h)
 
+    print("Predicting Test Matches:")
 
+    # Initialize empty list to store all predictions
+    all_predictions = []
 
-    # print("Predicting Test Matches:")
-
-    # # Initialize empty list to store all predictions
-    # all_predictions = []
-
-    # # Process matches with H2H features
-    # if os.path.exists("sportradar/AI/processed_data/test_preprocessed_features.csv"):
-    #     predictions_h2h, probabilities_h2h = predict_test_matches(
-    #         test_data_csv="sportradar/AI/processed_data/test_preprocessed_features.csv",
-    #         train_data_csv="sportradar/AI/processed_data/preprocessed_features.csv",
-    #         home_advantage=100
-    #     )
+    # Process matches with H2H features
+    if os.path.exists("sportradar/AI/processed_data/test_preprocessed_features.csv"):
+        predictions_h2h, probabilities_h2h = predict_test_matches(
+            test_data_csv="sportradar/AI/processed_data/test_preprocessed_features.csv",
+            train_data_csv="sportradar/AI/processed_data/preprocessed_features.csv",
+            home_advantage=100
+        )
         
-    #     test_df_h2h = pd.read_csv("sportradar/AI/processed_data/test_preprocessed_features.csv")
-    #     for i in range(len(predictions_h2h)):
-    #         all_predictions.append({
-    #             'start_time': test_df_h2h['start_time'].iloc[i],
-    #             'home_team': test_df_h2h['home_team'].iloc[i],
-    #             'away_team': test_df_h2h['away_team'].iloc[i],
-    #             'predicted_outcome': ['Away Win', 'Draw', 'Home Win'][predictions_h2h[i]],
-    #             'home_win_prob': round(probabilities_h2h[i][2], 2),
-    #             'draw_prob': round(probabilities_h2h[i][1], 2),
-    #             'away_win_prob': round(probabilities_h2h[i][0], 2),
-    #             'model_type': 'with_h2h'
-    #         })
+        test_df_h2h = pd.read_csv("sportradar/AI/processed_data/test_preprocessed_features.csv")
+        for i in range(len(predictions_h2h)):
+            all_predictions.append({
+                'start_time': test_df_h2h['start_time'].iloc[i],
+                'home_team': test_df_h2h['home_team'].iloc[i],
+                'away_team': test_df_h2h['away_team'].iloc[i],
+                'predicted_outcome': ['Away Win', 'Draw', 'Home Win'][predictions_h2h[i]],
+                'home_win_prob': round(probabilities_h2h[i][2], 2),
+                'draw_prob': round(probabilities_h2h[i][1], 2),
+                'away_win_prob': round(probabilities_h2h[i][0], 2),
+                'model_type': 'with_h2h'
+            })
 
     # # Process matches without H2H features
     # if os.path.exists("sportradar/AI/processed_data/test_no_h2h_preprocessed_features.csv"):
@@ -1215,15 +1197,36 @@ if __name__ == "__main__":
     #             'away_win_prob': round(probabilities_no_h2h[i][0], 2),
     #             'model_type': 'no_h2h'
     #         })
+    
+    # Process matches with basic features
+    if os.path.exists("sportradar/AI/processed_data/preprocessed_basic_features.csv"):
+        predictions_basic, probabilities_basic = predict_test_matches(
+            test_data_csv="sportradar/AI/processed_data/test_preprocessed_basic_features.csv",
+            train_data_csv="sportradar/AI/processed_data/preprocessed_basic_features.csv",  # Use basic training data
+            home_advantage=100
+        )
+        
+        test_basic = pd.read_csv("sportradar/AI/processed_data/test_preprocessed_basic_features.csv")
+        for i in range(len(predictions_basic)):  # Fixed: was using predictions_no_h2h length
+            all_predictions.append({
+                'start_time': test_basic['start_time'].iloc[i],
+                'home_team': test_basic['home_team'].iloc[i],
+                'away_team': test_basic['away_team'].iloc[i],
+                'predicted_outcome': ['Away Win', 'Draw', 'Home Win'][predictions_basic[i]],
+                'home_win_prob': round(probabilities_basic[i][2], 2),  # Fixed: was using probabilities_no_h2h
+                'draw_prob': round(probabilities_basic[i][1], 2),
+                'away_win_prob': round(probabilities_basic[i][0], 2),
+                'model_type': 'basic'  # Changed from 'no_h2h' to 'basic'
+            })
 
-    # # Save all predictions to a single file
-    # if all_predictions:
-    #     results_df = pd.DataFrame(all_predictions)
-    #     # Sort by start time to keep matches in chronological order
-    #     results_df = results_df.sort_values('start_time')
-    #     output_path = "sportradar/AI/match_predictions.csv"
-    #     results_df.to_csv(output_path, index=False)
-    #     print(f"\nSaved {len(results_df)} predictions to {output_path}")
-    # else:
-    #     print("\nNo predictions to save")
+    # Save all predictions to a single file
+    if all_predictions:
+        results_df = pd.DataFrame(all_predictions)
+        # Sort by start time to keep matches in chronological order
+        results_df = results_df.sort_values('start_time')
+        output_path = "sportradar/AI/match_predictions.csv"
+        results_df.to_csv(output_path, index=False)
+        print(f"\nSaved {len(results_df)} predictions to {output_path}")
+    else:
+        print("\nNo predictions to save")
 

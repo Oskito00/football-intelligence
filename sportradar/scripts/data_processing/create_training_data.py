@@ -153,13 +153,6 @@ def create_training_data(db_path, output_dir, debug_mode=False):
                         'average_away_clean_sheets': average_away_stats['average_clean_sheets'],
                         'away_fatigue': average_away_stats.get('fatigue'),
                         'away_momentum': average_away_stats.get('momentum'),
-                        'h2h_avg_draw_rate': h2h_stats[match['home_team_id']]['avg_draw_rate'],
-                        'home_h2h_avg_goals': h2h_stats[match['home_team_id']]['avg_goals'],
-                        'home_h2h_avg_clean_sheets': h2h_stats[match['home_team_id']]['avg_clean_sheets'],
-                        'home_h2h_avg_points': h2h_stats[match['home_team_id']]['avg_points'],
-                        'away_h2h_avg_goals': h2h_stats[match['away_team_id']]['avg_goals'],
-                        'away_h2h_avg_clean_sheets': h2h_stats[match['away_team_id']]['avg_clean_sheets'],
-                        'away_h2h_avg_points': h2h_stats[match['away_team_id']]['avg_points'],
                     }
 
                     if home_elo_rating is not None and away_elo_rating is not None:
@@ -168,16 +161,6 @@ def create_training_data(db_path, output_dir, debug_mode=False):
 
 
                     if (average_home_stats.get('has_advanced_stats') == 0 and average_away_stats.get('has_advanced_stats') == 0) and result['home_team_overall_strength'] is not None and result['away_team_overall_strength'] is not None:
-                        basic_row['home_team_gk_strength'] = result['home_team_gk_strength']
-                        basic_row['home_team_defence_strength'] = result['home_team_defence_strength']
-                        basic_row['home_team_midfield_strength'] = result['home_team_midfield_strength']
-                        basic_row['home_team_attack_strength'] = result['home_team_attack_strength']
-                        basic_row['away_team_gk_strength'] = result['away_team_gk_strength']
-                        basic_row['away_team_defence_strength'] = result['away_team_defence_strength']
-                        basic_row['away_team_midfield_strength'] = result['away_team_midfield_strength']
-                        basic_row['away_team_attack_strength'] = result['away_team_attack_strength']
-                        basic_row['home_team_overall_strength'] = result['home_team_overall_strength']
-                        basic_row['away_team_overall_strength'] = result['away_team_overall_strength']
                         basic_row['home_goals'] = match['home_goals']
                         basic_row['away_goals'] = match['away_goals']
                         basic_data.append(basic_row)
@@ -186,6 +169,13 @@ def create_training_data(db_path, output_dir, debug_mode=False):
                     if average_home_stats.get('has_advanced_stats') == 1 and average_away_stats.get('has_advanced_stats') == 1 and result['home_team_overall_strength'] is not None and result['away_team_overall_strength'] is not None and home_formation is not None and away_formation is not None:
                         advanced_row_with_formation = basic_row.copy()
                         advanced_row_with_formation.update({
+                            'h2h_avg_draw_rate': h2h_stats[match['home_team_id']]['avg_draw_rate'],
+                            'home_h2h_avg_goals': h2h_stats[match['home_team_id']]['avg_goals'],
+                            'home_h2h_avg_clean_sheets': h2h_stats[match['home_team_id']]['avg_clean_sheets'],
+                            'home_h2h_avg_points': h2h_stats[match['home_team_id']]['avg_points'],
+                            'away_h2h_avg_goals': h2h_stats[match['away_team_id']]['avg_goals'],
+                            'away_h2h_avg_clean_sheets': h2h_stats[match['away_team_id']]['avg_clean_sheets'],
+                            'away_h2h_avg_points': h2h_stats[match['away_team_id']]['avg_points'],
                             'home_pass_effectiveness': round(average_home_stats['pass_effectiveness'], 2),
                             'home_shot_accuracy': round(average_home_stats['shot_accuracy'], 2),
                             'home_conversion_rate': round(average_home_stats['conversion_rate'], 2),
@@ -216,6 +206,13 @@ def create_training_data(db_path, output_dir, debug_mode=False):
                     if average_home_stats.get('has_advanced_stats') == 1 and average_away_stats.get('has_advanced_stats') == 1 and result['home_team_overall_strength'] is not None and result['away_team_overall_strength'] is not None:
                         advanced_row = basic_row.copy()
                         advanced_row.update({
+                            'h2h_avg_draw_rate': h2h_stats[match['home_team_id']]['avg_draw_rate'],
+                            'home_h2h_avg_goals': h2h_stats[match['home_team_id']]['avg_goals'],
+                            'home_h2h_avg_clean_sheets': h2h_stats[match['home_team_id']]['avg_clean_sheets'],
+                            'home_h2h_avg_points': h2h_stats[match['home_team_id']]['avg_points'],
+                            'away_h2h_avg_goals': h2h_stats[match['away_team_id']]['avg_goals'],
+                            'away_h2h_avg_clean_sheets': h2h_stats[match['away_team_id']]['avg_clean_sheets'],
+                            'away_h2h_avg_points': h2h_stats[match['away_team_id']]['avg_points'],
                             'home_pass_effectiveness': round(average_home_stats['pass_effectiveness'], 2),
                             'home_shot_accuracy': round(average_home_stats['shot_accuracy'], 2),
                             'home_conversion_rate': round(average_home_stats['conversion_rate'], 2),
