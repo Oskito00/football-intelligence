@@ -11,7 +11,7 @@ import numpy as np
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
 sys.path.append(project_root)
 
-from sportradar.scripts.constants.constants import DERBIES
+from Data_to_Features.data_processing.saved_constants import DERBIES
 
 def initialize_database(conn):
     """Create necessary tables if they don't exist and clean existing data"""
