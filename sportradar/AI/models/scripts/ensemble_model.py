@@ -19,6 +19,8 @@ def run_ensemble_experiment(n_runs=10):
         basic_df = pd.read_csv('sportradar/AI/preprocessed_basic_features.csv')
         advanced_df = pd.read_csv('sportradar/AI/preprocessed_features.csv')
         
+
+        
         # Split data
         X_basic = basic_df.drop(['start_time', 'home_team', 'away_team', 'home_goals', 'away_goals'], axis=1)
         y_basic = create_outcome_labels(basic_df['home_goals'], basic_df['away_goals'])
