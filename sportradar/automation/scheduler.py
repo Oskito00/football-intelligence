@@ -30,6 +30,9 @@ def run_scripts():
         subprocess.run(['python', 'sportradar/AI/feature_engineering/scripts/pre_process_features.py'], check=True)
         logging.info("Finished pre_process_features.py")
 
+        #Test
+        run = 1
+        print(run)
         # Run logistic regression
         logging.info("Starting logistic_regression.py...")
         subprocess.run(['python', 'sportradar/AI/models/scripts/logistic_regression.py'], check=True)
