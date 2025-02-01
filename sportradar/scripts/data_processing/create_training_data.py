@@ -103,10 +103,10 @@ def create_training_data(db_path, output_dir, debug_mode=False):
                     # H2H Stats
                     print("Getting H2H stats...")
                     h2h_stats = getH2h_stats(conn, match['home_team_id'], match['away_team_id'], match['start_time'])
-                    if h2h_stats is None:
-                        print("❌ No H2H stats available - skipping match")
+                    if not h2h_stats:
+                        #TODO: Change to not skip if no h2h but add to advanced_no_h2h dataset
+                        print(f"❌ No H2H stats available for match: {match['fixture_id']}")
                         continue
-                    print("✓ H2H stats found")
 
                     try:
                         print("Processing player stats...")

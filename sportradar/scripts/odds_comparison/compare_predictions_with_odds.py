@@ -1,9 +1,10 @@
 import pandas as pd
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 import unicodedata
 import sys
 import os
+import pytz  # Make sure to install pytz if you haven't already
 
 # Add the project root to Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
@@ -12,6 +13,8 @@ sys.path.append(project_root)
 # Now we can import the TelegramBot
 from sportradar.scripts.bot.send_message import TelegramBot
 
+# Assuming your start_time is in UTC, you can adjust the timezone as needed
+utc = pytz.UTC
 
 def analyze_predictions():
     
@@ -22,13 +25,24 @@ def analyze_predictions():
     conn = sqlite3.connect('odds.db')
     
     website_data = []
+    final_predictions = []
     
     for _, row in predictions_df.iterrows():
         odds = get_match_odds(conn, row['home_team'], row['away_team'], row['start_time'])
         
+        match_data = {
+            'home_team': row['home_team'],
+            'away_team': row['away_team'],
+            'start_time': row['start_time'],
+            'predicted_outcome': row['predicted_outcome'],
+            'model_type': row['model_type'],
+            'home_win_prob': row['home_win_prob'],
+            'draw_prob': row['draw_prob'],
+            'away_win_prob': row['away_win_prob'],
+        }
+        
         if odds is not None:
             print(f"Odds found for {row['home_team']} vs {row['away_team']}")
-            
             
             home_odds, draw_odds, away_odds = odds
         
@@ -45,40 +59,101 @@ def analyze_predictions():
             draw_kelly = calculate_kelly(draw_odds, row['draw_prob'])
             away_kelly = calculate_kelly(away_odds, row['away_win_prob'])
         
-            match_data = {
-            'home_team': row['home_team'],
-            'away_team': row['away_team'],
-            'start_time': row['start_time'],
-            'predicted_outcome': row['predicted_outcome'],
-            'model_type': row['model_type'],
-            'home_win_prob': row['home_win_prob'],
-            'draw_prob': row['draw_prob'],
-            'away_win_prob': row['away_win_prob'],
-            'home_odds': home_odds,
-            'draw_odds': draw_odds,
-            'away_odds': away_odds,
-            'home_bookie_prob': home_bookie_prob,
-            'draw_bookie_prob': draw_bookie_prob,
-            'away_bookie_prob': away_bookie_prob,
-            'home_value': home_value * 100,
-            'draw_value': draw_value * 100,
-            'away_value': away_value * 100,
-            'home_kelly': home_kelly * 100,
-            'draw_kelly': draw_kelly * 100,
-            'away_kelly': away_kelly * 100
-            }
+            # Add odds and calculated values to match_data
+            match_data.update({
+                'home_odds': home_odds,
+                'draw_odds': draw_odds,
+                'away_odds': away_odds,
+                'home_bookie_prob': home_bookie_prob,
+                'draw_bookie_prob': draw_bookie_prob,
+                'away_bookie_prob': away_bookie_prob,
+                'home_value': home_value * 100,
+                'draw_value': draw_value * 100,
+                'away_value': away_value * 100,
+                'home_kelly': home_kelly * 100,
+                'draw_kelly': draw_kelly * 100,
+                'away_kelly': away_kelly * 100
+            })
         
             website_data.append(match_data)
+
+            # Check if the match is within 30 minutes
+            match_start_time = datetime.fromisoformat(row['start_time']).replace(tzinfo=utc)  # Make it offset-aware
+            if match_start_time <= datetime.now(utc) + timedelta(minutes=30):  # Ensure now() is also offset-aware
+                final_predictions.append(match_data)  # Add to final predictions
         
         else:
             print(f"No odds found for {row['home_team']} vs {row['away_team']}")
-            match_data = {'home_team': row['home_team'], 'away_team': row['away_team'], 'start_time': row['start_time'], 'predicted_outcome': row['predicted_outcome'], 'model_type': row['model_type'],'home_win_prob': row['home_win_prob'], 'draw_prob': row['draw_prob'], 'away_win_prob': row['away_win_prob'], 'home_odds': None, 'draw_odds': None, 'away_odds': None, 'home_bookie_prob': None, 'draw_bookie_prob': None, 'away_bookie_prob': None, 'home_value': None, 'draw_value': None, 'away_value': None, 'home_kelly': None, 'draw_kelly': None, 'away_kelly': None}
+            # Still append the match data without odds
+            match_data.update({
+                'home_odds': None,
+                'draw_odds': None,
+                'away_odds': None,
+                'home_bookie_prob': None,
+                'draw_bookie_prob': None,
+                'away_bookie_prob': None,
+                'home_value': None,
+                'draw_value': None,
+                'away_value': None,
+                'home_kelly': None,
+                'draw_kelly': None,
+                'away_kelly': None
+            })
             website_data.append(match_data)
+
+            # Check if the match is within 30 minutes even without odds
+            match_start_time = datetime.fromisoformat(row['start_time']).replace(tzinfo=utc)  # Make it offset-aware
+            if match_start_time <= datetime.now(utc) + timedelta(minutes=30):  # Ensure now() is also offset-aware
+                final_predictions.append(match_data)  # Add to final predictions even without odds
     
     # Save to CSV for website
     website_df = pd.DataFrame(website_data)
     website_df.to_csv('website/data/prediction_analysis.csv', index=False)
+
+    # Define required columns at the beginning
+    required_columns = ['start_time', 'home_team', 'away_team', 'predicted_outcome', 'model_type', 
+                        'home_win_prob', 'draw_prob', 'away_win_prob', 'home_odds', 'draw_odds', 
+                        'away_odds', 'home_bookie_prob', 'draw_bookie_prob', 'away_bookie_prob', 
+                        'home_value', 'draw_value', 'away_value', 'home_kelly', 'draw_kelly', 
+                        'away_kelly']
+
+    # Load existing final predictions
+    final_predictions_path = 'website/data/final_predictions.csv'
     
+    # Initialize final_predictions_df
+    final_predictions_df = pd.DataFrame()  # Initialize as an empty DataFrame
+
+    # Check if the file exists and is not empty
+    if os.path.exists(final_predictions_path) and os.path.getsize(final_predictions_path) > 0:
+        existing_predictions_df = pd.read_csv(final_predictions_path)
+        existing_predictions_df.columns = existing_predictions_df.columns.str.strip()  # Strip whitespace from column names
+        print("Existing Predictions Columns:", existing_predictions_df.columns)  # Debugging line
+    else:
+        print(f"Warning: The file '{final_predictions_path}' does not exist or is empty.")
+        # Create an empty DataFrame with the required columns
+        existing_predictions_df = pd.DataFrame(columns=required_columns)  # Create DataFrame with headers
+
+        # Save the empty DataFrame with headers to the CSV file
+        existing_predictions_df.to_csv(final_predictions_path, index=False)
+
+    # Check if required columns exist
+    if not all(col in existing_predictions_df.columns for col in required_columns):
+        print(f"Error: Missing required columns in existing predictions: {required_columns}")
+    else:
+        # Proceed with your logic to filter duplicates and process predictions
+        final_predictions_df = pd.DataFrame(final_predictions)  # Ensure this is defined earlier in your code
+
+        # Filter out duplicates
+        final_predictions_df = final_predictions_df[~final_predictions_df.apply(
+            lambda x: existing_predictions_df[
+                (existing_predictions_df['start_time'] == x['start_time']) &
+                (existing_predictions_df['home_team'] == x['home_team']) &
+                (existing_predictions_df['away_team'] == x['away_team'])
+            ].any(axis=1).any(), axis=1
+        )]
+
+    # Save final predictions to CSV
+    final_predictions_df.to_csv(final_predictions_path, index=False, mode='a', header=not os.path.exists(final_predictions_path) or existing_predictions_df.empty)
 
     conn.close()
 
