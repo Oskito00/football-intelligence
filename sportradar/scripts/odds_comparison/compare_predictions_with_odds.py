@@ -285,7 +285,7 @@ def calculate_kelly(bookie_odds, predicted_prob):
 
 def calculate_bookie_probability(bookie_odds):
     """Calculate bookie probability from bookie odds."""
-    return 1 / (bookie_odds + 1)
+    return 1 / (bookie_odds)
 
 if __name__ == "__main__":
     analyze_predictions()
