@@ -14,8 +14,6 @@ from sportradar.scripts.bot.send_message import TelegramBot
 
 
 def analyze_predictions():
-    # Initialize Telegram bot
-    bot = TelegramBot()
     
     # Read predictions
     predictions_df = pd.read_csv('sportradar/AI/match_predictions.csv')
@@ -28,26 +26,26 @@ def analyze_predictions():
     for _, row in predictions_df.iterrows():
         odds = get_match_odds(conn, row['home_team'], row['away_team'], row['start_time'])
         
-        if odds is None:
-            print(f"No odds found for {row['home_team']} vs {row['away_team']}")
-            continue
+        if odds is not None:
+            print(f"Odds found for {row['home_team']} vs {row['away_team']}")
             
-        home_odds, draw_odds, away_odds = odds
+            
+            home_odds, draw_odds, away_odds = odds
         
-        # Calculate all probabilities and values
-        home_bookie_prob = calculate_bookie_probability(home_odds)
-        draw_bookie_prob = calculate_bookie_probability(draw_odds)
-        away_bookie_prob = calculate_bookie_probability(away_odds)
+            # Calculate all probabilities and values
+            home_bookie_prob = calculate_bookie_probability(home_odds)
+            draw_bookie_prob = calculate_bookie_probability(draw_odds)
+            away_bookie_prob = calculate_bookie_probability(away_odds)
         
-        home_value = calculate_value(row['home_win_prob'], home_odds)
-        draw_value = calculate_value(row['draw_prob'], draw_odds)
-        away_value = calculate_value(row['away_win_prob'], away_odds)
+            home_value = calculate_value(row['home_win_prob'], home_odds)
+            draw_value = calculate_value(row['draw_prob'], draw_odds)
+            away_value = calculate_value(row['away_win_prob'], away_odds)
         
-        home_kelly = calculate_kelly(home_odds, row['home_win_prob'])
-        draw_kelly = calculate_kelly(draw_odds, row['draw_prob'])
-        away_kelly = calculate_kelly(away_odds, row['away_win_prob'])
+            home_kelly = calculate_kelly(home_odds, row['home_win_prob'])
+            draw_kelly = calculate_kelly(draw_odds, row['draw_prob'])
+            away_kelly = calculate_kelly(away_odds, row['away_win_prob'])
         
-        match_data = {
+            match_data = {
             'home_team': row['home_team'],
             'away_team': row['away_team'],
             'start_time': row['start_time'],
@@ -68,161 +66,19 @@ def analyze_predictions():
             'home_kelly': home_kelly * 100,
             'draw_kelly': draw_kelly * 100,
             'away_kelly': away_kelly * 100
-        }
+            }
         
-        website_data.append(match_data)
-    
+            website_data.append(match_data)
+        
+        else:
+            print(f"No odds found for {row['home_team']} vs {row['away_team']}")
+            match_data = {'home_team': row['home_team'], 'away_team': row['away_team'], 'start_time': row['start_time'], 'predicted_outcome': row['predicted_outcome'], 'model_type': row['model_type'],'home_win_prob': row['home_win_prob'], 'draw_prob': row['draw_prob'], 'away_win_prob': row['away_win_prob'], 'home_odds': None, 'draw_odds': None, 'away_odds': None, 'home_bookie_prob': None, 'draw_bookie_prob': None, 'away_bookie_prob': None, 'home_value': None, 'draw_value': None, 'away_value': None, 'home_kelly': None, 'draw_kelly': None, 'away_kelly': None}
+            website_data.append(match_data)
     
     # Save to CSV for website
     website_df = pd.DataFrame(website_data)
     website_df.to_csv('website/data/prediction_analysis.csv', index=False)
     
-    results = []
-    
-    for _, row in predictions_df.iterrows():
-        odds = get_match_odds(conn, row['home_team'], row['away_team'], row['start_time'])
-        
-        if odds is None:
-            print(f"No odds found for {row['home_team']} vs {row['away_team']}")
-            continue
-            
-        home_odds, draw_odds, away_odds = odds
-        
-        # Calculate values for all outcomes
-        outcomes = [
-            {
-                'type': 'Home Win',
-                'predicted_prob': row['home_win_prob'],
-                'bookie_odds': home_odds,
-                'bookie_prob': calculate_bookie_probability(home_odds),
-                'is_predicted': row['predicted_outcome'] == 'Home Win'
-            },
-            {
-                'type': 'Draw',
-                'predicted_prob': row['draw_prob'],
-                'bookie_odds': draw_odds,
-                'bookie_prob': calculate_bookie_probability(draw_odds),
-                'is_predicted': row['predicted_outcome'] == 'Draw'
-            },
-            {
-                'type': 'Away Win',
-                'predicted_prob': row['away_win_prob'],
-                'bookie_odds': away_odds,
-                'bookie_prob': calculate_bookie_probability(away_odds),
-                'is_predicted': row['predicted_outcome'] == 'Away Win'
-            }
-        ]
-        
-        for outcome in outcomes:
-            value = calculate_value(outcome['predicted_prob'], outcome['bookie_odds'])
-            kelly = calculate_kelly(outcome['bookie_odds'], outcome['predicted_prob'])
-            
-            # Include all bets, even negative value ones
-            results.append({
-                'match_time': row['start_time'],
-                'home_team': row['home_team'],
-                'away_team': row['away_team'],
-                'bet_type': outcome['type'],
-                'is_predicted': outcome['is_predicted'],
-                'our_probability': outcome['predicted_prob'],
-                'bookie_probability': outcome['bookie_prob'],
-                'bookie_odds': outcome['bookie_odds'],
-                'value': value,
-                'kelly_stake': kelly
-            })
-    
-    # Convert results to DataFrame and sort by value
-    results_df = pd.DataFrame(results)
-    results_df = results_df.sort_values('value', ascending=False)
-    
-    # Prepare message for Telegram
-    message = "<b>🎯 Value Betting Analysis</b>\n\n"
-    
-    # Group matches to show all probabilities together
-    matches = {}
-    for _, bet in results_df.iterrows():
-        match_key = f"{bet['home_team']} vs {bet['away_team']}_{bet['match_time']}"
-        if match_key not in matches:
-            matches[match_key] = {
-                'home_team': bet['home_team'],
-                'away_team': bet['away_team'],
-                'match_time': bet['match_time'],
-                'outcomes': []
-            }
-        matches[match_key]['outcomes'].append(bet)
-    
-    # First show probability breakdown for all matches
-    message += "<b>📊 PROBABILITY BREAKDOWN</b>\n\n"
-    for match_key, match_data in matches.items():
-        message += f"⚽ {match_data['home_team']} vs {match_data['away_team']}\n"
-        message += f"🕒 {match_data['match_time']}\n"
-        message += "<b>Our Model:</b>\n"
-        message += "├ " + "\n├ ".join([
-            f"{outcome['bet_type']}: {outcome['our_probability']:.1%}"
-            for outcome in match_data['outcomes']
-        ]) + "\n"
-        message += "<b>Bookmaker:</b>\n"
-        message += "├ " + "\n├ ".join([
-            f"{outcome['bet_type']}: {outcome['bookie_probability']:.1%} ({outcome['bookie_odds']:.2f})"
-            for outcome in match_data['outcomes']
-        ]) + "\n"
-        message += f"{'—' * 20}\n\n"
-    
-    # Then show positive value bets
-    message += "<b>💰 VALUE BETS</b>\n\n"
-    positive_value_bets = False
-    for _, bet in results_df[results_df['value'] > 0].iterrows():
-        positive_value_bets = True
-        value_percentage = bet['value'] * 100
-        kelly_percentage = bet['kelly_stake'] * 100
-        
-        # Determine bet category
-        if bet['is_predicted'] and value_percentage > 5:
-            category = "🟢 SAFE BET"
-        elif value_percentage > 10:
-            category = "🟡 RISKY BET (High Value)"
-        else:
-            category = "🟡 RISKY BET"
-        
-        message += f"<b>{category}</b>\n"
-        message += f"⚽ {bet['home_team']} vs {bet['away_team']}\n"
-        message += f"🕒 {bet['match_time']}\n"
-        message += f"🎲 Bet: {bet['bet_type']}\n"
-        message += f"📊 Our Probability: {bet['our_probability']:.1%}\n"
-        message += f"📉 Bookie Probability: {bet['bookie_probability']:.1%}\n"
-        message += f"📈 Bookie Odds: {bet['bookie_odds']:.2f}\n"
-        message += f"💰 Value: {value_percentage:.1f}%\n"
-        message += f"💵 Kelly Stake: {kelly_percentage:.1f}%\n"
-        
-        if not bet['is_predicted']:
-            message += "⚠️ <i>Note: Not our primary predicted outcome</i>\n"
-        
-        message += f"{'—' * 20}\n\n"
-    
-    # Then show particularly bad value bets
-    message += "<b>🚫 BETS TO AVOID</b>\n\n"
-    bad_bets_found = False
-    for _, bet in results_df[results_df['value'] < -0.15].iterrows():
-        bad_bets_found = True
-        value_percentage = bet['value'] * 100
-        
-        message += f"<b>🔴 NO BET</b>\n"
-        message += f"⚽ {bet['home_team']} vs {bet['away_team']}\n"
-        message += f"🎲 Bet: {bet['bet_type']}\n"
-        message += f"📊 Our Probability: {bet['our_probability']:.1%}\n"
-        message += f"📉 Bookie Probability: {bet['bookie_probability']:.1%}\n"
-        message += f"📈 Bookie Odds: {bet['bookie_odds']:.2f}\n"
-        message += f"⛔️ Negative Value: {value_percentage:.1f}%\n"
-        message += f"{'—' * 20}\n\n"
-    
-    if not positive_value_bets and not bad_bets_found:
-        message += "❌ No significant value bets (positive or negative) found for upcoming matches."
-    
-    # Send message through Telegram
-    # bot.send_message(message)
-    
-    # Also print to console for debugging
-    print(message)
 
     conn.close()
 

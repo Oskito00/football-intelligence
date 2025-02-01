@@ -99,6 +99,23 @@ export default function MatchPredictions() {
       match.away_team.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const sortedMatches = filteredMatches.sort((a, b) => {
+    const aHasBookmakerInfo =
+      a.home_bookie_prob > 0 ||
+      a.draw_bookie_prob > 0 ||
+      a.away_bookie_prob > 0;
+    const bHasBookmakerInfo =
+      b.home_bookie_prob > 0 ||
+      b.draw_bookie_prob > 0 ||
+      b.away_bookie_prob > 0;
+
+    if (aHasBookmakerInfo !== bHasBookmakerInfo) {
+      return aHasBookmakerInfo ? -1 : 1;
+    }
+
+    return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
+  });
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-green-100 flex items-center justify-center">
@@ -209,167 +226,198 @@ export default function MatchPredictions() {
         </div>
         <div className="text-sm text-center text-gray-600">
           For the most accurate predictions please wait until 45 minutes before
-          the match starts so that the model can update to consider the team lineups
-            </div>
+          the match starts so that the model can update to consider the team
+          lineups
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 py-4">
-          {filteredMatches.map((match, index) => (
-            <div
-              key={index}
-              className="bg-white rounded-lg shadow-md p-4 overflow-hidden"
-            >
-              <div className="text-center mb-4">
-                <h2 className="text-lg font-semibold text-green-700 truncate">
-                  {match.home_team} vs {match.away_team}
-                </h2>
-                <p className="text-sm text-gray-600">
-                  {new Date(match.start_time).toLocaleString()}
+          {sortedMatches.map((match, index) => {
+            // Determine the model type
+            const isBasicModel = match.model_type === "basic";
+
+            // Define inline styles for the circles
+            const circleStyle = {
+              width: "10px",
+              height: "10px",
+              borderRadius: "50%",
+              display: "inline-block",
+              marginLeft: "5px", // Add margin to the left of the circle
+              backgroundColor: isBasicModel ? "grey" : "gold", // Set color based on model type
+            };
+
+            return (
+              <div
+                key={index}
+                className={`bg-white rounded-lg shadow-md p-4 overflow-hidden`}
+              >
+                <div className="model-type-flag flex justify-end items-center">
+                  <span style={circleStyle}></span> {/* Circle on the right */}
+                </div>
+                <div className="text-center mb-4">
+                  <h2 className="text-lg font-semibold text-green-700 truncate">
+                    {match.home_team} vs {match.away_team}
+                  </h2>
+                  <p className="text-sm text-gray-600">
+                    {new Date(match.start_time).toLocaleString()}
+                  </p>
+                </div>
+
+                <p className="text-sm font-semibold mb-1">
+                  Our Model Probabilities:
+                </p>
+                <div className="relative h-6 bg-gray-200 rounded overflow-hidden">
+                  {/* Home Win (Red) */}
+                  <div
+                    className="absolute left-0 h-full bg-red-500 flex items-center justify-center text-xs text-white font-bold"
+                    style={{ width: `${match.home_win_prob * 100}%` }}
+                  >
+                    {(match.home_win_prob * 100).toFixed(0)}%
+                  </div>
+                  {/* Draw (Gray) */}
+                  <div
+                    className="absolute h-full bg-gray-500 flex items-center justify-center text-xs text-white font-bold"
+                    style={{
+                      left: `${match.home_win_prob * 100}%`,
+                      width: `${match.draw_prob * 100}%`,
+                    }}
+                  >
+                    {(match.draw_prob * 100).toFixed(0)}%
+                  </div>
+                  {/* Away Win (Blue) */}
+                  <div
+                    className="absolute h-full bg-blue-500 flex items-center justify-center text-xs text-white font-bold"
+                    style={{
+                      left: `${(match.home_win_prob + match.draw_prob) * 100}%`,
+                      width: `${match.away_win_prob * 100}%`,
+                    }}
+                  >
+                    {(match.away_win_prob * 100).toFixed(0)}%
+                  </div>
+                </div>
+
+                <p className="text-sm font-semibold mb-1">
+                  Bookmaker Probabilities:
+                </p>
+                <div className="relative h-6 bg-gray-200 rounded overflow-hidden">
+                  {(() => {
+                    // Calculate total to normalize
+                    const total =
+                      match.home_bookie_prob +
+                      match.draw_bookie_prob +
+                      match.away_bookie_prob;
+
+                    // Check if probabilities are available
+                    if (total > 0) {
+                      // Normalize each probability
+                      const normalizedHome = match.home_bookie_prob / total;
+                      const normalizedDraw = match.draw_bookie_prob / total;
+                      const normalizedAway = match.away_bookie_prob / total;
+
+                      return (
+                        <>
+                          <div
+                            className="absolute left-0 h-full bg-red-300 flex items-center justify-center text-xs text-white font-bold"
+                            style={{ width: `${normalizedHome * 100}%` }}
+                          >
+                            {(normalizedHome * 100).toFixed(0)}%
+                          </div>
+                          <div
+                            className="absolute h-full bg-gray-400 flex items-center justify-center text-xs text-white font-bold"
+                            style={{
+                              left: `${normalizedHome * 100}%`,
+                              width: `${normalizedDraw * 100}%`,
+                            }}
+                          >
+                            {(normalizedDraw * 100).toFixed(0)}%
+                          </div>
+                          <div
+                            className="absolute h-full bg-blue-300 flex items-center justify-center text-xs text-white font-bold"
+                            style={{
+                              left: `${
+                                (normalizedHome + normalizedDraw) * 100
+                              }%`,
+                              width: `${normalizedAway * 100}%`,
+                            }}
+                          >
+                            {(normalizedAway * 100).toFixed(0)}%
+                          </div>
+                        </>
+                      );
+                    } else {
+                      return (
+                        <div className="text-red-500 text-xs">
+                          No bookmakers data for this match, please check before
+                          betting.
+                        </div>
+                      );
+                    }
+                  })()}
+                </div>
+
+                <div className="mt-4">
+                  <p className="text-sm font-semibold mb-2">Value bets:</p>
+                  <div className="space-y-1">
+                    {match.home_value > 0 && (
+                      <p
+                        className={`text-sm ${
+                          match.predicted_outcome === "Home Win"
+                            ? "text-green-600"
+                            : "text-yellow-600"
+                        }`}
+                      >
+                        {match.predicted_outcome === "Home Win" ? "✅" : "⚠️"}{" "}
+                        <span className="font-bold">Home Win</span>: +
+                        {match.home_value.toFixed(1)}% value (Bet{" "}
+                        <span className="font-bold">
+                          {match.home_kelly.toFixed(1)}%
+                        </span>{" "}
+                        of your pot)
+                      </p>
+                    )}
+                    {match.draw_value > 0 && (
+                      <p
+                        className={`text-sm ${
+                          match.predicted_outcome === "Draw"
+                            ? "text-green-600"
+                            : "text-yellow-600"
+                        }`}
+                      >
+                        {match.predicted_outcome === "Draw" ? "✅" : "⚠️"}{" "}
+                        <span className="font-bold">Draw</span>: +
+                        {match.draw_value.toFixed(1)}% value (Bet{" "}
+                        <span className="font-bold">
+                          {match.draw_kelly.toFixed(1)}%
+                        </span>{" "}
+                        of your pot)
+                      </p>
+                    )}
+                    {match.away_value > 0 && (
+                      <p
+                        className={`text-sm ${
+                          match.predicted_outcome === "Away Win"
+                            ? "text-green-600"
+                            : "text-yellow-600"
+                        }`}
+                      >
+                        {match.predicted_outcome === "Away Win" ? "✅" : "⚠️"}{" "}
+                        <span className="font-bold">Away Win</span>: +
+                        {match.away_value.toFixed(1)}% value (Bet{" "}
+                        <span className="font-bold">
+                          {match.away_kelly.toFixed(1)}%
+                        </span>{" "}
+                        of your pot)
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <p className="text-sm text-center mt-4 text-gray-500">
+                  <span className="font-bold">
+                    Most likely outcome: {match.predicted_outcome}
+                  </span>
                 </p>
               </div>
-
-              <p className="text-sm font-semibold mb-1">
-                Our Model Probabilities:
-              </p>
-              <div className="relative h-6 bg-gray-200 rounded overflow-hidden">
-                {/* Home Win (Red) */}
-                <div
-                  className="absolute left-0 h-full bg-red-500 flex items-center justify-center text-xs text-white font-bold"
-                  style={{ width: `${match.home_win_prob * 100}%` }}
-                >
-                  {(match.home_win_prob * 100).toFixed(0)}%
-                </div>
-                {/* Draw (Gray) */}
-                <div
-                  className="absolute h-full bg-gray-500 flex items-center justify-center text-xs text-white font-bold"
-                  style={{
-                    left: `${match.home_win_prob * 100}%`,
-                    width: `${match.draw_prob * 100}%`,
-                  }}
-                >
-                  {(match.draw_prob * 100).toFixed(0)}%
-                </div>
-                {/* Away Win (Blue) */}
-                <div
-                  className="absolute h-full bg-blue-500 flex items-center justify-center text-xs text-white font-bold"
-                  style={{
-                    left: `${(match.home_win_prob + match.draw_prob) * 100}%`,
-                    width: `${match.away_win_prob * 100}%`,
-                  }}
-                >
-                  {(match.away_win_prob * 100).toFixed(0)}%
-                </div>
-              </div>
-
-              <p className="text-sm font-semibold mb-1">
-                Bookmaker Probabilities:
-              </p>
-              <div className="relative h-6 bg-gray-200 rounded overflow-hidden">
-                {(() => {
-                  // Calculate total to normalize
-                  const total =
-                    match.home_bookie_prob +
-                    match.draw_bookie_prob +
-                    match.away_bookie_prob;
-
-                  // Normalize each probability
-                  const normalizedHome = match.home_bookie_prob / total;
-                  const normalizedDraw = match.draw_bookie_prob / total;
-                  const normalizedAway = match.away_bookie_prob / total;
-
-                  return (
-                    <>
-                      <div
-                        className="absolute left-0 h-full bg-red-300 flex items-center justify-center text-xs text-white font-bold"
-                        style={{ width: `${normalizedHome * 100}%` }}
-                      >
-                        {(normalizedHome * 100).toFixed(0)}%
-                      </div>
-                      <div
-                        className="absolute h-full bg-gray-400 flex items-center justify-center text-xs text-white font-bold"
-                        style={{
-                          left: `${normalizedHome * 100}%`,
-                          width: `${normalizedDraw * 100}%`,
-                        }}
-                      >
-                        {(normalizedDraw * 100).toFixed(0)}%
-                      </div>
-                      <div
-                        className="absolute h-full bg-blue-300 flex items-center justify-center text-xs text-white font-bold"
-                        style={{
-                          left: `${(normalizedHome + normalizedDraw) * 100}%`,
-                          width: `${normalizedAway * 100}%`,
-                        }}
-                      >
-                        {(normalizedAway * 100).toFixed(0)}%
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-
-              <div className="mt-4">
-                <p className="text-sm font-semibold mb-2">Value bets:</p>
-                <div className="space-y-1">
-                  {match.home_value > 0 && (
-                    <p
-                      className={`text-sm ${
-                        match.predicted_outcome === "Home Win"
-                          ? "text-green-600"
-                          : "text-yellow-600"
-                      }`}
-                    >
-                      {match.predicted_outcome === "Home Win" ? "✅" : "⚠️"}{" "}
-                      <span className="font-bold">Home Win</span>: +
-                      {match.home_value.toFixed(1)}% value (Bet{" "}
-                      <span className="font-bold">
-                        {match.home_kelly.toFixed(1)}%
-                      </span>{" "}
-                      of your pot)
-                    </p>
-                  )}
-                  {match.draw_value > 0 && (
-                    <p
-                      className={`text-sm ${
-                        match.predicted_outcome === "Draw"
-                          ? "text-green-600"
-                          : "text-yellow-600"
-                      }`}
-                    >
-                      {match.predicted_outcome === "Draw" ? "✅" : "⚠️"}{" "}
-                      <span className="font-bold">Draw</span>: +
-                      {match.draw_value.toFixed(1)}% value (Bet{" "}
-                      <span className="font-bold">
-                        {match.draw_kelly.toFixed(1)}%
-                      </span>{" "}
-                      of your pot)
-                    </p>
-                  )}
-                  {match.away_value > 0 && (
-                    <p
-                      className={`text-sm ${
-                        match.predicted_outcome === "Away Win"
-                          ? "text-green-600"
-                          : "text-yellow-600"
-                      }`}
-                    >
-                      {match.predicted_outcome === "Away Win" ? "✅" : "⚠️"}{" "}
-                      <span className="font-bold">Away Win</span>: +
-                      {match.away_value.toFixed(1)}% value (Bet{" "}
-                      <span className="font-bold">
-                        {match.away_kelly.toFixed(1)}%
-                      </span>{" "}
-                      of your pot)
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <p className="text-sm text-center mt-4 text-gray-500">
-                <span className="font-bold">
-                  Most likely outcome: {match.predicted_outcome}
-                </span>
-              </p>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <div className="container mx-auto px-4 mb-6">
           <div className="flex flex-col space-y-4">
@@ -384,6 +432,34 @@ export default function MatchPredictions() {
                 <span className="mr-2">⚠️</span>
                 <span>Riskier bet (betting on a less likely outcome)</span>
               </div>
+            </div>
+
+            {/* Legend for Model Types */}
+            <div className="flex items-center justify-center text-sm">
+              <span
+                style={{
+                  width: "10px",
+                  height: "10px",
+                  borderRadius: "50%",
+                  backgroundColor: "gold",
+                  display: "inline-block",
+                  marginRight: "5px",
+                }}
+              ></span>
+              <span>= Predictions made by the Advanced Model</span>
+            </div>
+            <div className="flex items-center justify-center text-sm">
+              <span
+                style={{
+                  width: "10px",
+                  height: "10px",
+                  borderRadius: "50%",
+                  backgroundColor: "grey",
+                  display: "inline-block",
+                  marginRight: "5px",
+                }}
+              ></span>
+              <span>= Predictions made by the Basic Model</span>
             </div>
           </div>
         </div>
