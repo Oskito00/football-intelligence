@@ -26,17 +26,6 @@ load_dotenv()
 
 def create_test_data(db_path, output_dir):
     """Create test dataset from upcoming matches"""
-    # Create log file with timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    # log_file = os.path.join(output_dir, f'test_data_creation_log_{timestamp}.txt')
-    
-    # def log(message):
-    #     """Helper function to write to both console and log file"""
-    #     print(message)
-    #     with open(log_file, 'a') as f:
-    #         f.write(message + '\n')
-    
-    # log(f"\n=== Starting test data creation at {datetime.now()} ===")
     try:
         conn = sqlite3.connect(db_path)
         os.makedirs(output_dir, exist_ok=True)
@@ -55,7 +44,7 @@ def create_test_data(db_path, output_dir):
         no_h2h_data = []   # For matches without h2h stats
         
         # Debugging counters
-        skipped_not_next = 0
+        skipped_not_next_match = 0
         skipped_no_h2h = 0
         skipped_no_squad_strength = 0
         skipped_other_errors = 0
@@ -67,7 +56,7 @@ def create_test_data(db_path, output_dir):
                 away_next = is_next_unplayed_match(conn, match['away_team_id'], match['start_time'])
                 
                 if not (home_next and away_next):
-                    skipped_not_next += 1
+                    skipped_not_next_match += 1
                     continue
 
                 # Check if match started more than 90 minutes ago
@@ -222,7 +211,7 @@ def create_test_data(db_path, output_dir):
         summary = f"""
 === Processing Summary ===
 Total matches found: {total_matches}
-Skipped - not next match: {skipped_not_next}
+Skipped - not next match: {skipped_not_next_match}
 Skipped - no H2H history: {skipped_no_h2h}
 Skipped - missing squad strength: {skipped_no_squad_strength}
 Skipped - other errors: {skipped_other_errors}
@@ -513,55 +502,6 @@ def calculate_squad_strength(all_key_players, missing_players):
     
     return strengths
 
-def get_squad_strength_from_last_match(conn, team_id, reference_time):
-    """
-    Get team's squad strength from their last completed match
-    Returns strength between 0 and 1
-    """
-    # Get all key players from recent games
-    key_player_count, all_key_players = get_key_players_count(conn, team_id, reference_time)
-    
-    if not all_key_players:
-        return 0.5  # Default value if no key players
-    
-    # Get the last completed match
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT match_id
-        FROM matches 
-        WHERE (home_team_id = ? OR away_team_id = ?)
-        AND match_status = 'ended'
-        AND datetime(start_time) < datetime(?)
-        ORDER BY start_time DESC 
-        LIMIT 1
-    """, (team_id, team_id, reference_time))
-    
-    last_match = cursor.fetchone()
-    if not last_match:
-        return 0.5
-    
-    # Get players who didn't play in last match
-    cursor.execute("""
-        SELECT player_id
-        FROM player_running_stats 
-        WHERE match_id = ? 
-        AND team_id = ?
-    """, (last_match[0], team_id))
-    
-    played_ids = {row[0] for row in cursor.fetchall()}
-    
-    # Identify missing players (key players who didn't play)
-    missing_players = [
-        player for player in all_key_players 
-        if player['player_id'] not in played_ids
-    ]
-    
-    # Calculate strength using the existing function
-    strength = calculate_squad_strength(all_key_players, missing_players)
-    
-    # Return strength directly (already between 0 and 1)
-    return strength if strength is not None else 0.5
-
 def get_last_lineup(conn, team_id, reference_time):
     """
     Get the lineup details from the team's last completed match
@@ -642,171 +582,6 @@ def get_last_lineup(conn, team_id, reference_time):
         print(f"Error getting last lineup for team {team_id}: {str(e)}")
         print(traceback.format_exc())
         return []
-
-def check_upcoming_matches(db_path):
-    """
-    Check upcoming matches and identify which ones are next for both teams.
-    
-    Args:
-        db_path: Path to the SQLite database
-        
-    Returns:
-        List of tuples: (fixture_id, start_time, home_team, away_team, is_next_match)
-    """
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        # Get upcoming matches
-        cursor.execute(get_upcoming_matches_query())
-        upcoming_matches = cursor.fetchall()
-        
-        print(f"\nFound {len(upcoming_matches)} upcoming matches")
-        print("\nAnalyzing matches:")
-        print("-" * 80)
-        
-        results = []
-        for match in upcoming_matches:
-            fixture_id = match[0]
-            start_time = match[1]
-            home_team = match[10]  # home_team_name
-            away_team = match[11]  # away_team_name
-            home_team_id = match[8]
-            away_team_id = match[9]
-            
-            # Check if it's next match for both teams
-            home_next = is_next_unplayed_match(conn, home_team_id, start_time)
-            away_next = is_next_unplayed_match(conn, away_team_id, start_time)
-            is_next_match = home_next and away_next
-            
-            results.append((fixture_id, start_time, home_team, away_team, is_next_match))
-            
-            # Print result with formatting
-            status = "✓ NEXT MATCH" if is_next_match else "✗ Not next match"
-            print(f"Match: {home_team} vs {away_team}")
-            print(f"Time:  {start_time}")
-            print(f"ID:    {fixture_id}")
-            print(f"Status: {status}")
-            if not is_next_match:
-                print(f"Reason: {'Not next for home team' if not home_next else 'Not next for away team'}")
-            print("-" * 80)
-        
-        # Print summary
-        next_matches = [r for r in results if r[4]]
-        print(f"\nSummary: {len(next_matches)} out of {len(results)} matches are next for both teams")
-        
-        return results
-        
-    except Exception as e:
-        print(f"Error checking upcoming matches: {e}")
-        return []
-    
-    finally:
-        if 'conn' in locals():
-            conn.close()
-
-def get_h2h_from_api(conn, home_team_id, away_team_id):
-    """
-    Get head-to-head statistics from Sportradar API and store in database
-    Args:
-        conn: Database connection
-        home_team_id: URN of home team (e.g., 'sr:competitor:17')
-        away_team_id: URN of away team (e.g., 'sr:competitor:42')
-    """
-    try:
-        api_key = os.getenv('SPORTRADAR_API_KEY')
-        if not api_key:
-            print("Error: SPORTRADAR_API_KEY environment variable not set")
-            return None
-
-        api_url = f"https://api.sportradar.com/soccer-extended/trial/v4/en/competitors/{home_team_id.replace(':', '%3A')}/versus/{away_team_id.replace(':', '%3A')}/summaries.json?api_key={api_key}"
-        print(f"Fetching H2H data from API...")
-        
-        response = requests.get(api_url)
-        print(f"Response: {response.json()}")
-        if response.status_code != 200:
-            print(f"API request failed with status code: {response.status_code}")
-            print(f"Response text: {response.text}")
-            return None
-            
-        data = response.json()
-        last_meetings = data.get('last_meetings', [])
-        print(f"\nFound {len(last_meetings)} last meetings")
-        
-        # Store matches in h2h_matches table
-        matches_stored = 0
-        for meeting in last_meetings:
-            sport_event = meeting.get('sport_event', {})
-            status = meeting.get('sport_event_status', {})
-            
-            if status.get('status') != 'closed':
-                print(f"Skipping - match status is {status.get('status')}")
-                continue
-            
-            # Get home and away teams
-            home_team = next((c for c in sport_event.get('competitors', []) if c.get('qualifier') == 'home'), None)
-            away_team = next((c for c in sport_event.get('competitors', []) if c.get('qualifier') == 'away'), None)
-            
-            if not home_team or not away_team:
-                continue
-                
-            try:
-                conn.execute("""
-                    INSERT OR IGNORE INTO h2h_matches (
-                        match_id,
-                        home_team_id,
-                        away_team_id,
-                        home_score,
-                        away_score,
-                        start_time,
-                        match_status
-                    ) VALUES (?, ?, ?, ?, ?, ?, 'ended')
-                """, (
-                    sport_event.get('id'),
-                    home_team.get('id'),
-                    away_team.get('id'),
-                    status.get('home_score'),
-                    status.get('away_score'),
-                    sport_event.get('start_time')
-                ))
-                matches_stored += 1
-            except Exception as e:
-                print(f"Error storing match {sport_event.get('id')}: {str(e)}")
-                continue
-        
-        conn.commit()
-        print(f"Stored {matches_stored} matches in h2h_matches table")
-        
-        # Convert timestamp to string format for SQLite
-        current_time = pd.Timestamp.now(tz='UTC').strftime('%Y-%m-%d %H:%M:%S')
-        return getH2h_stats(conn, home_team_id, away_team_id, current_time)
-        
-    except Exception as e:
-        print(f"Error fetching H2H data from API: {str(e)}")
-        print(traceback.format_exc())
-        return None
-
-def store_h2h_data(conn, h2h_data):
-    """Store H2H match data in database"""
-    try:
-        conn.executemany("""
-            INSERT OR IGNORE INTO h2h_matches (
-                match_id, home_team_id, away_team_id, 
-                home_score, away_score, start_time, match_status
-            ) VALUES (?, ?, ?, ?, ?, ?, 'ended')
-        """, [(
-            match['id'],
-            match['home_team_id'],
-            match['away_team_id'],
-            match['home_score'],
-            match['away_score'],
-            match['start_time']
-        ) for match in h2h_data])
-        conn.commit()
-        return True
-    except Exception as e:
-        print(f"Error storing H2H data: {str(e)}")
-        return False
 
 def match_has_started(start_time: str) -> bool:
     """
