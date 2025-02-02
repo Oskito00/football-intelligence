@@ -39,6 +39,7 @@ def create_training_data(db_path, output_dir, debug_mode=False):
         conn = sqlite3.connect(db_path)
         print("Successfully connected to database")
 
+        #TODO: Check this works, adds new matches without having to re-initialize the database
         # If we need to re-initialize the database, uncomment the following two lines
         # initialize_database(conn)
         # initialize_player_database(conn)
