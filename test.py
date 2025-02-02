@@ -1,7 +1,7 @@
 import sqlite3
 
 def get_upcoming_matches_query():
-    """Get matches within the next 3 days that haven't been played yet, including team lineups."""
+    """Get all future matches without duplicates, including team lineups."""
     return """
     SELECT DISTINCT 
         m.match_id as fixture_id,
@@ -27,7 +27,6 @@ def get_upcoming_matches_query():
     FROM matches m
     WHERE (m.match_status IS NULL OR m.match_status = '' OR m.match_status != 'ended')
     AND m.start_time >= datetime('now')
-    AND m.start_time <= datetime('now', '+3 days')
 
     UNION
 
@@ -54,7 +53,6 @@ def get_upcoming_matches_query():
         tl.away_players
     FROM team_lineups tl
     WHERE tl.start_time >= datetime('now')
-    AND tl.start_time <= datetime('now', '+3 days')
     AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.match_id = tl.match_id)
     
     ORDER BY start_time

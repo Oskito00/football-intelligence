@@ -7,6 +7,7 @@ def create_lineup_table(cursor):
     """Create the team_lineups table in existing database"""
     cursor.execute('''CREATE TABLE IF NOT EXISTS team_lineups (
         match_id TEXT PRIMARY KEY,
+        match_status TEXT,
         start_time TEXT,
         home_team_id TEXT,
         home_team_name TEXT,
@@ -48,18 +49,29 @@ def process_lineup_data(db_file='football_data.db'):
         for match_data in data.get("lineups", []):
             # Get generic match details
             sport_event = match_data.get("sport_event", {})
+            match_status = match_data.get("sport_event_status", {}).get("match_status", None)
+            print(f"match_status: {match_status}")
             match_id = sport_event.get("id")
             print(f"match_id: {match_id}")
             
             # Check if match already exists in the team_lineups table
-            cursor.execute('SELECT 1 FROM team_lineups WHERE match_id = ?', (match_id,))
-            if cursor.fetchone():
-                # If it exists we don't need to process it again, to avoid duplicates
-                print(f"Skipping existing match {match_id}")
-                skipped_count += 1
-                continue
-
-            print(f"processing match {match_id} haven't seen it before ")
+            cursor.execute('SELECT match_status FROM team_lineups WHERE match_id = ?', (match_id,))
+            result = cursor.fetchone()
+            
+            if result:
+                current_match_status = result[0]
+                # If it exists, check if the match_status is the same
+                if current_match_status == match_status:
+                    print(f"Skipping existing match {match_id} because it has already ended")
+                    skipped_count += 1
+                    continue
+                else:
+                    # Update the match_status if it's different
+                    cursor.execute('UPDATE team_lineups SET match_status = ? WHERE match_id = ?', (match_status, match_id))
+                    print(f"Updated match {match_id} status from {current_match_status} to {match_status}.")
+            else:
+                print(f"Processing match {match_id} haven't seen it before ")
+            
             # Get the start time of the match    
             start_time = sport_event.get("start_time")
             
@@ -72,6 +84,10 @@ def process_lineup_data(db_file='football_data.db'):
                 # Find home and away teams and get their data
                 home_team = next((team for team in lineup_data if team.get("qualifier") == "home"), {})
                 away_team = next((team for team in lineup_data if team.get("qualifier") == "away"), {})
+            else:
+                print(f"No lineup data found for match {match_id}")
+                home_team = {}
+                away_team = {}
             
             
             # Insert lineup data
@@ -79,6 +95,7 @@ def process_lineup_data(db_file='football_data.db'):
                 cursor=cursor,
                 conn=conn,
                 match_id=match_id,
+                match_status=match_status,
                 start_time=start_time,
                 home_team=home_team,
                 away_team=away_team
@@ -118,7 +135,7 @@ def process_players(team):
         })
     return players  # No need to sort since we're including everyone
 
-def insert_lineup_data(cursor, conn, match_id: str, start_time: str, 
+def insert_lineup_data(cursor, conn, match_id: str, match_status: str, start_time: str, 
                       home_team: dict, away_team: dict) -> None:
     """Insert lineup data into the database and commit the transaction.
     
@@ -133,6 +150,7 @@ def insert_lineup_data(cursor, conn, match_id: str, start_time: str,
     cursor.execute('''
         INSERT OR REPLACE INTO team_lineups (
             match_id,
+            match_status,
             start_time,
             home_team_id,
             home_team_name,
@@ -142,9 +160,10 @@ def insert_lineup_data(cursor, conn, match_id: str, start_time: str,
             away_formation,
             home_players,
             away_players
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?,?, ?, ?, ?, ?, ?, ?)
     ''', (
         match_id,
+        match_status,
         start_time,
         home_team.get("id"),
         home_team.get("name"),
@@ -159,6 +178,11 @@ def insert_lineup_data(cursor, conn, match_id: str, start_time: str,
     conn.commit()
 
 if __name__ == "__main__":
+    # delete every entry in the team_lineups table
+    conn = sqlite3.connect('football_data.db')
+    cursor = conn.cursor()
+    cursor.execute('DROP TABLE IF EXISTS team_lineups')
+    conn.commit()
     process_lineup_data()
 
 
