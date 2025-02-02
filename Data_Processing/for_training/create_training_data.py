@@ -11,7 +11,7 @@ from datetime import datetime
 import pandas as pd
 import traceback
 # Local imports
-from Data_to_Features.data_processing.saved_sql_queries import (
+from Data_Processing.utils.saved_sql_queries import (
     ENDED_MATCHES_QUERY
 )
 from player_stats import initialize_player_database, process_match_stats

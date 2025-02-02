@@ -10,7 +10,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..
 sys.path.append(project_root)
 
 # Now we can import the TelegramBot
-from sportradar.scripts.bot.send_message import TelegramBot
+from Bookie_Odds_Comparison.telegram_bot import TelegramBot
 
 
 def analyze_predictions():
