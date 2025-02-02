@@ -11,7 +11,7 @@ def scrape_all_seasons():
     """Function similar to scrape_all_lineups.py but for matches instead of lineups
     Scrapes all the matches for all the top seasons that have been identified"""
     # Load the seasons data
-    with open('sportradar/data/sportradar_jsons/top_seasons_24_25.json', 'r') as f:
+    with open('sportradar_league_defs.json', 'r') as f:
         competitions = json.load(f)
     
     for competition_name, competition_data in competitions.items():
@@ -20,7 +20,7 @@ def scrape_all_seasons():
         for season in competition_data['seasons']:
             season_id = season['id']
             season_name = season['name'].replace('/', '_')
-            
+            #
             # Scrape matches for a specific season
             season_data = get_season_matches(season_id, competition_name, season_name)
             
@@ -49,12 +49,16 @@ def get_season_matches(season_id, competition_name, season_name):
         
         all_summaries = []
         offset = 0
-        limit = 200  # Try 200 here #TODO: Change to 100 if API doesn't allow 200
+        limit = 100  # Try 200 here #TODO: Change to 100 if API doesn't allow 200
         
         while True:
             # Request URL to get match summaries for an entire season
             api_url = f"https://api.sportradar.com/soccer-extended/trial/v4/en/seasons/{season_id}/summaries.json"
             
+            ##Fetching matches for Ukrainian Premier League - Premier League 24_25 (ID: sr:season:120467)
+#               Fetching matches with offset 0...
+##              Error fetching data for Ukrainian Premier League - Premier League 24_25 (ID: sr:season:120467): 403 Client Error: HTTP Forbidden for url: https://api.sportradar.com/soccer-extended/trial/v4/en/seasons/sr:season:120467/summaries.json?offset=0&limit=200
+#               Failed to fetch data for Ukrainian Premier League - Premier League 24_25
             # Add pagination parameters
             params = {
                 'api_key': api_key,
@@ -100,20 +104,24 @@ def get_season_matches(season_id, competition_name, season_name):
             "generated_at": data.get("generated_at"),
             "summaries": all_summaries
         }
-        
-        # Save to file
-        output_dir = Path.cwd() / 'sportradar' / 'data' / 'matches_data'
+
+#------------------- Save the data to a file -------------------#
+        # make a directory
+        output_dir = Path.cwd() / 'Data' / 'raw' / 'matches_data'
         output_dir.mkdir(parents=True, exist_ok=True)
         
         # Re-format the competition and season names for the file name
         clean_comp_name = competition_name.replace(' ', '_')
         clean_season_name = season_name.replace(' ', '_').replace('/', '_')
+        clean_season_id = clean_season_name.replace(':', '_')
         
         # Create the file and overwrite if it already exists
-        output_file = output_dir / f"{clean_comp_name}_{clean_season_name}_{season_id}.json"
+        output_file = output_dir / f"{clean_comp_name}_{clean_season_name}_{clean_season_id}.json"
         with open(output_file, "w") as file:
             json.dump(complete_data, file, indent=4)
+#----------------------------------------------------------------#
         
+
         print(f"Data saved to {output_file}")
         return complete_data
     
@@ -123,6 +131,7 @@ def get_season_matches(season_id, competition_name, season_name):
     except json.JSONDecodeError as e:
         print(f"Error parsing JSON for {competition_name} - {season_name} (ID: {season_id}): {e}")
         return None
+
 
 if __name__ == "__main__":
     scrape_all_seasons()

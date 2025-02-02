@@ -12,7 +12,7 @@ def scrape_all_lineups():
     """Scrapes all the lineups for all the top seasons that have been identified"""
 
     # This is the file that contains the seasons to scrape
-    with open('sportradar/data/sportradar_jsons/top_seasons_24_25.json', 'r') as f:
+    with open('sportradar_league_defs.json', 'r') as f:
         competitions = json.load(f)
     
     # Iterate over each competition and season
@@ -106,14 +106,15 @@ def get_season_lineups(season_id, competition_name, season_name):
         }
         
         # Save to file
-        output_dir = Path.cwd() / 'sportradar' / 'data' / 'lineups_data'
+        output_dir = Path.cwd() / 'Data' / 'raw' / 'lineups_data'
         output_dir.mkdir(parents=True, exist_ok=True)
         
         # Change competition and season name to a more readable format
         clean_comp_name = competition_name.replace(' ', '_')
         clean_season_name = season_name.replace(' ', '_').replace('/', '_')
+        clean_season_id = season_id.replace(':', '_')
         
-        output_file = output_dir / f"{clean_comp_name}_{clean_season_name}_{season_id}_lineups.json"
+        output_file = output_dir / f"{clean_comp_name}_{clean_season_name}_{clean_season_id}_lineups.json"
         #Create the file and overwrite if it already exists
         with open(output_file, "w") as file:
             json.dump(complete_data, file, indent=4)
