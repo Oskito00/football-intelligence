@@ -295,44 +295,16 @@ def get_upcoming_matches_query():
         m.away_score as away_goals,
         m.referee_id,
         m.match_status,
-        NULL as home_formation,
-        NULL as away_formation,
-        NULL as home_players,
-        NULL as away_players
-    FROM matches m
-    WHERE (m.match_status IS NULL OR m.match_status = '' OR m.match_status != 'ended')
-    AND m.start_time >= datetime('now')
-    AND m.start_time <= datetime('now', '+3 days')
-
-    UNION
-
-    SELECT DISTINCT 
-        tl.match_id as fixture_id,
-        tl.start_time,
-        NULL as competition_name,
-        NULL as competition_id,
-        NULL as competition_type,
-        NULL as competition_phase,
-        NULL as round_display,
-        NULL as season_id,
-        tl.home_team_id,
-        tl.away_team_id,
-        tl.home_team_name as home_team,
-        tl.away_team_name as away_team,
-        NULL as home_goals,
-        NULL as away_goals,
-        NULL as referee_id,
-        NULL as match_status,
         tl.home_formation,
         tl.away_formation,
         tl.home_players,
         tl.away_players
-    FROM team_lineups tl
-    WHERE tl.start_time >= datetime('now')
-    AND tl.start_time <= datetime('now', '+3 days')
-    AND tl.match_id NOT IN (SELECT match_id FROM matches WHERE match_status IS NOT NULL AND match_status != 'ended')
-    
-    ORDER BY start_time
+    FROM matches m
+    LEFT JOIN team_lineups tl ON m.match_id = tl.match_id  -- Join with team_lineups
+    WHERE (m.match_status IS NULL OR m.match_status = '' OR m.match_status != 'ended')
+    AND m.start_time >= datetime('now')
+    AND m.start_time <= datetime('now', '+3 days')
+    ORDER BY m.start_time
     """
 
 def is_next_unplayed_match(conn, team_id, match_start_time):

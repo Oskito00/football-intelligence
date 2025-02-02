@@ -19,6 +19,11 @@ football_data.db
 football.db
 *.csv
 *.txt
-
-
-
+*.log
+*.joblib
+sportradar/AI/models/analysis/hybrid_model_importance.png
+sportradar/AI/feature_engineering/jobs/competition_id_encoder.joblib
+football_data.db-shm
+football_data.db-wal
+scheduler.log
+sportradar/AI/competition_id_encoder_basic.joblib

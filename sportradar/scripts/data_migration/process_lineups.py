@@ -66,14 +66,13 @@ def process_lineup_data(db_file='football_data.db'):
             # Get lineup data
             lineup_data = match_data.get("lineups", {}).get("competitors", [])
             if not lineup_data:
-                print(f"No lineup data found for match {match_id}")
-                continue
-                
-            # Find home and away teams and get their data
-            home_team = next((team for team in lineup_data if team.get("qualifier") == "home"), {})
-            # print(f"home_team: {home_team}")
-            away_team = next((team for team in lineup_data if team.get("qualifier") == "away"), {})
-            # print(f"away_team: {away_team}")
+                print("No lineup data found for match {match_id} or match has not started...")
+
+            if lineup_data:
+                # Find home and away teams and get their data
+                home_team = next((team for team in lineup_data if team.get("qualifier") == "home"), {})
+                away_team = next((team for team in lineup_data if team.get("qualifier") == "away"), {})
+            
             
             # Insert lineup data
             insert_lineup_data(
