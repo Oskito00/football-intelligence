@@ -49,6 +49,7 @@ def process_lineup_data(db_file='football_data.db'):
             # Get generic match details
             sport_event = match_data.get("sport_event", {})
             match_id = sport_event.get("id")
+            print(f"match_id: {match_id}")
             
             # Check if match already exists in the team_lineups table
             cursor.execute('SELECT 1 FROM team_lineups WHERE match_id = ?', (match_id,))
@@ -58,21 +59,21 @@ def process_lineup_data(db_file='football_data.db'):
                 skipped_count += 1
                 continue
 
+            print(f"processing match {match_id} haven't seen it before ")
             # Get the start time of the match    
             start_time = sport_event.get("start_time")
             
             # Get lineup data
             lineup_data = match_data.get("lineups", {}).get("competitors", [])
             if not lineup_data:
+                print(f"No lineup data found for match {match_id}")
                 continue
                 
-            # Find home and away teams
+            # Find home and away teams and get their data
             home_team = next((team for team in lineup_data if team.get("qualifier") == "home"), {})
+            # print(f"home_team: {home_team}")
             away_team = next((team for team in lineup_data if team.get("qualifier") == "away"), {})
-            
-            # If there is no data for either team, skip this match
-            if not home_team or not away_team:
-                continue
+            # print(f"away_team: {away_team}")
             
             # Insert lineup data
             insert_lineup_data(

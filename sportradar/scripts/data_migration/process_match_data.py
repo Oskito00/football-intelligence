@@ -172,9 +172,10 @@ def process_match_data(db_file='football_data.db'):
         # Process each match in the season
         for summary in data.get("summaries", []):
             # Extract basic match information
-            match = summary.get("sport_event", {})
-            status = summary.get("sport_event_status", {})
-            match_id = match.get("id")
+            sport_event = summary.get("sport_event", {})
+            sport_event_status = summary.get("sport_event_status", {})
+            match_id = sport_event.get("id")
+            match_status = sport_event_status.get("match_status")
             
             # Skip if we've already processed this match in all tables
             if check_match_exists(cursor, match_id):
@@ -182,23 +183,27 @@ def process_match_data(db_file='football_data.db'):
                 continue
             
             # Extract detailed match information
-            competitors = match.get("competitors", [])
+            competitors = sport_event.get("competitors", [])
             # Find home and away teams using list comprehension with next()
             home_team = next((team for team in competitors if team.get("qualifier") == "home"), {})
             away_team = next((team for team in competitors if team.get("qualifier") == "away"), {})
-            venue = match.get("venue", {})
-            context = match.get("sport_event_context", {})
+
+            venue = sport_event.get("venue", {})
+
+            # Get competition data
+            context = sport_event.get("sport_event_context", {})
             
-            # Handle score data - only exists for completed matches
-            home_score = status.get("home_score") if match.get("status") != "not_started" else None
-            away_score = status.get("away_score") if match.get("status") != "not_started" else None
+            # Get scores for home and away teams for the completed match
+            home_score = sport_event_status.get("home_score") if match_status != "not_started" else None
+            away_score = sport_event_status.get("away_score") if match_status != "not_started" else None
             
             # Extract additional match details
-            attendance = match.get("sport_event_conditions", {}).get("attendance", {}).get("count")
+            attendance = sport_event.get("sport_event_conditions", {}).get("attendance", {}).get("count")
             # Find main referee from list of officials
-            referee = next((ref for ref in match.get("sport_event_conditions", {}).get("referees", []) 
+            referee = next((ref for ref in sport_event.get("sport_event_conditions", {}).get("referees", []) 
                           if ref.get("type") == "main_referee"), {})
             referee_id = referee.get("id")
+            #TODO: Get weather from sport_event_conditions
             
             # Handle round information
             round_info = context.get("round", {})
@@ -212,7 +217,7 @@ def process_match_data(db_file='football_data.db'):
                 home_team_name, away_team_id, away_team_name, home_score, away_score,
                 match_status, attendance, referee_id
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                (match_id, match.get("start_time"), match.get("start_time_confirmed"),
+                (match_id, sport_event.get("start_time"), sport_event.get("start_time_confirmed"),
                  venue.get("id"), venue.get("name"), venue.get("capacity"),
                  venue.get("city_name"), venue.get("country_name"),
                  context.get("competition", {}).get("id"),
@@ -224,12 +229,15 @@ def process_match_data(db_file='football_data.db'):
                  round_display,
                  home_team.get("id"), home_team.get("name"),
                  away_team.get("id"), away_team.get("name"),
-                 home_score, away_score, match.get("status"),
+                 home_score, away_score, match_status,
                  attendance, referee_id
             ))
+
+            # Commit the match data to the matches database
+            conn.commit()
             
             # Only process detailed statistics for completed matches
-            if match.get("status") in ["ended", "closed"]:
+            if match_status in ["ended", "closed", "ap", "aet"]:
                 stats = summary.get("statistics", {})
                 
                 # Process team statistics
@@ -250,7 +258,7 @@ def process_match_data(db_file='football_data.db'):
                         throw_ins, was_fouled, yellow_cards, yellow_red_cards
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
                              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                        (match_id, team_id, match.get("start_time"), team.get("name"),
+                        (match_id, team_id, sport_event.get("start_time"), team.get("name"),
                          team.get("qualifier"), *[team_stats.get(k) for k in [
                             "ball_possession", "cards_given", "chances_created", "clearances",
                             "corner_kicks", "crosses_successful", "crosses_total", "crosses_unsuccessful",
@@ -263,6 +271,9 @@ def process_match_data(db_file='football_data.db'):
                             "tackles_successful", "tackles_total", "tackles_unsuccessful",
                             "throw_ins", "was_fouled", "yellow_cards", "yellow_red_cards"
                         ]]))
+                    
+                    # Commit the team stats to the team_stats database
+                    conn.commit()
                     
                     # Get player positions from lineup data
                     cursor.execute("""
@@ -304,7 +315,7 @@ def process_match_data(db_file='football_data.db'):
                             shots_on_target, substituted_in, substituted_out, tackles_successful,
                             tackles_total, was_fouled, yellow_cards, yellow_red_cards
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                            (match_id, match.get("start_time"), player.get("id"), player.get("name"),
+                            (match_id, sport_event.get("start_time"), player.get("id"), player.get("name"),
                              team.get("id"), player.get("starter", False),
                              position,
                              *[player_stats.get(k) for k in [
@@ -323,6 +334,9 @@ def process_match_data(db_file='football_data.db'):
                                 "tackles_total", "was_fouled", "yellow_cards", "yellow_red_cards"
                             ]])
                         )
+
+                        # Commit the player stats to the player_stats database
+                        conn.commit()
     
     # Get final statistics for reporting
     cursor.execute("SELECT COUNT(*) FROM matches WHERE match_status = 'ended'")
