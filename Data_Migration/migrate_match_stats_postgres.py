@@ -1,34 +1,13 @@
-import os
-from dotenv import load_dotenv
-import psycopg2
 import json
-load_dotenv()
 
-###### Connecting the postgres  #######################################
-postgres_port = os.getenv("POSTGRES_PORT")
-postgres_password = os.getenv("POSTGRES_PASSWORD")
-
-try:
-    conn = psycopg2.connect(
-        dbname="postgres",
-        user="postgres",
-        password=postgres_password,
-        host= "localhost",
-        port = postgres_port
-    )
-
-    print("successfully connected")
-
-except Exception as e:
-    print(e)
+from db_connection import conn;
 
 cursor = conn.cursor()
-########## ^^^ Connecting to postgres ########################################
+########## ^^^ Connecting to postgres #######################################
 
 ## Load clean data file
 with open("C:/Users/Will Boyd/InBETments Predictor/Data/clean_data.json", "r") as file:
     clean_data = json.load(file)
-
 
 #########################   Columns of the match stats database ############################################################
 match_data_columns = [

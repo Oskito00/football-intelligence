@@ -8,8 +8,8 @@ import json
 
 import requests
 
-from player_stats import get_key_players_count, initialize_player_database, process_match_stats
-from team_processing import (
+from Feature_Processing.feature_processing_function_bank.player_stats import get_key_players_count, initialize_player_database, process_match_stats
+from Feature_Processing.feature_processing_function_bank.team_stats import (
     calculate_match_importance, 
     calculate_form_stats, 
     initialize_database, 
