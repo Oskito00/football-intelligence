@@ -18,7 +18,6 @@ predictions/
 football_data.db
 football.db
 *.csv
-*.txt
 
 
 

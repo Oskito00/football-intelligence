@@ -437,6 +437,7 @@ def calculate_player_match_importance(player_stats):
     final_score = score * minutes_weight
     return min(35, max(0, final_score))
 
+
 def calculate_trend(scores):
     """
     Calculate trend based on available scores (up to 5 matches)
@@ -464,6 +465,7 @@ def calculate_trend(scores):
     
     # If no clear trend or not enough matches
     return 'stable'
+
 
 #TODO: Simplify both of these functions to do it in one check, get all key players, are they missing?
 def get_missing_key_players(conn, match_id, team_id, start_time):
@@ -522,7 +524,6 @@ def get_missing_key_players(conn, match_id, team_id, start_time):
         }
         for row in cursor.fetchall()
     ]
-
 def get_key_players_count(conn, team_id, start_time):
     """Get count and details of key players for a team (top 40% by performance)"""
     cursor = conn.cursor()
