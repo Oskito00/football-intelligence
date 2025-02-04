@@ -1,6 +1,28 @@
 
+# The following code takes a pair of raw matches and lineups files and creates a python dictionary in the form
+#   dict = {
+#   "match_id":
+#   "start_time":
+#   "season_name":
+#   "season_id":
+#   "venue_id":
+#   "venue_name":
+#   "neutral_ground":
+#   "home_team":
+#   "home_team_id":
+#   "away_team":
+#   "away_team_id":
+#   "home_final_score":
+#   "away_final_score":
+#   "half_time_home_score":
+#   "half_time_away_score":
+#   "home_team_stats": {*all useful match stats*}
+#   "away_team_stats": {*all useful match stats*}
+#   "home_players": [{*all useful player stats*} for each home player]
+#   "away_players": [{*all useful player stats*} for each away player]
+#   }
 
-
+####   main function -- constructs the clean dictionary    #########################
 def extract_useful_match_data(raw_match_data, raw_lineups_data, useful_match_data=[]):
     """
     Extract useful information from the JSON data. Makes a list of Python dictionaries.
@@ -17,8 +39,6 @@ def extract_useful_match_data(raw_match_data, raw_lineups_data, useful_match_dat
 
         match_stats = get_match_stats(raw_match);
         player_stats = get_all_player_stats(raw_match, raw_lineups_data);
-
-        print("-----Getting match info")
 
         clean_match = {
             "match_id": extract_piece_of_info(raw_match, '["sport_event"]["id"]'),
@@ -43,11 +63,15 @@ def extract_useful_match_data(raw_match_data, raw_lineups_data, useful_match_dat
         }
 
         useful_match_data.append(clean_match);
+####  ^^^^^  main function #########################################################
 
 
-######   HELPER FUNCTIONS   ######
+######   HELPER FUNCTIONS and useful feature lists  ####################################
 
 def extract_piece_of_info(raw_match, path_to_info):
+    '''
+    Lets you try extracting the info from the raw data. If it doesnt exist, it returns None.
+    '''
 
     piece_of_info = None;
 
@@ -94,15 +118,12 @@ all_useful_match_stats = [
     "throw_ins"
 ]
 
-
-
 def get_match_stats(raw_match):
     '''
-    Extracts the useful match stats from any sportradar match dataset.
-    Useful stats are from the "deeper", "extended" and "basic" set.
+    Extracts the useful match stats from any sportradar match dataset for both home and away teams.
     If a stat doesnt exist, it is set to None.
     '''
-    print("---------- Getting advanced match stats")
+
 
     home_match_stats = {};
     away_match_stats = {};
@@ -122,7 +143,6 @@ def get_match_stats(raw_match):
             away_match_stats[stat] = None
 
     return home_match_stats, away_match_stats;
-
 
 useful_player_stats = {
     "from_lineups_data": [
@@ -180,9 +200,10 @@ useful_player_stats = {
 
 def get_all_player_stats(raw_match, raw_lineups_data):
     '''
-    
+    A driver function that uses the three above functions to return a list of dictionaries containing all useful_player_stats.
+    If a stat doesnt exist it is saved as null. 
+    If lineups for that match don't exist, instead of a list of dictionaries, it returns None.
     '''
-    print("---------------Getting advanced player stats")
 
     home_players_match_data, away_players_match_data, home_players_lineup_data, away_players_lineup_data = get_players(raw_match, raw_lineups_data);
 
@@ -206,9 +227,14 @@ def get_all_player_stats(raw_match, raw_lineups_data):
 
     return home_players_stats, away_players_stats;
 
+###### ^^^^ HELPER FUNCTIONS and useful feature lists  ################################
+
+
+########  functions in  "get_all_player_stats"  ####################
 def get_players(raw_match, raw_lineups_data):
     '''
-    
+    Given a raw match,
+    Returns the list of player objects from the lineups and matches data (home and away).
     '''
     home_players_match_data = None;
     away_players_match_data = None;
@@ -233,11 +259,10 @@ def get_players(raw_match, raw_lineups_data):
                 
     return home_players_match_data, away_players_match_data, home_players_lineup_data, away_players_lineup_data;
 
-
-
 def match_player_to_lineup(player_from_match_data, players_lineup_data):
     '''
-    
+    Given a player object from the matches data,
+    finds the matching player object from the lineups data.
     '''
     player_from_lineup_data = None
 
@@ -250,12 +275,12 @@ def match_player_to_lineup(player_from_match_data, players_lineup_data):
                 break
     
     return player_from_lineup_data;
-        
-
 
 def get_one_players_stats(player_from_match, player_from_lineups):
     '''
-    
+    Given a player object from lineups and its corresponding object from matches,
+        returns all useful match stats as a new object.
+        All non-existent entries are saved as None.
     '''
     player_stats = {};
 
@@ -278,7 +303,7 @@ def get_one_players_stats(player_from_match, player_from_lineups):
                 player_stats[stat] = None
 
     return player_stats;
-
+####  ^^^^^  functions in  "get_all_player_stats" ##################
 
 
 #### Export main function ####
