@@ -111,12 +111,10 @@ def get_season_matches(season_id, competition_name, season_name):
         output_dir.mkdir(parents=True, exist_ok=True)
         
         # Re-format the competition and season names for the file name
-        clean_comp_name = competition_name.replace(' ', '_')
         clean_season_name = season_name.replace(' ', '_').replace('/', '_')
-        clean_season_id = clean_season_name.replace(':', '_')
         
         # Create the file and overwrite if it already exists
-        output_file = output_dir / f"{clean_comp_name}_{clean_season_name}_{clean_season_id}.json"
+        output_file = output_dir / f"{clean_season_name}.json"
         with open(output_file, "w") as file:
             json.dump(complete_data, file, indent=4)
 #----------------------------------------------------------------#

@@ -110,11 +110,9 @@ def get_season_lineups(season_id, competition_name, season_name):
         output_dir.mkdir(parents=True, exist_ok=True)
         
         # Change competition and season name to a more readable format
-        clean_comp_name = competition_name.replace(' ', '_')
         clean_season_name = season_name.replace(' ', '_').replace('/', '_')
-        clean_season_id = season_id.replace(':', '_')
         
-        output_file = output_dir / f"{clean_comp_name}_{clean_season_name}_{clean_season_id}_lineups.json"
+        output_file = output_dir / f"{clean_season_name}_lineups.json"
         #Create the file and overwrite if it already exists
         with open(output_file, "w") as file:
             json.dump(complete_data, file, indent=4)
