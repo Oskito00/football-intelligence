@@ -17,6 +17,15 @@ def multi_label_logistic_regression(n_folds=10):
     advanced_df = pd.read_csv("Data/processed/preprocessed_features.csv")
     basic_df = pd.read_csv("Data/processed/preprocessed_basic_features.csv")
 
+    redundant_features = ['goals scored difference', 'pass_effectivness_difference', 'h2h_points difference', 'momentum difference', 'defensive success difference', 'h2h clean sheets difference']
+
+    # Remove redundant features if they exist in the dataframes
+    for feature in redundant_features:
+        if feature in advanced_df.columns:
+            advanced_df = advanced_df.drop(columns=[feature])
+        if feature in basic_df.columns:
+            basic_df = basic_df.drop(columns=[feature])
+
     # Check for missing features
     basic_features = basic_df.columns
     advanced_features = advanced_df.columns
@@ -96,12 +105,17 @@ def multi_label_logistic_regression(n_folds=10):
         'feature': feature_names,
         'importance': avg_importances
     }).sort_values('importance', ascending=False)
+
+    # Print features in order of importance
+    print("\nFeatures in order of importance:")
+    for idx, row in importance_df.iterrows():
+        print(f"{idx + 1}. {row['feature']}: {row['importance']:.4f}")
     
     # Plot average feature importance
     plt.figure(figsize=(12, 8))
-    plt.bar(range(20), importance_df['importance'][:20])
-    plt.xticks(range(20), importance_df['feature'][:20], rotation=45, ha='right')
-    plt.title('Top 20 Most Important Features (Averaged Across Folds)')
+    plt.bar(range(45), importance_df['importance'][:45])
+    plt.xticks(range(45), importance_df['feature'][:45], rotation=45, ha='right')
+    plt.title('Top 45 Most Important Features (Averaged Across Folds)')
     plt.tight_layout()
     plt.show()
     

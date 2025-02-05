@@ -15,6 +15,15 @@ def train_ensemble_models(basic_features_path="Data/processed/preprocessed_basic
     # Load data
     basic_df = pd.read_csv(basic_features_path)
     advanced_df = pd.read_csv(advanced_features_path)
+
+    redundant_features = ['goals scored difference', 'pass_effectivness_difference', 'h2h_points difference', 'momentum difference', 'defensive success difference', 'h2h clean sheets difference']
+
+    # Remove redundant features if they exist in the dataframes
+    for feature in redundant_features:
+        if feature in advanced_df.columns:
+            advanced_df = advanced_df.drop(columns=[feature])
+        if feature in basic_df.columns:
+            basic_df = basic_df.drop(columns=[feature])
     
     # Add outcome column to both dataframes
     basic_df["outcome"] = [2 if h > a else (1 if h == a else 0) 

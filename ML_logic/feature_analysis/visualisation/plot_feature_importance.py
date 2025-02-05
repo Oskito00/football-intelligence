@@ -77,5 +77,4 @@ def analyze_specific_features(importance_df):
 
 if __name__ == "__main__":
     model, train_scores, val_scores, importance_df, selected_features = multi_label_logistic_regression()
-    plot_feature_importance(importance_df)
     analyze_specific_features(importance_df)
