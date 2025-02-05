@@ -382,7 +382,7 @@ def calculate_momentum(conn,matches, team_name, weights=[0.35, 0.25, 0.20, 0.12,
         print(f"Not enough matches for {team_name}: {len(matches)}")
         print("Returning 0.0")
         return 0.0
-
+    
     match_scores = []
     
     print(f"\nCalculating momentum for {team_name}")

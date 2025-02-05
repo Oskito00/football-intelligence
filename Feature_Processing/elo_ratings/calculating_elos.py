@@ -1,45 +1,21 @@
-from Data_Migration.db_connection import conn;
 
-def get_previous_matches(conn, team_name, before_match_date):
-    """Get the previous 5 matches for a team before a certain date"""
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT 
-            team_name,
-            team_id,
-            start_time,
-            season_id,
-            competition_id,
-            match_id,
-            match_status,
-            qualifier,
-            opponent_team_name,
-            opponent_team_id,
-            goals_scored,
-            goals_conceded,
-            match_outcome,
-            clean_sheet,
-            passes_successful,
-            passes_total,
-            shots_on_target,
-            shots_total,
-            chances_created,
-            tackles_successful,
-            tackles_total,
-            has_basic_stats,
-            has_advanced_stats
-        FROM match_statistics 
-        WHERE team_name = ?
-        AND start_time < ?
-        AND has_basic_stats = 1
-        AND match_status = 'ended'
-        ORDER BY start_time DESC
-        LIMIT 5
-    """, (team_name, before_match_date))
-    
-    # Convert tuple results to dictionaries with named fields
-    columns = [description[0] for description in cursor.description]
-    return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+
+def calculate_elo_change(elo_diff, result, K=20):
+
+    expected = 1 / (10^[elo_diff / 400] + 1)
+    elo_change = K * (result - expected)
+    return elo_change
+
+
+def update_elos(home_elo, away_elo, home_final_score, away_final_score, K):
+
+    elo_diff = abs(home_elo-away_elo)
+
+    result = 0.5 if home_final_score == away_final_score else 1 if home_final_score > away_final_score else 0;
+
+    home_elo_change = calculate_elo_change(elo_diff, result)
+    away_elo_change = calculate_elo_change(elo_diff, 1-result)
 
 
 
@@ -112,32 +88,6 @@ def calculate_elo_rating(conn, match, match_importance):
         
     return home_elo, away_elo
 
-
-def get_elo_rating(conn, team_id):
-    """Get the current Elo rating for a team"""
-    cursor = conn.cursor()
-    
-    try:
-        cursor.execute("""
-            SELECT elo_rating 
-            FROM elo_rating 
-            WHERE team_id = ?
-        """, (team_id,))
-        
-        result = cursor.fetchone()
-        
-        if result is None:
-            raise ValueError(f"Team ID {team_id} not found in elo_rating table")
-        
-        return result[0]
-        
-    except Exception as e:
-        print(f"Error getting Elo rating for team {team_id}: {str(e)}")
-        raise  # Re-raise the exception to be handled by the caller
-
-
-
-def calculate_momentum(conn, matches, team_name, weights=[0.35, 0.25, 0.20, 0.12, 0.08]):
     """
     Calculate team momentum based on their last 5 matches.
     Positive momentum means improving form, negative means declining form.

@@ -74,7 +74,6 @@ def analyze_specific_features(importance_df):
         print(f"{row['feature']:<30} {row['importance']:.4f} (Rank: {overall_rank})")
 
 
-
 if __name__ == "__main__":
     model, train_scores, val_scores, importance_df, selected_features = multi_label_logistic_regression()
     plot_feature_importance(importance_df)
