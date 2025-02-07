@@ -1,20 +1,9 @@
 import requests
-
+from thefuzz import fuzz
 import os
 from dotenv import load_dotenv
 import psycopg2
 load_dotenv()
-
-
-def datetime_string_converter(raw_datetime):
-    return str(raw_datetime)[:10]
-
-def get_sql_data(conn, select_query):
-    cursor = conn.cursor();
-    cursor.execute(select_query);
-    sql_data = cursor.fetchall()
-    return sql_data
-
 
 ###### Connecting the postgres  #######################################
 postgres_port = os.getenv("POSTGRES_PORT")
@@ -36,11 +25,15 @@ except Exception as e:
 ########## ^^^ Connecting to postgres ########################################
 
 
-elo_ingredients_select_query = '''
-SELECT start_time, home_team, away_team, home_final_score, away_final_score, match_id 
-	FROM match_statistics 
-	ORDER BY start_time ASC
-'''
+def get_sql_data(conn, select_query):
+    cursor = conn.cursor();
+    cursor.execute(select_query);
+    sql_data = cursor.fetchall()
+    return sql_data
+
+def datetime_string_converter(raw_datetime):
+    return str(raw_datetime)[:10]
+
 
 def add_clean_date_to_row(cursor, clean_date, match_id):
     
@@ -94,71 +87,223 @@ def fetch_elos_on_date(date):
     except Exception as e:
         return(e);
 
-def find_team_elo(team_name, parsed_response):
+def nameclash_converter(db_name):
 
-    elo = None;
-    for entry in parsed_response[1:-3]:
-        name = entry[1]
-        if name in team_name or team_name in name:
-            elo = entry[4]
-
-    if elo == None:
-        return team_name
-    else:
-        return round(eval(elo), 1)
-
-def name_clash_converter(db_name):
-
-    if db_name == "Manchester United":
-        return "Man United"
-
-    if db_name == "Manchester City":
-        return "Man City"
-    
-    if db_name == "Vikingur Reykjavic":
-        return "Víkingur"
-
+    teams_for_editing = {
+    "Sheffield Wednesday": "Sheffield Weds",
+    "FC Copenhagen": "FC København",
+    "FC Levy Bereg Kyiv": "Livyi Bereh",
+    "1. FC Cologne": "Köln",
+    "Almere City FC": "Almere",
+    "Derby County": "Derby",
+    "Manchester City": "Man City",
+    "Manchester United": "Man United",
+    "FC Metalist 1925 Kharkiv": "Metal Kharkiv",
+    "Qarabag FK": "Qarabağ",
+    "Partick Thistle FC": "Partick"
+}
+    if db_name in teams_for_editing:
+        db_name = teams_for_editing[f"{db_name}"]
     
     return db_name
 
+def find_team_elo(home_team_name, away_team_name, parsed_response):
 
-select_query = '''
-SELECT clean_date, home_team, away_team FROM match_statistics
-    ORDER BY clean_date ASC
-'''
+    both_elos = []
+    for team_name in [home_team_name, away_team_name]:
+        team_name = nameclash_converter(team_name);
+        elo = None;
+        top_fuzz_score = 0
 
-# sql_data = get_sql_data(conn, select_query);
+        for entry in parsed_response[1:-3]:
+            name = entry[1]
+            fuzz_score = fuzz.partial_ratio(name, home_team_name)
+            if fuzz_score > top_fuzz_score:
+                top_fuzz_score = fuzz_score;
+                top_match_elo = entry[4];
+            if name in team_name or team_name in name:
+                elo = entry[4]
+            
+        if elo == None:
+            both_elos.append(round(eval(top_match_elo), 1))
+        else:
+            both_elos.append(round(eval(elo), 1))
 
-# name_clash_teams = []
-# checked_team_names = []
-# fetched_dates = []
-
-# for counter, match in enumerate(sql_data):
-#     date = match[0]
-#     home_team_name = match[1]
-#     away_team_name = match[2]
-#     elo_fetch_result = None;
-
-#     if date not in fetched_dates and ( home_team_name not in checked_team_names or away_team_name not in checked_team_names ):
-#         parsed_response = fetch_elos_on_date(date)
-#         fetched_dates.append(date);
-
-#     if home_team_name not in checked_team_names:
-#         elo_fetch_result = find_team_elo(home_team_name, parsed_response);
-#         checked_team_names.append(home_team_name);
-#         if type(elo_fetch_result) == str and home_team_name not in name_clash_teams:
-#             name_clash_teams.append(elo_fetch_result);
-    
-#     if away_team_name not in checked_team_names:
-#         elo_fetch_result = find_team_elo(away_team_name, parsed_response);
-#         checked_team_names.append(away_team_name);
-#         if type(elo_fetch_result) == str and away_team_name not in name_clash_teams:
-#             name_clash_teams.append(elo_fetch_result);
+    return tuple(both_elos)
 
 
-#     if counter%100 == 0:
-#         print("---------------------")
-#         print(f"processed {counter} entries")
-#         print("---------------------")
+def get_team_elos(conn):
 
-# print(name_clash_teams, len(name_clash_teams));
+    date_name_select_query = '''
+    SELECT 
+    clean_date, 
+    home_team, 
+    away_team,
+    match_id
+        FROM match_statistics
+        ORDER BY clean_date ASC
+    '''
+
+    sql_data = get_sql_data(conn, date_name_select_query);
+
+    matches_with_elos = []
+    fetched_dates = []
+
+    for counter, row in enumerate(sql_data):
+        date = row[0]
+        home_team_name = row[1]
+        away_team_name = row[2]
+        match_id = row[3]
+
+        if date not in fetched_dates:
+            parsed_response = fetch_elos_on_date(date)
+            fetched_dates.append(date);
+
+        home_elo_found, away_elo_found = find_team_elo(home_team_name, away_team_name, parsed_response);
+
+        matches_with_elos.append((match_id, home_elo_found, away_elo_found))
+
+        if counter%100 == 0:
+            print("---------------------")
+            print(f"processed {counter} entries")
+            print("---------------------")
+
+    return matches_with_elos;
+
+
+def make_nameclash_table(nameclash_top_matches, total_count):
+
+
+    for i, entry in enumerate(nameclash_top_matches):
+
+        name = entry[0]
+        top_match = entry[1]
+        gap_len = (50 - len(name+top_match))
+
+        print(f"{i+1}." + " "*10 + f"{name}" + " "*gap_len + f"{top_match}")
+
+    print(f"\n\nTotal teams = {total_count}")
+
+def find_db_appearance_counts(conn):
+
+    select_names_query = '''
+    SELECT home_team_id, away_team_id FROM match_statistics
+    '''
+    sql_data = get_sql_data(conn, select_names_query)
+    teams_found_so_far = []
+    team_counts = {}
+
+    for row in sql_data:
+        team_ids = row
+
+        for _id in team_ids:
+
+            if _id not in teams_found_so_far:
+                team_counts[f"{_id}"] = 1;
+                teams_found_so_far.append(_id)
+            else:
+                team_counts[f"{_id}"] += 1
+
+    return team_counts;
+
+def insert_appearance_counts_to_db(conn, team_counts):
+
+    for team_id in team_counts:
+
+        team_count = team_counts[team_id]
+
+        counts_insert_query = f'''
+        UPDATE match_statistics
+            SET home_total_appearances_in_db = {team_count} WHERE home_team_id = '{team_id}';
+
+        UPDATE match_statistics
+            SET away_total_appearances_in_db = {team_count} WHERE away_team_id = '{team_id}';
+        '''
+
+        cursor = conn.cursor()
+        cursor.execute(counts_insert_query)
+        conn.commit();
+
+### I deleted these teams from my working database. I wasn't going to be able to find elo scores for them
+##### mostly they are league 1 and league 2 teams from england, featuring in FA cup matches etc
+unreachable_teams = [
+    "FC Emmen",
+    "Odds BK",
+    "Wycombe Wanderers",
+    "Plymouth Argyle",
+    "Mansfield Town",
+    "Fleetwood Town",
+    "Shrewsbury Town",
+    "Ipswich Town",
+    "Milton Keynes Dons",
+    "MFK Zemplin Michalovce",
+    "AFC Wimbledon",
+    "USL Dunkerque",
+    "Ruzomberok",
+    "FK Buducnost",
+    "Crawley Town",
+    "Barnsley FC",
+    "Chesterfield FC",
+    "Blackpool FC",
+    "Grazer AK 1902",
+    "Bolton Wanderers",
+    "Stockport County FC",
+    "FK Tekstilac Odzaci",
+    "AS Trencin",
+    "Stade Lausanne Ouchy",
+    "Wigan Athletic",
+    "KFC Komarno",
+    "Fehervar FC Szekesfehervar",
+    "Newport County",
+    "Harrogate Town",
+    "Doncaster Rovers",
+    "Peterborough United",
+    "Burton Albion",
+    "NAC Breda",
+    "AVS Futebol SAD",
+    "Stevenage FC",
+    "Morecambe FC",
+    "Cambridge United",
+    "Charlton Athletic",
+    "Wrexham AFC",
+    "FK Kosice",
+    "FK Zeleziarne Podbrezova",
+    "MFK Tatran Liptovsky Mikulas",
+    "MFK Skalica",
+    "WSG Tirol",
+    "Bristol Rovers",
+    "Leyton Orient London",
+    "Oxford United",
+    "Crewe Alexandra",
+    "Gillingham FC",
+    "FC Minaj",
+    "Exeter City",
+    "Accrington Stanley",
+    "LNZ Cherkasy",
+    "FK Spartak Subotica",
+    "Le Puy Foot 43 Auvergne",
+    "Barrow AFC",
+    "Portsmouth FC",
+    "Walsall FC",
+    "UE Santa Coloma",
+    "Cesena FC",
+    "Vilnius FK Zalgiris",
+    "MSK Zilina",
+    "Kristiansund BK",
+    "Birmingham City",
+    "MFk Dukla Banska Bystrica",
+    "MSK Zilina",
+    "FC Vion Zlate Moravce - Vrable",
+    "Pafos FC",
+    "Fotbal Club FCSB",
+    "Estrela Amadora",
+    "Bate Borisov",
+    "Port Vale",
+    "ES Thaon Football"
+]
+
+
+## Problem Teams
+# Derby = 1400
+# Sheffield Weds = 1450
+# Partick = 1100

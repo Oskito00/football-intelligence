@@ -89,3 +89,5 @@ def calculate_elo_rating(conn, match, match_importance):
         
     return home_elo, away_elo
     
+
+print("hi" in {"hi": 20, "hello": 30});
