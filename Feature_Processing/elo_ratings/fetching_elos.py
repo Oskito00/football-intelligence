@@ -31,41 +31,6 @@ def get_sql_data(conn, select_query):
     sql_data = cursor.fetchall()
     return sql_data
 
-def datetime_string_converter(raw_datetime):
-    return str(raw_datetime)[:10]
-
-
-def add_clean_date_to_row(cursor, clean_date, match_id):
-    
-    datetime_converter_query = f'''
-    UPDATE match_statistics
-        SET clean_date = '{clean_date}' WHERE match_id = '{match_id}'
-    '''
-    cursor.execute(datetime_converter_query);
-
-def add_clean_dates_to_db(conn):
-
-    select_query = '''
-    SELECT start_time, match_id 
-        FROM match_statistics 
-        ORDER BY start_time ASC
-    '''
-    cursor = conn.cursor();
-    cursor.execute(select_query)
-    sql_data = cursor.fetchall()
-
-    for counter, row in enumerate(sql_data):
-        clean_date = datetime_string_converter(row[0]);
-        match_id = row[-1]
-        add_clean_date_to_row(cursor, clean_date, match_id)
-
-        if counter%1000 == 0:
-            print(f"{counter} rows updated with clean dates")
-            print("---------------------")
-
-    conn.commit();
-    print("finished! Have a look at your new clean_dates...");
-
 
 def fetch_elos_on_date(date):
     '''
@@ -184,45 +149,6 @@ def make_nameclash_table(nameclash_top_matches, total_count):
 
     print(f"\n\nTotal teams = {total_count}")
 
-def find_db_appearance_counts(conn):
-
-    select_names_query = '''
-    SELECT home_team_id, away_team_id FROM match_statistics
-    '''
-    sql_data = get_sql_data(conn, select_names_query)
-    teams_found_so_far = []
-    team_counts = {}
-
-    for row in sql_data:
-        team_ids = row
-
-        for _id in team_ids:
-
-            if _id not in teams_found_so_far:
-                team_counts[f"{_id}"] = 1;
-                teams_found_so_far.append(_id)
-            else:
-                team_counts[f"{_id}"] += 1
-
-    return team_counts;
-
-def insert_appearance_counts_to_db(conn, team_counts):
-
-    for team_id in team_counts:
-
-        team_count = team_counts[team_id]
-
-        counts_insert_query = f'''
-        UPDATE match_statistics
-            SET home_total_appearances_in_db = {team_count} WHERE home_team_id = '{team_id}';
-
-        UPDATE match_statistics
-            SET away_total_appearances_in_db = {team_count} WHERE away_team_id = '{team_id}';
-        '''
-
-        cursor = conn.cursor()
-        cursor.execute(counts_insert_query)
-        conn.commit();
 
 ### I deleted these teams from my working database. I wasn't going to be able to find elo scores for them
 ##### mostly they are league 1 and league 2 teams from england, featuring in FA cup matches etc
