@@ -36,14 +36,15 @@ def get_sql_data(conn, select_query):
 def find_db_appearance_counts(conn):
 
     select_names_query = '''
-    SELECT home_team_id, away_team_id FROM match_statistics
+    SELECT home_team_id, away_team_id, match_id FROM match_statistics
     '''
     sql_data = get_sql_data(conn, select_names_query)
     teams_found_so_far = []
     team_counts = {}
 
     for row in sql_data:
-        team_ids = row
+        team_ids = row[:2]
+        match_id = row[-1]
 
         for _id in team_ids:
 
@@ -52,6 +53,7 @@ def find_db_appearance_counts(conn):
                 teams_found_so_far.append(_id)
             else:
                 team_counts[f"{_id}"] += 1
+
 
     return team_counts;
 
@@ -135,7 +137,6 @@ def get_match_dates(conn):
     select_names_query = '''
     SELECT home_team_id, away_team_id, clean_date FROM match_statistics
         ORDER BY clean_date ASC
-        LIMIT 1000
     '''
     sql_data = get_sql_data(conn, select_names_query)
     teams_found_so_far = []
@@ -197,8 +198,28 @@ def get_team_freqs(conn):
 def upload_frequencies_to_db(conn):
 
     freqs = get_team_freqs(conn);
+    cursor = conn.cursor()
 
-    return 0 ## to finish
+    for team_id in freqs:
+        team_freq = freqs[team_id]
+        if team_freq == None:
+            continue
+        sql_upload_query = f'''
+        UPDATE match_statistics
+            SET home_match_frequency = {team_freq} WHERE home_team_id = '{team_id}';
 
+        UPDATE match_statistics
+            SET away_match_frequency = {team_freq} WHERE away_team_id = '{team_id}'
+        '''
+        try:
+            cursor.execute(sql_upload_query)
+            conn.commit()
+        except Exception as e:
+            print(e)
+            print(team_id)
+
+    print("Frequency stats successfully uploaded.")
+
+upload_frequencies_to_db(conn)
 
 ###################################################################
