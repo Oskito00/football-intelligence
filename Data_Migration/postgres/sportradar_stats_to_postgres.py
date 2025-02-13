@@ -1,6 +1,6 @@
 import json
 
-from db_connection import conn;
+from Data_Migration.postgres.db_connection import conn;
 cursor = conn.cursor()
 ########## ^^^ Connecting to postgres #######################################
 
