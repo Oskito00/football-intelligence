@@ -77,7 +77,7 @@ def last_five_scores(scores_data, scores_data_current_row_index, is_home_team):
 def get_momentums(conn):
 
     scores_by_date_query = '''
-    SELECT home_team_id, away_team_id, home_final_score, away_final_score, match_id FROM match_statistics
+    SELECT home_team_id, away_team_id, home_score, away_score, match_id FROM apifootball_stats
         ORDER BY clean_date DESC
     '''
     cursor = conn.cursor()
@@ -116,10 +116,10 @@ def update_db_with_momentums(conn, momentums):
         away_momentum = row[2]
 
         update_query = f'''
-        UPDATE match_statistics
+        UPDATE apifootball_stats
             SET home_momentum = {home_momentum} WHERE match_id = '{match_id}';
 
-        UPDATE match_statistics
+        UPDATE apifootball_stats
             SET away_momentum = {away_momentum} WHERE match_id = '{match_id}';
         '''
 
@@ -127,8 +127,8 @@ def update_db_with_momentums(conn, momentums):
         conn.commit()
     print("Done.")
 
-
-
+momentums = get_momentums(conn)
+update_db_with_momentums(conn, momentums);
 
 
     

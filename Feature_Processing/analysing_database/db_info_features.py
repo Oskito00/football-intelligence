@@ -135,17 +135,18 @@ def days_elapsed(date0, date1=0):
 def get_match_dates(conn):
 
     select_names_query = '''
-    SELECT home_team_id, away_team_id, clean_date FROM match_statistics
+    SELECT home_team_id, away_team_id, clean_date FROM apifootball_stats
         ORDER BY clean_date ASC
     '''
     sql_data = get_sql_data(conn, select_names_query)
     teams_found_so_far = []
     team_match_dates = {}
 
-    for row in sql_data:
+    for count, row in enumerate(sql_data):
         ids = row[:2];
         date = row[2];
-
+        if count % 10000 == 0:
+            print(f"{count} entries processed...")
         for team_id in ids:
 
             if team_id not in teams_found_so_far:
@@ -200,16 +201,16 @@ def upload_frequencies_to_db(conn):
     freqs = get_team_freqs(conn);
     cursor = conn.cursor()
 
-    for team_id in freqs:
+    for count, team_id in enumerate(freqs):
         team_freq = freqs[team_id]
         if team_freq == None:
             continue
         sql_upload_query = f'''
-        UPDATE match_statistics
-            SET home_match_frequency = {team_freq} WHERE home_team_id = '{team_id}';
+        UPDATE apifootball_stats
+            SET home_freq_in_db = {team_freq} WHERE home_team_id = '{team_id}';
 
-        UPDATE match_statistics
-            SET away_match_frequency = {team_freq} WHERE away_team_id = '{team_id}'
+        UPDATE apifootball_stats
+            SET away_freq_in_db = {team_freq} WHERE away_team_id = '{team_id}'
         '''
         try:
             cursor.execute(sql_upload_query)
@@ -217,9 +218,82 @@ def upload_frequencies_to_db(conn):
         except Exception as e:
             print(e)
             print(team_id)
+        
+        if count % 100 == 0:
+            print(f"{count} freqs uploaded...")
 
     print("Frequency stats successfully uploaded.")
 
-upload_frequencies_to_db(conn)
+# print(len(get_team_freqs(conn)))
+# upload_frequencies_to_db(conn)
+
+
+### Plot frequencies:
+
+def get_freqs_array_from_db(conn):
+    query = '''
+    SELECT home_freq_in_db, away_freq_in_db, home_team_id, away_team_id from apifootball_stats
+    '''
+    cursor = conn.cursor()
+    cursor.execute(query);
+    freq_data = cursor.fetchall();
+
+    teams = []
+    freqs = []
+
+    for match in freq_data:
+        home_team_id = match[2]
+        away_team_id = match[3]
+        home_freq = match[0]
+        away_freq = match[1]
+
+        if home_team_id not in teams:
+            teams.append(home_team_id)
+            freqs.append(home_freq)
+        if away_team_id not in teams:
+            teams.append(away_team_id)
+            freqs.append(away_freq);
+
+    return teams, freqs
+
+
+## P L O T T I N G
+# import numpy as np;
+# x = get_freqs_array_from_db(conn)[1];
+# x = np.array([f for f in x if f != None])
+
+# import matplotlib.pyplot as plt;
+# fig, ax = plt.subplots()
+# ax.hist(x, bins=500)
+# ax.set_xlabel("Match Frequency")
+# ax.set_ylabel("Count")
+# ax.set_xlim(0, 500)
+# plt.show()
 
 ###################################################################
+
+
+def frequency_cleanse_cascade(conn):
+
+    upload_frequencies_to_db(conn);
+    
+    delete_query = '''
+    DELETE FROM apifootball_stats WHERE home_freq_in_db > 50 or away_freq_in_db > 50;
+    '''
+    select_query = '''
+    SELECT * FROM apifootball_stats WHERE home_freq_in_db > 50 or away_freq_in_db > 50;
+    '''
+    cursor = conn.cursor()
+    cursor.execute(select_query)
+    too_infrequent = cursor.fetchall()
+
+    while len(too_infrequent) > 0:
+        cursor.execute(delete_query);
+        conn.commit()
+        upload_frequencies_to_db(conn);
+
+        cursor.execute(select_query)
+        too_infrequent = cursor.fetchall()
+
+
+frequency_cleanse_cascade(conn)

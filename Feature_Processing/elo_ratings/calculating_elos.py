@@ -1,22 +1,117 @@
+import os
+from dotenv import load_dotenv
+import psycopg2
+load_dotenv()
+
+###### Connecting the postgres  #######################################
+postgres_port = os.getenv("POSTGRES_PORT")
+postgres_password = os.getenv("POSTGRES_PASSWORD")
+
+try:
+    conn = psycopg2.connect(
+        dbname="postgres",
+        user="postgres",
+        password=postgres_password,
+        host= "localhost",
+        port = postgres_port
+    )
+
+    print("successfully connected")
+
+except Exception as e:
+    print(e)
+########## ^^^ Connecting to postgres ########################################
+
+import numpy as np
+import json
+
+with open("C:/Users/Will Boyd/InBETments Predictor/Data/APIfootball/league_list.json", "r") as file:
+    league_list = json.load(file);
 
 
+def get_elo_changes(home_elo, away_elo, home_score, away_score, K=20):
 
-def calculate_elo_change(elo_diff, result, K=20):
+    home_result = 0.5 if home_score == away_score else 1 if home_score > away_score else 0;
+    away_result = 1 - home_result
 
-    expected = 1 / (10^[elo_diff / 400] + 1)
-    elo_change = K * (result - expected)
-    return elo_change
+    home_expected = 1 / (10**((away_elo-home_elo) / 400) + 1)
+    home_elo_change = K * (home_result - home_expected)
+
+    away_expected = 1 / (10**((home_elo-away_elo) / 400) + 1)
+    away_elo_change = K * (away_result - away_expected)
+
+    return home_elo_change, away_elo_change
 
 
-def update_elos(home_elo, away_elo, home_final_score, away_final_score, K):
+def fetch_league_ave_elo(league_list, country, league_id):
+    country_leagues = league_list[country];
+    for league in country_leagues:
+        if league['id'] == league_id:
+            return league['ave_elo'];
 
-    elo_diff = abs(home_elo-away_elo)
+    return None;
 
-    result = 0.5 if home_final_score == away_final_score else 1 if home_final_score > away_final_score else 0;
 
-    home_elo_change = calculate_elo_change(elo_diff, result)
-    away_elo_change = calculate_elo_change(elo_diff, 1-result)
+def update_elos(conn, league_list):
+    cursor = conn.cursor()
+    team_elos = {}
 
+    select_query = '''
+    SELECT match_id, country, league_id, home_team_id, away_team_id, home_score, away_score FROM apifootball_stats
+        ORDER BY clean_date;
+    '''
+
+    set_home_elo_query = '''
+    UPDATE apifootball_stats
+        SET home_elo_rating = %s WHERE match_id = %s;
+    '''
+    
+    set_away_elo_query = '''
+    UPDATE apifootball_stats
+        SET away_elo_rating = %s WHERE match_id = %s;
+    '''
+
+    cursor.execute(select_query)
+    matches = cursor.fetchall()
+
+    for count, match in enumerate(matches):
+        match_id = match[0]
+        country = match[1]
+        league_id = match[2]
+        home_id = match[3]
+        away_id = match[4]
+        home_score = match[5]
+        away_score = match[6]
+        
+
+        if home_id not in team_elos:
+            home_elo = fetch_league_ave_elo(league_list, country, league_id);
+            team_elos[home_id] = home_elo
+        else:
+            home_elo = team_elos[home_id]
+
+        if away_id not in team_elos:
+            away_elo = fetch_league_ave_elo(league_list, country, league_id);
+            team_elos[away_id] = away_elo;
+        else:
+            away_elo = team_elos[away_id]
+
+        cursor.execute(set_home_elo_query, (home_elo, match_id));
+        conn.commit()
+
+        cursor.execute(set_away_elo_query, (away_elo, match_id));
+        conn.commit()
+
+        home_elo_change, away_elo_change = get_elo_changes(home_elo, away_elo, home_score, away_score)
+
+        team_elos[home_id] += home_elo_change;
+        team_elos[away_id] += away_elo_change;
+        
+        if count % 1000 == 0:
+            print(f"{count} matches processed")
+        
+
+update_elos(conn, league_list);
 
 
 ### Oscar's advanced elo function
@@ -88,6 +183,3 @@ def calculate_elo_rating(conn, match, match_importance):
         conn.commit()
         
     return home_elo, away_elo
-    
-
-print("hi" in {"hi": 20, "hello": 30});

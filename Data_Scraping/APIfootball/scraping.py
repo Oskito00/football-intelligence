@@ -66,5 +66,5 @@ clean_data_json = json.dumps(scraped_data, indent=4)
 
 with open('C:/Users/Will Boyd/InBETments Predictor/Data/APIfootball/clean_data.json', 'w') as file:
     file.write(clean_data_json)
-    print("Data saved to Data/APIfootbal/clean_data.json")
+    print("Data saved to Data/APIfootball/clean_data.json")
         

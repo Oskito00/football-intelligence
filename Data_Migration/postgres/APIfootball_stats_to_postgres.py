@@ -49,8 +49,6 @@ def create_insert_query(match):
         VALUES ({", ".join([f'{quotes_adder[i] + match[key] + quotes_adder[i]}' for i, key in enumerate(match)])})
     '''
 cursor = conn.cursor()
-good = 0
-bad = 0
 for count, match in enumerate(clean_data):
     try:
         query = create_insert_query(match)
