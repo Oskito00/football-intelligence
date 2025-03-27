@@ -5,6 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 import random
 
+from Fifa_Ratings.utils.helpers import check_if_player_exists
 from Tools.player_name_formatting_helper import format_player_name, normalise_player_name
 
 #********************************************************************************
@@ -52,11 +53,11 @@ def process_player_ratings(conn):
         for player in home_team_lineup_info:
             player_id = player.get("id")
             player_name = player.get("name")
+            player_name = normalise_player_name(player_name)
             player_formatted_name = format_player_name(player_name)
             
             # Check if player exists in database
-            cursor.execute("SELECT 1 FROM player_stats WHERE player_id = ?", (player_id,))
-            if cursor.fetchone():
+            if check_if_player_exists(player_id, conn):
                 print(f"Player {player_id} already exists in database")
                 continue
 
@@ -100,6 +101,7 @@ def process_player_ratings(conn):
 def scrape_player_ratings(player_name):
     """Takes a player name and returns the html
     response after scraping the fifa ratings website"""
+    
     try:
 
         base_url = "https://www.fifaratings.com"
@@ -117,6 +119,7 @@ def scrape_player_ratings(player_name):
             'Referer': 'https://www.google.com/'
         }
 
+        print(f"Scraping player {player_name}")
         response = requests.get(url, headers=headers)
 
     except Exception as e:
@@ -131,6 +134,8 @@ def parse_html_to_json(response):
         html = response.text
         soup = BeautifulSoup(html, "html.parser")
         data = {}
+
+        print("Parsing html response to JSON")
         
         # Extract main attributes container
         statistics_selector = "#nav-attributes > div"
@@ -149,6 +154,10 @@ def parse_html_to_json(response):
                     weight_info= weight_string[0].split(":")[1]
                     data["Height"] = height_info
                     data["Weight"] = weight_info
+                if text.startswith("Skill Moves:"):
+                    number_of_stars = len(ps.find_all('span', class_='text-warning'))
+                    data["Skill Moves"] = number_of_stars
+            
         if statistics_content:
             # Process each attribute category card
             for card in statistics_content.select('.card'):
@@ -169,6 +178,8 @@ def parse_html_to_json(response):
                     attr_name = attr_text.replace(attr_value, '').strip()
                     data[attr_name] = attr_value
 
+                # Need to extract skill moves
+
         return data
         
     except Exception as e:
@@ -178,28 +189,32 @@ def parse_html_to_json(response):
 def add_player_ratings_to_db(player_id, player_name, player_formatted_name, data):
     """Adds the players rating to the sqlite database"""
     conn = sqlite3.connect('v2db.sqlite')
+
+    print("Adding player to database: ", player_id, player_name, player_formatted_name)
     
     try:
         conn.execute('''
             INSERT OR REPLACE INTO player_stats (
-                player_id, player_name, player_formatted_name,
+                player_id, player_name, player_formatted_name, height, weight,
                 pace_avg, acceleration, sprint_speed,
                 shooting_avg, positioning, finishing, shot_power, long_shots, volleys, penalties,
                 passing_avg, vision, crossing, free_kick_accuracy, short_passing, long_passing, curve,
                 dribbling_avg, agility, reactions, balance, dribbling, ball_control, composure,
                 defense_avg, interceptions, heading_accuracy, def_awareness, standing_tackle, sliding_tackle,
                 physicality_avg, jumping, stamina, strength, aggression,
-                goalkeeping_avg, gk_diving, gk_handling, gk_kicking, gk_positioning, gk_reflexes,
+                goalkeeping_avg, gk_diving, gk_handling, gk_kicking, gk_positioning, gk_reflexes, skill_moves,
                 total_attributes
             ) VALUES (
                 ?,?,?,?,?,?,?,?,?,?,?,?,
                 ?,?,?,?,?,?,?,?,?,?,?,?,
                 ?,?,?,?,?,?,?,?,?,?,?,?,
-                ?,?,?,?,?,?,?,?,?
+                ?,?,?,?,?,?,?,?,?,?,?,?
             )
         ''', (
             # First 12 parameters
             player_id, player_name, player_formatted_name,
+            data.get('Height', 0),
+            data.get('Weight', 0),
             data.get('Pace Average Average', 0),
             data.get('Acceleration', 0),
             data.get('Sprint Speed', 0),
@@ -247,9 +262,11 @@ def add_player_ratings_to_db(player_id, player_name, player_formatted_name, data
             data.get('GK Kicking', 0),
             data.get('GK Positioning', 0),
             data.get('GK Reflexes', 0),
+            data.get('Skill Moves', 0),
             data.get('Total Attributes Average', 0).replace(',', '') if 'Total Attributes Average' in data else 0,
         ))
         conn.commit()
+        print("Player added to database")
     except KeyError as e:
         print(f"Missing key in data: {e}")
     except sqlite3.IntegrityError as e:
@@ -263,9 +280,6 @@ def add_player_ratings_to_db(player_id, player_name, player_formatted_name, data
 
 
 conn = sqlite3.connect('v2db.sqlite')
-# conn.row_factory = sqlite3.Row  # Enable dictionary-like access
-# create_players_stats_table(conn)
-
-print(parse_html_to_json(scrape_player_ratings("lionel-messi")))
+process_player_ratings(conn)
 
 

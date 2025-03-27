@@ -1,10 +1,17 @@
 
+import sqlite3
+
+
 def create_players_stats_table(conn):
     """Create table if not exists"""
     conn.execute('''CREATE TABLE IF NOT EXISTS player_stats (
         player_id TEXT PRIMARY KEY,
         player_name TEXT,
         player_formatted_name TEXT,
+        -- Physical Section
+        height TEXT,
+        weight TEXT,
+                 
         -- Pace Section
         pace_avg INTEGER,
         acceleration INTEGER,
@@ -65,3 +72,9 @@ def create_players_stats_table(conn):
         skill_moves INTEGER,
         last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
+
+
+print("Trying to create table")
+conn = sqlite3.connect('v2db.sqlite')
+create_players_stats_table(conn)
+conn.close()
