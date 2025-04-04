@@ -2,6 +2,9 @@ import os
 import sqlite3
 import json
 
+#TODO: Need to make this more efficient, batch processing etc. as data grows this will become a bottleneck.
+# But the matches data is all correct.
+
 def create_matches_table(conn):
     conn.execute('''CREATE TABLE IF NOT EXISTS matches
                  (match_id TEXT, 
@@ -56,14 +59,12 @@ def process_matches_jsons_to_sql(matches_directory, db_path):
                 
                 # Loop through each summary (match) in the summaries (match) list
                 for summary in data['summaries']:
-                    # If the match exists and has ended, skip it, because we don't need to re-process it...
+                    # If the match exists and has ended and all data is present, skip it, because we don't need to re-process it...
+                    match_id = summary.get('sport_event', {}).get('id')
                     if check_if_match_exists_and_has_ended(conn, match_id) :
                         print(f"Match {match_id} already exists and has ended, skipping")
                         continue
-                    match_id = summary.get('sport_event', {}).get('id')
                     match_status = summary.get('sport_event_status', {}).get('match_status')
-                    
-                
                     has_stats = summary.get('statistics') is not None                    
                     if (match_status != 'not_started' or match_status != 'postponed') and has_stats:
                         home_team_stats = summary.get('statistics').get('totals').get('competitors')[0].get('statistics')
@@ -80,6 +81,7 @@ def process_matches_jsons_to_sql(matches_directory, db_path):
                         'start_time': summary.get('sport_event', {}).get('start_time'),
                         'competition_id': summary.get('sport_event', {}).get('sport_event_context', {}).get('competition', {}).get('id'),
                         'competition_name': summary.get('sport_event', {}).get('sport_event_context', {}).get('competition', {}).get('name'),
+                        'competition_country': summary.get('sport_event', {}).get('sport_event_context', {}).get('category', {}).get('name'),
                         'competition_season_id': summary.get('sport_event', {}).get('sport_event_context', {}).get('season', {}).get('id'),
                         'competition_season_name': summary.get('sport_event', {}).get('sport_event_context', {}).get('season', {}).get('name'),
                         'season_start_date': summary.get('sport_event', {}).get('sport_event_context', {}).get('season', {}).get('start_date'),
@@ -101,10 +103,9 @@ def process_matches_jsons_to_sql(matches_directory, db_path):
                         'home_team_stats': home_team_stats,
                         'home_team_player_stats': home_team_player_stats,
                         'away_team_stats': away_team_stats,
-                        'away_team_player_stats': away_team_player_stats
+                        'away_team_player_stats': away_team_player_stats,
                     }
                     insert_or_update_match_record(conn, match)
-                add_competition_countries(conn)
     conn.commit()
     conn.close()
 
@@ -119,28 +120,39 @@ def process_lineups_jsons_to_sql(conn, lineups_directory, db_path):
             # Loop through each summary (match) in the summaries (match) list
             for summary in data.get('lineups', []):
                 match_id = summary.get('sport_event', {}).get('id')
-                # If the match exists and has ended, skip it, because we don't need to re-process it...
+                # If the match exists and has ended and all data is present, skip it, because we don't need to re-process it...
                 if check_if_match_exists_and_has_ended(conn, match_id) :
                     print(f"Match {match_id} already exists and has ended, skipping")
                     continue
 
                 lineups = summary.get('lineups', {})
-                competitors = lineups.get('competitors', [{}] * 2)
+                competitors = lineups.get('competitors', [])
                 
-                home_team_lineup_info = competitors[0].get('players')
-                away_team_lineup_info = competitors[1].get('players')
-                
-                home_team_manager_info = competitors[0].get('manager')
-                away_team_manager_info = competitors[1].get('manager')
-                
-                home_team_formation = competitors[0].get('formation')
-                away_team_formation = competitors[1].get('formation')
+                # Safe defaults in case data is missing
+                home_team_lineup_info = None
+                away_team_lineup_info = None
+                home_team_manager_info = None
+                away_team_manager_info = None
+                home_team_formation = None
+                away_team_formation = None
+
+                # Process data only if we have competitors
+                if len(competitors) > 0:
+                    home_team_lineup_info = competitors[0].get('players')
+                    home_team_manager_info = competitors[0].get('manager')
+                    home_team_formation = competitors[0].get('formation')
+
+                if len(competitors) > 1:
+                    away_team_lineup_info = competitors[1].get('players')
+                    away_team_manager_info = competitors[1].get('manager')
+                    away_team_formation = competitors[1].get('formation')
                 
                 match = {
                     'match_id': match_id,
                     'start_time': summary.get('sport_event', {}).get('start_time'),
                     'competition_id': summary.get('sport_event', {}).get('sport_event_context', {}).get('competition', {}).get('id'),
                     'competition_name': summary.get('sport_event', {}).get('sport_event_context', {}).get('competition', {}).get('name'),
+                    'competition_country': summary.get('sport_event', {}).get('sport_event_context', {}).get('category', {}).get('name'),
                     'competition_season_id': summary.get('sport_event', {}).get('sport_event_context', {}).get('season', {}).get('id'),
                     'competition_season_name': summary.get('sport_event', {}).get('sport_event_context', {}).get('season', {}).get('name'),
                     'season_start_date': summary.get('sport_event', {}).get('sport_event_context', {}).get('season', {}).get('start_date'),
@@ -167,11 +179,8 @@ def process_lineups_jsons_to_sql(conn, lineups_directory, db_path):
                     'away_team_formation': away_team_formation
                 }
                 insert_or_update_match_record(conn, match)
-            add_competition_countries(conn)     
     conn.commit()
     conn.close()
-
-
 
 #********************************************************************************************************************
 #Helper functions
@@ -224,50 +233,6 @@ def insert_or_update_match_record(conn, match):
         print(f"Problematic match data: {match}")
         raise
 
-def add_competition_countries(conn):
-    cursor = conn.cursor()
-    
-    # First, add the competition_country column if it doesn't exist
-    try:
-        cursor.execute("ALTER TABLE matches ADD COLUMN competition_country TEXT")
-        print("Added competition_country column to matches table")
-    except sqlite3.OperationalError:
-        print("competition_country column already exists")
-    
-    # Get all unique competition_ids and names
-    cursor.execute("SELECT DISTINCT competition_id, competition_name FROM matches")
-    competitions = cursor.fetchall()
-    
-    # Dictionary to store competition_id -> country mappings
-    competition_countries = {}
-    
-    # For each competition, ask user for country if not already known
-    for competition in competitions:
-        competition_id, competition_name = competition
-        
-        # Check if we already have a country for this competition_id
-        cursor.execute("SELECT DISTINCT competition_country FROM matches WHERE competition_id = ? AND competition_country IS NOT NULL", (competition_id,))
-        existing_country = cursor.fetchone()
-        
-        if existing_country and existing_country[0]:
-            # We already have a country for this competition
-            competition_countries[competition_id] = existing_country[0]
-            print(f"Competition '{competition_name}' already has country: {existing_country[0]}")
-        else:
-            # Ask user for country
-            country = input(f"Enter country for competition '{competition_name}' (ID: {competition_id}): ")
-            competition_countries[competition_id] = country
-            
-            # Update all matches with this competition_id
-            cursor.execute("UPDATE matches SET competition_country = ? WHERE competition_id = ?", 
-                          (country, competition_id))
-            print(f"Updated {cursor.rowcount} matches with country '{country}' for competition '{competition_name}'")
-    
-    conn.commit()
-    print("All competitions now have countries assigned")
-    return competition_countries
-
-
 def initialize_db(db_path):
     conn = sqlite3.connect(db_path)
     # Drop existing table
@@ -277,9 +242,9 @@ def initialize_db(db_path):
 
 def check_if_match_exists_and_has_ended(conn, match_id):
     cursor = conn.cursor()
-    cursor.execute('SELECT match_status FROM matches WHERE match_id = ?', (match_id,))
+    cursor.execute('SELECT match_status, home_team_lineup_info, away_team_lineup_info FROM matches WHERE match_id  = ?', (match_id,))
     existing_match = cursor.fetchone()
-    return existing_match is not None and existing_match[0] == 'ended'
+    return existing_match is not None and existing_match[0] == 'ended' and existing_match[1] is not None and existing_match[2] is not None
 
 # Example usage:
 if __name__ == '__main__':
