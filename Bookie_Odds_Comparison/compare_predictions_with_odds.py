@@ -1,0 +1,291 @@
+import pandas as pd
+import sqlite3
+from datetime import datetime, timedelta
+import unicodedata
+import sys
+import os
+import pytz  # Make sure to install pytz if you haven't already
+
+# Add the project root to Python path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
+sys.path.append(project_root)
+
+# Now we can import the TelegramBot
+from Bookie_Odds_Comparison.telegram_bot import TelegramBot
+
+# Assuming your start_time is in UTC, you can adjust the timezone as needed
+utc = pytz.UTC
+
+def analyze_predictions():
+    
+    # Read predictions
+    predictions_df = pd.read_csv('sportradar/AI/match_predictions.csv')
+    
+    # Connect to odds database
+    conn = sqlite3.connect('odds.db')
+    
+    website_data = []
+    final_predictions = []
+    
+    for _, row in predictions_df.iterrows():
+        odds = get_match_odds(conn, row['home_team'], row['away_team'], row['start_time'])
+        
+        match_data = {
+            'home_team': row['home_team'],
+            'away_team': row['away_team'],
+            'start_time': row['start_time'],
+            'predicted_outcome': row['predicted_outcome'],
+            'model_type': row['model_type'],
+            'home_win_prob': row['home_win_prob'],
+            'draw_prob': row['draw_prob'],
+            'away_win_prob': row['away_win_prob'],
+        }
+        
+        if odds is not None:
+            print(f"Odds found for {row['home_team']} vs {row['away_team']}")
+            
+            home_odds, draw_odds, away_odds = odds
+        
+            # Calculate all probabilities and values
+            home_bookie_prob = calculate_bookie_probability(home_odds)
+            draw_bookie_prob = calculate_bookie_probability(draw_odds)
+            away_bookie_prob = calculate_bookie_probability(away_odds)
+        
+            home_value = calculate_value(row['home_win_prob'], home_odds)
+            draw_value = calculate_value(row['draw_prob'], draw_odds)
+            away_value = calculate_value(row['away_win_prob'], away_odds)
+        
+            home_kelly = calculate_kelly(home_odds, row['home_win_prob'])
+            draw_kelly = calculate_kelly(draw_odds, row['draw_prob'])
+            away_kelly = calculate_kelly(away_odds, row['away_win_prob'])
+        
+            # Add odds and calculated values to match_data
+            match_data.update({
+                'home_odds': home_odds,
+                'draw_odds': draw_odds,
+                'away_odds': away_odds,
+                'home_bookie_prob': home_bookie_prob,
+                'draw_bookie_prob': draw_bookie_prob,
+                'away_bookie_prob': away_bookie_prob,
+                'home_value': home_value * 100,
+                'draw_value': draw_value * 100,
+                'away_value': away_value * 100,
+                'home_kelly': home_kelly * 100,
+                'draw_kelly': draw_kelly * 100,
+                'away_kelly': away_kelly * 100
+            })
+        
+            website_data.append(match_data)
+
+            # Check if the match is within 30 minutes
+            match_start_time = datetime.fromisoformat(row['start_time']).replace(tzinfo=utc)  # Make it offset-aware
+            if match_start_time <= datetime.now(utc) + timedelta(minutes=30):  # Ensure now() is also offset-aware
+                final_predictions.append(match_data)  # Add to final predictions
+        
+        else:
+            print(f"No odds found for {row['home_team']} vs {row['away_team']}")
+            # Still append the match data without odds
+            match_data.update({
+                'home_odds': None,
+                'draw_odds': None,
+                'away_odds': None,
+                'home_bookie_prob': None,
+                'draw_bookie_prob': None,
+                'away_bookie_prob': None,
+                'home_value': None,
+                'draw_value': None,
+                'away_value': None,
+                'home_kelly': None,
+                'draw_kelly': None,
+                'away_kelly': None
+            })
+            website_data.append(match_data)
+
+            # Check if the match is within 30 minutes even without odds
+            match_start_time = datetime.fromisoformat(row['start_time']).replace(tzinfo=utc)  # Make it offset-aware
+            if match_start_time <= datetime.now(utc) + timedelta(minutes=30):  # Ensure now() is also offset-aware
+                final_predictions.append(match_data)  # Add to final predictions even without odds
+    
+    # Save to CSV for website
+    website_df = pd.DataFrame(website_data)
+    website_df.to_csv('website/data/prediction_analysis.csv', index=False)
+
+    # Define required columns at the beginning
+    required_columns = ['start_time', 'home_team', 'away_team', 'predicted_outcome', 'model_type', 
+                        'home_win_prob', 'draw_prob', 'away_win_prob', 'home_odds', 'draw_odds', 
+                        'away_odds', 'home_bookie_prob', 'draw_bookie_prob', 'away_bookie_prob', 
+                        'home_value', 'draw_value', 'away_value', 'home_kelly', 'draw_kelly', 
+                        'away_kelly']
+
+    # Load existing final predictions
+    final_predictions_path = 'website/data/final_predictions.csv'
+    
+    # Initialize final_predictions_df
+    final_predictions_df = pd.DataFrame()  # Initialize as an empty DataFrame
+
+    # Check if the file exists and is not empty
+    if os.path.exists(final_predictions_path) and os.path.getsize(final_predictions_path) > 0:
+        existing_predictions_df = pd.read_csv(final_predictions_path)
+        existing_predictions_df.columns = existing_predictions_df.columns.str.strip()  # Strip whitespace from column names
+        print("Existing Predictions Columns:", existing_predictions_df.columns)  # Debugging line
+    else:
+        print(f"Warning: The file '{final_predictions_path}' does not exist or is empty.")
+        # Create an empty DataFrame with the required columns
+        existing_predictions_df = pd.DataFrame(columns=required_columns)  # Create DataFrame with headers
+
+        # Save the empty DataFrame with headers to the CSV file
+        existing_predictions_df.to_csv(final_predictions_path, index=False)
+
+    # Check if required columns exist
+    if not all(col in existing_predictions_df.columns for col in required_columns):
+        print(f"Error: Missing required columns in existing predictions: {required_columns}")
+    else:
+        # Proceed with your logic to filter duplicates and process predictions
+        final_predictions_df = pd.DataFrame(final_predictions)  # Ensure this is defined earlier in your code
+
+        # Filter out duplicates
+        final_predictions_df = final_predictions_df[~final_predictions_df.apply(
+            lambda x: existing_predictions_df[
+                (existing_predictions_df['start_time'] == x['start_time']) &
+                (existing_predictions_df['home_team'] == x['home_team']) &
+                (existing_predictions_df['away_team'] == x['away_team'])
+            ].any(axis=1).any(), axis=1
+        )]
+
+    # Save final predictions to CSV
+    final_predictions_df.to_csv(final_predictions_path, index=False, mode='a', header=not os.path.exists(final_predictions_path) or existing_predictions_df.empty)
+
+    conn.close()
+
+
+#********************************************************************************
+#HELPER FUNCTIONS
+#********************************************************************************
+
+def normalize_text(text):
+    """Remove accents and normalize text"""
+    # Normalize unicode characters
+    normalized = unicodedata.normalize('NFKD', text)
+    # Remove diacritics
+    normalized = ''.join(c for c in normalized if not unicodedata.combining(c))
+    return normalized.lower()
+
+def get_match_odds(conn, home_team, away_team, start_time):
+    """Get odds for a specific match from the database with flexible name matching."""
+    cursor = conn.cursor()
+    
+    # Normalize the timestamp by removing +00:00 and replacing with Z
+    normalized_time = start_time.replace('+00:00', 'Z')
+    
+    # Print all potential matches from the database for debugging
+    cursor.execute('''
+    SELECT home_team, away_team, start_time 
+    FROM match_odds 
+    WHERE datetime(start_time) BETWEEN datetime(?) AND datetime(?, '+1 hour')
+    ''', (normalized_time, normalized_time))
+    
+    potential_matches = cursor.fetchall()
+    print(f"\nLooking for: {home_team} vs {away_team} at {normalized_time}")
+    print("Available matches in database for this time (±1 hour):")
+    for match in potential_matches:
+        print(f"- {match[0]} vs {match[1]} at {match[2]}")
+    
+    # Special cases where team names need to be preserved
+    special_cases = {
+        'Inter': 'Internazionale',
+        'AC Milan': 'Milan',
+        'Real Madrid': 'Madrid',
+        'Atletico Madrid': 'Atletico',
+        'Real Betis': 'Betis',
+        'Real Sociedad': 'Sociedad',
+        'Manchester United': 'United',
+        'Manchester City': 'City',
+        'Inter Miami': 'Miami'
+    }
+    
+    # Common suffixes/prefixes to ignore in team names
+    ignore_terms = [
+        'FC', 'CFC', 'AFC', 
+        'United', 'Utd',
+        'City', 
+        'Real', 
+        'Sporting',
+        'Athletic',
+        'Atletico',
+        'RC',  # Racing Club
+        'AC',  # Associazione Calcio
+        'AS',  # Associazione Sportiva
+        'SSC', # Società Sportiva Calcio
+        'CF',  # Club de Fútbol
+        'CD',  # Club Deportivo
+        'RCD', # Real Club Deportivo
+        'SC',  # Sport Club
+        'BSC', # Ballspiel-Verein
+        'TSG', # Turn- und Sportgemeinschaft
+        'VfL', # Verein für Leibesübungen
+        'VfB', # Verein für Bewegungsspiele
+        'Deportivo'  # Added Deportivo
+    ]
+    
+    # Check if team is a special case first
+    def process_team_name(team_name):
+        normalized_name = normalize_text(team_name)
+        for special_team, replacement in special_cases.items():
+            if normalize_text(special_team) in normalized_name:
+                return [replacement]
+        return [normalize_text(part) for part in team_name.split() if part not in ignore_terms]
+    
+    home_parts = process_team_name(home_team)
+    away_parts = process_team_name(away_team)
+    
+    # Create SQL conditions for each part of the team names, using normalized text
+    home_conditions = ' OR '.join([
+        f"lower(replace(replace(replace(home_team, 'é', 'e'), 'á', 'a'), 'í', 'i')) LIKE '%{part}%'" 
+        for part in home_parts
+    ])
+    away_conditions = ' OR '.join([
+        f"lower(replace(replace(replace(away_team, 'é', 'e'), 'á', 'a'), 'í', 'i')) LIKE '%{part}%'" 
+        for part in away_parts
+    ])
+    
+    query = f'''
+    SELECT home_win_odds, draw_odds, away_win_odds, home_team, away_team
+    FROM match_odds 
+    WHERE ({home_conditions})
+    AND ({away_conditions})
+    AND start_time = ?
+    '''
+    
+    cursor.execute(query, (normalized_time,))
+    result = cursor.fetchone()
+    
+    if result:
+        print(f"Matched '{home_team}' to '{result[3]}' and '{away_team}' to '{result[4]}'")
+        return result[:3]  # Return just the odds
+    else:
+        print(f"No match found for {home_team} vs {away_team}")
+        return None
+
+def calculate_value(predicted_prob, bookie_odds):
+    """Calculate value using the value betting formula."""
+    return (predicted_prob * bookie_odds) - 1
+
+def calculate_kelly(bookie_odds, predicted_prob):
+    """Calculate Kelly stake using the Kelly Criterion formula."""
+    b = bookie_odds - 1  # Convert odds to b value
+    p = predicted_prob
+    q = 1 - p
+    
+    kelly = (b * p - q) / b
+    
+    # Often people use a fractional Kelly for safety
+    fractional_kelly = kelly * 0.5  # Using half Kelly
+    
+    return max(0, fractional_kelly)  # Don't return negative values
+
+def calculate_bookie_probability(bookie_odds):
+    """Calculate bookie probability from bookie odds."""
+    return 1 / (bookie_odds)
+
+if __name__ == "__main__":
+    analyze_predictions()

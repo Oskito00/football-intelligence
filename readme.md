@@ -8,5 +8,5 @@ Football Match Predictor using Sportradar API
 6. form
 
 #Contributors
-Oscar Alberigo
+Oscar Alberigo, William Boyd
 
