@@ -125,7 +125,8 @@ def scrape_player_ratings(player_name):
     except Exception as e:
         print(f"Error fetching player ratings: {e}")
         return None
-
+    
+    print(response)
     return response
 
 def parse_html_to_json(response):
@@ -186,10 +187,8 @@ def parse_html_to_json(response):
         print(f"Error parsing HTML: {str(e)}")
         return None
 
-def add_player_ratings_to_db(player_id, player_name, player_formatted_name, data):
+def add_player_ratings_to_db(player_id, player_name, player_formatted_name, data, conn):
     """Adds the players rating to the sqlite database"""
-    conn = sqlite3.connect('v2db.sqlite')
-
     print("Adding player to database: ", player_id, player_name, player_formatted_name)
     
     try:
@@ -275,11 +274,10 @@ def add_player_ratings_to_db(player_id, player_name, player_formatted_name, data
         print(f"Error saving {player_id}: {e}")
         conn.rollback()
     finally:
-        conn.close()  # Always close connection
+        pass
 
-
-
-conn = sqlite3.connect('v2db.sqlite')
-process_player_ratings(conn)
+if __name__ == "__main__":
+    conn = sqlite3.connect('v2db.sqlite')
+    process_player_ratings(conn)
 
 

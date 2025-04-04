@@ -35,7 +35,10 @@ def create_matches_table(conn):
                  home_team_formation TEXT,
                  away_team_lineup_info JSON,
                  away_team_manager_info JSON,
-                 away_team_formation TEXT
+                 away_team_formation TEXT,
+                 h2h_processed INTEGER DEFAULT 0,
+                 elo_processed INTEGER DEFAULT 0,
+                 processed_match_history INTEGER DEFAULT 0
                  )''')
 
 #********************************************************************************************************************
@@ -54,7 +57,13 @@ def process_matches_jsons_to_sql(matches_directory, db_path):
                 
                 # Loop through each summary (match) in the summaries (match) list
                 for summary in data['summaries']:
-                    match_status = summary['sport_event_status'].get('match_status')
+                    # If the match exists and has ended, skip it, because we don't need to re-process it...
+                    if check_if_match_exists_and_has_ended(conn, match_id) :
+                        print(f"Match {match_id} already exists and has ended, skipping")
+                        continue
+                    match_id = summary.get('sport_event', {}).get('id')
+                    match_status = summary.get('sport_event_status', {}).get('match_status')
+                    
                 
                     has_stats = summary.get('statistics') is not None                    
                     if (match_status != 'not_started' or match_status != 'postponed') and has_stats:
@@ -68,7 +77,7 @@ def process_matches_jsons_to_sql(matches_directory, db_path):
                         away_team_stats = None
                         away_team_player_stats = None
                     match = {
-                        'match_id': summary.get('sport_event', {}).get('id'),
+                        'match_id': match_id,
                         'start_time': summary.get('sport_event', {}).get('start_time'),
                         'competition_id': summary.get('sport_event', {}).get('sport_event_context', {}).get('competition', {}).get('id'),
                         'competition_name': summary.get('sport_event', {}).get('sport_event_context', {}).get('competition', {}).get('name'),
@@ -110,6 +119,12 @@ def process_lineups_jsons_to_sql(conn, lineups_directory, db_path):
 
             # Loop through each summary (match) in the summaries (match) list
             for summary in data.get('lineups', []):
+                match_id = summary.get('sport_event', {}).get('id')
+                # If the match exists and has ended, skip it, because we don't need to re-process it...
+                if check_if_match_exists_and_has_ended(conn, match_id) :
+                    print(f"Match {match_id} already exists and has ended, skipping")
+                    continue
+
                 lineups = summary.get('lineups', {})
                 competitors = lineups.get('competitors', [{}] * 2)
                 
@@ -123,7 +138,7 @@ def process_lineups_jsons_to_sql(conn, lineups_directory, db_path):
                 away_team_formation = competitors[1].get('formation')
                 
                 match = {
-                    'match_id': summary.get('sport_event', {}).get('id'),
+                    'match_id': match_id,
                     'start_time': summary.get('sport_event', {}).get('start_time'),
                     'competition_id': summary.get('sport_event', {}).get('sport_event_context', {}).get('competition', {}).get('id'),
                     'competition_name': summary.get('sport_event', {}).get('sport_event_context', {}).get('competition', {}).get('name'),
@@ -218,6 +233,12 @@ def initialize_db(db_path):
     conn.execute('DROP TABLE IF EXISTS matches')
     conn.commit()
     conn.close()
+
+def check_if_match_exists_and_has_ended(conn, match_id):
+    cursor = conn.cursor()
+    cursor.execute('SELECT match_status FROM matches WHERE match_id = ?', (match_id,))
+    existing_match = cursor.fetchone()
+    return existing_match is not None and existing_match[0] == 'ended'
 
 # Example usage:
 if __name__ == '__main__':
