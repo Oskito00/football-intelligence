@@ -36,9 +36,7 @@ def create_matches_table(conn):
                  away_team_lineup_info JSON,
                  away_team_manager_info JSON,
                  away_team_formation TEXT,
-                 h2h_processed INTEGER DEFAULT 0,
-                 elo_processed INTEGER DEFAULT 0,
-                 processed_match_history INTEGER DEFAULT 0
+                 is_processed INTEGER DEFAULT 0
                  )''')
 
 #********************************************************************************************************************
