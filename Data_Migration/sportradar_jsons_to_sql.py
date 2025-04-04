@@ -8,6 +8,7 @@ def create_matches_table(conn):
                  start_time TEXT, 
                  competition_id TEXT, 
                  competition_name TEXT,
+                 competition_country TEXT,
                  competition_season_id TEXT,
                  competition_season_name TEXT,
                  season_start_date TEXT,
@@ -103,7 +104,7 @@ def process_matches_jsons_to_sql(matches_directory, db_path):
                         'away_team_player_stats': away_team_player_stats
                     }
                     insert_or_update_match_record(conn, match)
-
+                add_competition_countries(conn)
     conn.commit()
     conn.close()
 
@@ -165,9 +166,8 @@ def process_lineups_jsons_to_sql(conn, lineups_directory, db_path):
                     'away_team_manager_info': away_team_manager_info,
                     'away_team_formation': away_team_formation
                 }
-
                 insert_or_update_match_record(conn, match)
-                    
+            add_competition_countries(conn)     
     conn.commit()
     conn.close()
 
@@ -224,6 +224,49 @@ def insert_or_update_match_record(conn, match):
         print(f"Problematic match data: {match}")
         raise
 
+def add_competition_countries(conn):
+    cursor = conn.cursor()
+    
+    # First, add the competition_country column if it doesn't exist
+    try:
+        cursor.execute("ALTER TABLE matches ADD COLUMN competition_country TEXT")
+        print("Added competition_country column to matches table")
+    except sqlite3.OperationalError:
+        print("competition_country column already exists")
+    
+    # Get all unique competition_ids and names
+    cursor.execute("SELECT DISTINCT competition_id, competition_name FROM matches")
+    competitions = cursor.fetchall()
+    
+    # Dictionary to store competition_id -> country mappings
+    competition_countries = {}
+    
+    # For each competition, ask user for country if not already known
+    for competition in competitions:
+        competition_id, competition_name = competition
+        
+        # Check if we already have a country for this competition_id
+        cursor.execute("SELECT DISTINCT competition_country FROM matches WHERE competition_id = ? AND competition_country IS NOT NULL", (competition_id,))
+        existing_country = cursor.fetchone()
+        
+        if existing_country and existing_country[0]:
+            # We already have a country for this competition
+            competition_countries[competition_id] = existing_country[0]
+            print(f"Competition '{competition_name}' already has country: {existing_country[0]}")
+        else:
+            # Ask user for country
+            country = input(f"Enter country for competition '{competition_name}' (ID: {competition_id}): ")
+            competition_countries[competition_id] = country
+            
+            # Update all matches with this competition_id
+            cursor.execute("UPDATE matches SET competition_country = ? WHERE competition_id = ?", 
+                          (country, competition_id))
+            print(f"Updated {cursor.rowcount} matches with country '{country}' for competition '{competition_name}'")
+    
+    conn.commit()
+    print("All competitions now have countries assigned")
+    return competition_countries
+
 
 def initialize_db(db_path):
     conn = sqlite3.connect(db_path)
@@ -242,5 +285,5 @@ def check_if_match_exists_and_has_ended(conn, match_id):
 if __name__ == '__main__':
     conn = sqlite3.connect('v2db.sqlite')
     # initialize_db('v2db.sqlite')
-    process_matches_jsons_to_sql('sportradar/data/matches_data', 'v2db.sqlite')
-    process_lineups_jsons_to_sql(conn,'sportradar/data/lineups_data', 'v2db.sqlite')
+    process_matches_jsons_to_sql('Data/raw/matches_data', 'v2db.sqlite')
+    process_lineups_jsons_to_sql(conn,'Data/raw/lineups_data', 'v2db.sqlite')
