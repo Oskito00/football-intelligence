@@ -1,9 +1,10 @@
 import pandas as pd
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 import unicodedata
 import sys
 import os
+import pytz  # Make sure to install pytz if you haven't already
 
 # Add the project root to Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
@@ -12,10 +13,10 @@ sys.path.append(project_root)
 # Now we can import the TelegramBot
 from Bookie_Odds_Comparison.telegram_bot import TelegramBot
 
+# Assuming your start_time is in UTC, you can adjust the timezone as needed
+utc = pytz.UTC
 
 def analyze_predictions():
-    # Initialize Telegram bot
-    bot = TelegramBot()
     
     # Read predictions
     predictions_df = pd.read_csv('sportradar/AI/match_predictions.csv')
@@ -24,28 +25,10 @@ def analyze_predictions():
     conn = sqlite3.connect('odds.db')
     
     website_data = []
+    final_predictions = []
     
     for _, row in predictions_df.iterrows():
         odds = get_match_odds(conn, row['home_team'], row['away_team'], row['start_time'])
-        
-        if odds is None:
-            print(f"No odds found for {row['home_team']} vs {row['away_team']}")
-            continue
-            
-        home_odds, draw_odds, away_odds = odds
-        
-        # Calculate all probabilities and values
-        home_bookie_prob = calculate_bookie_probability(home_odds)
-        draw_bookie_prob = calculate_bookie_probability(draw_odds)
-        away_bookie_prob = calculate_bookie_probability(away_odds)
-        
-        home_value = calculate_value(row['home_win_prob'], home_odds)
-        draw_value = calculate_value(row['draw_prob'], draw_odds)
-        away_value = calculate_value(row['away_win_prob'], away_odds)
-        
-        home_kelly = calculate_kelly(home_odds, row['home_win_prob'])
-        draw_kelly = calculate_kelly(draw_odds, row['draw_prob'])
-        away_kelly = calculate_kelly(away_odds, row['away_win_prob'])
         
         match_data = {
             'home_team': row['home_team'],
@@ -56,173 +39,121 @@ def analyze_predictions():
             'home_win_prob': row['home_win_prob'],
             'draw_prob': row['draw_prob'],
             'away_win_prob': row['away_win_prob'],
-            'home_odds': home_odds,
-            'draw_odds': draw_odds,
-            'away_odds': away_odds,
-            'home_bookie_prob': home_bookie_prob,
-            'draw_bookie_prob': draw_bookie_prob,
-            'away_bookie_prob': away_bookie_prob,
-            'home_value': home_value * 100,
-            'draw_value': draw_value * 100,
-            'away_value': away_value * 100,
-            'home_kelly': home_kelly * 100,
-            'draw_kelly': draw_kelly * 100,
-            'away_kelly': away_kelly * 100
         }
         
-        website_data.append(match_data)
-    
+        if odds is not None:
+            print(f"Odds found for {row['home_team']} vs {row['away_team']}")
+            
+            home_odds, draw_odds, away_odds = odds
+        
+            # Calculate all probabilities and values
+            home_bookie_prob = calculate_bookie_probability(home_odds)
+            draw_bookie_prob = calculate_bookie_probability(draw_odds)
+            away_bookie_prob = calculate_bookie_probability(away_odds)
+        
+            home_value = calculate_value(row['home_win_prob'], home_odds)
+            draw_value = calculate_value(row['draw_prob'], draw_odds)
+            away_value = calculate_value(row['away_win_prob'], away_odds)
+        
+            home_kelly = calculate_kelly(home_odds, row['home_win_prob'])
+            draw_kelly = calculate_kelly(draw_odds, row['draw_prob'])
+            away_kelly = calculate_kelly(away_odds, row['away_win_prob'])
+        
+            # Add odds and calculated values to match_data
+            match_data.update({
+                'home_odds': home_odds,
+                'draw_odds': draw_odds,
+                'away_odds': away_odds,
+                'home_bookie_prob': home_bookie_prob,
+                'draw_bookie_prob': draw_bookie_prob,
+                'away_bookie_prob': away_bookie_prob,
+                'home_value': home_value * 100,
+                'draw_value': draw_value * 100,
+                'away_value': away_value * 100,
+                'home_kelly': home_kelly * 100,
+                'draw_kelly': draw_kelly * 100,
+                'away_kelly': away_kelly * 100
+            })
+        
+            website_data.append(match_data)
+
+            # Check if the match is within 30 minutes
+            match_start_time = datetime.fromisoformat(row['start_time']).replace(tzinfo=utc)  # Make it offset-aware
+            if match_start_time <= datetime.now(utc) + timedelta(minutes=30):  # Ensure now() is also offset-aware
+                final_predictions.append(match_data)  # Add to final predictions
+        
+        else:
+            print(f"No odds found for {row['home_team']} vs {row['away_team']}")
+            # Still append the match data without odds
+            match_data.update({
+                'home_odds': None,
+                'draw_odds': None,
+                'away_odds': None,
+                'home_bookie_prob': None,
+                'draw_bookie_prob': None,
+                'away_bookie_prob': None,
+                'home_value': None,
+                'draw_value': None,
+                'away_value': None,
+                'home_kelly': None,
+                'draw_kelly': None,
+                'away_kelly': None
+            })
+            website_data.append(match_data)
+
+            # Check if the match is within 30 minutes even without odds
+            match_start_time = datetime.fromisoformat(row['start_time']).replace(tzinfo=utc)  # Make it offset-aware
+            if match_start_time <= datetime.now(utc) + timedelta(minutes=30):  # Ensure now() is also offset-aware
+                final_predictions.append(match_data)  # Add to final predictions even without odds
     
     # Save to CSV for website
     website_df = pd.DataFrame(website_data)
     website_df.to_csv('website/data/prediction_analysis.csv', index=False)
+
+    # Define required columns at the beginning
+    required_columns = ['start_time', 'home_team', 'away_team', 'predicted_outcome', 'model_type', 
+                        'home_win_prob', 'draw_prob', 'away_win_prob', 'home_odds', 'draw_odds', 
+                        'away_odds', 'home_bookie_prob', 'draw_bookie_prob', 'away_bookie_prob', 
+                        'home_value', 'draw_value', 'away_value', 'home_kelly', 'draw_kelly', 
+                        'away_kelly']
+
+    # Load existing final predictions
+    final_predictions_path = 'website/data/final_predictions.csv'
     
-    results = []
-    
-    for _, row in predictions_df.iterrows():
-        odds = get_match_odds(conn, row['home_team'], row['away_team'], row['start_time'])
-        
-        if odds is None:
-            print(f"No odds found for {row['home_team']} vs {row['away_team']}")
-            continue
-            
-        home_odds, draw_odds, away_odds = odds
-        
-        # Calculate values for all outcomes
-        outcomes = [
-            {
-                'type': 'Home Win',
-                'predicted_prob': row['home_win_prob'],
-                'bookie_odds': home_odds,
-                'bookie_prob': calculate_bookie_probability(home_odds),
-                'is_predicted': row['predicted_outcome'] == 'Home Win'
-            },
-            {
-                'type': 'Draw',
-                'predicted_prob': row['draw_prob'],
-                'bookie_odds': draw_odds,
-                'bookie_prob': calculate_bookie_probability(draw_odds),
-                'is_predicted': row['predicted_outcome'] == 'Draw'
-            },
-            {
-                'type': 'Away Win',
-                'predicted_prob': row['away_win_prob'],
-                'bookie_odds': away_odds,
-                'bookie_prob': calculate_bookie_probability(away_odds),
-                'is_predicted': row['predicted_outcome'] == 'Away Win'
-            }
-        ]
-        
-        for outcome in outcomes:
-            value = calculate_value(outcome['predicted_prob'], outcome['bookie_odds'])
-            kelly = calculate_kelly(outcome['bookie_odds'], outcome['predicted_prob'])
-            
-            # Include all bets, even negative value ones
-            results.append({
-                'match_time': row['start_time'],
-                'home_team': row['home_team'],
-                'away_team': row['away_team'],
-                'bet_type': outcome['type'],
-                'is_predicted': outcome['is_predicted'],
-                'our_probability': outcome['predicted_prob'],
-                'bookie_probability': outcome['bookie_prob'],
-                'bookie_odds': outcome['bookie_odds'],
-                'value': value,
-                'kelly_stake': kelly
-            })
-    
-    # Convert results to DataFrame and sort by value
-    results_df = pd.DataFrame(results)
-    results_df = results_df.sort_values('value', ascending=False)
-    
-    # Prepare message for Telegram
-    message = "<b>🎯 Value Betting Analysis</b>\n\n"
-    
-    # Group matches to show all probabilities together
-    matches = {}
-    for _, bet in results_df.iterrows():
-        match_key = f"{bet['home_team']} vs {bet['away_team']}_{bet['match_time']}"
-        if match_key not in matches:
-            matches[match_key] = {
-                'home_team': bet['home_team'],
-                'away_team': bet['away_team'],
-                'match_time': bet['match_time'],
-                'outcomes': []
-            }
-        matches[match_key]['outcomes'].append(bet)
-    
-    # First show probability breakdown for all matches
-    message += "<b>📊 PROBABILITY BREAKDOWN</b>\n\n"
-    for match_key, match_data in matches.items():
-        message += f"⚽ {match_data['home_team']} vs {match_data['away_team']}\n"
-        message += f"🕒 {match_data['match_time']}\n"
-        message += "<b>Our Model:</b>\n"
-        message += "├ " + "\n├ ".join([
-            f"{outcome['bet_type']}: {outcome['our_probability']:.1%}"
-            for outcome in match_data['outcomes']
-        ]) + "\n"
-        message += "<b>Bookmaker:</b>\n"
-        message += "├ " + "\n├ ".join([
-            f"{outcome['bet_type']}: {outcome['bookie_probability']:.1%} ({outcome['bookie_odds']:.2f})"
-            for outcome in match_data['outcomes']
-        ]) + "\n"
-        message += f"{'—' * 20}\n\n"
-    
-    # Then show positive value bets
-    message += "<b>💰 VALUE BETS</b>\n\n"
-    positive_value_bets = False
-    for _, bet in results_df[results_df['value'] > 0].iterrows():
-        positive_value_bets = True
-        value_percentage = bet['value'] * 100
-        kelly_percentage = bet['kelly_stake'] * 100
-        
-        # Determine bet category
-        if bet['is_predicted'] and value_percentage > 5:
-            category = "🟢 SAFE BET"
-        elif value_percentage > 10:
-            category = "🟡 RISKY BET (High Value)"
-        else:
-            category = "🟡 RISKY BET"
-        
-        message += f"<b>{category}</b>\n"
-        message += f"⚽ {bet['home_team']} vs {bet['away_team']}\n"
-        message += f"🕒 {bet['match_time']}\n"
-        message += f"🎲 Bet: {bet['bet_type']}\n"
-        message += f"📊 Our Probability: {bet['our_probability']:.1%}\n"
-        message += f"📉 Bookie Probability: {bet['bookie_probability']:.1%}\n"
-        message += f"📈 Bookie Odds: {bet['bookie_odds']:.2f}\n"
-        message += f"💰 Value: {value_percentage:.1f}%\n"
-        message += f"💵 Kelly Stake: {kelly_percentage:.1f}%\n"
-        
-        if not bet['is_predicted']:
-            message += "⚠️ <i>Note: Not our primary predicted outcome</i>\n"
-        
-        message += f"{'—' * 20}\n\n"
-    
-    # Then show particularly bad value bets
-    message += "<b>🚫 BETS TO AVOID</b>\n\n"
-    bad_bets_found = False
-    for _, bet in results_df[results_df['value'] < -0.15].iterrows():
-        bad_bets_found = True
-        value_percentage = bet['value'] * 100
-        
-        message += f"<b>🔴 NO BET</b>\n"
-        message += f"⚽ {bet['home_team']} vs {bet['away_team']}\n"
-        message += f"🎲 Bet: {bet['bet_type']}\n"
-        message += f"📊 Our Probability: {bet['our_probability']:.1%}\n"
-        message += f"📉 Bookie Probability: {bet['bookie_probability']:.1%}\n"
-        message += f"📈 Bookie Odds: {bet['bookie_odds']:.2f}\n"
-        message += f"⛔️ Negative Value: {value_percentage:.1f}%\n"
-        message += f"{'—' * 20}\n\n"
-    
-    if not positive_value_bets and not bad_bets_found:
-        message += "❌ No significant value bets (positive or negative) found for upcoming matches."
-    
-    # Send message through Telegram
-    # bot.send_message(message)
-    
-    # Also print to console for debugging
-    print(message)
+    # Initialize final_predictions_df
+    final_predictions_df = pd.DataFrame()  # Initialize as an empty DataFrame
+
+    # Check if the file exists and is not empty
+    if os.path.exists(final_predictions_path) and os.path.getsize(final_predictions_path) > 0:
+        existing_predictions_df = pd.read_csv(final_predictions_path)
+        existing_predictions_df.columns = existing_predictions_df.columns.str.strip()  # Strip whitespace from column names
+        print("Existing Predictions Columns:", existing_predictions_df.columns)  # Debugging line
+    else:
+        print(f"Warning: The file '{final_predictions_path}' does not exist or is empty.")
+        # Create an empty DataFrame with the required columns
+        existing_predictions_df = pd.DataFrame(columns=required_columns)  # Create DataFrame with headers
+
+        # Save the empty DataFrame with headers to the CSV file
+        existing_predictions_df.to_csv(final_predictions_path, index=False)
+
+    # Check if required columns exist
+    if not all(col in existing_predictions_df.columns for col in required_columns):
+        print(f"Error: Missing required columns in existing predictions: {required_columns}")
+    else:
+        # Proceed with your logic to filter duplicates and process predictions
+        final_predictions_df = pd.DataFrame(final_predictions)  # Ensure this is defined earlier in your code
+
+        # Filter out duplicates
+        final_predictions_df = final_predictions_df[~final_predictions_df.apply(
+            lambda x: existing_predictions_df[
+                (existing_predictions_df['start_time'] == x['start_time']) &
+                (existing_predictions_df['home_team'] == x['home_team']) &
+                (existing_predictions_df['away_team'] == x['away_team'])
+            ].any(axis=1).any(), axis=1
+        )]
+
+    # Save final predictions to CSV
+    final_predictions_df.to_csv(final_predictions_path, index=False, mode='a', header=not os.path.exists(final_predictions_path) or existing_predictions_df.empty)
 
     conn.close()
 
@@ -354,7 +285,7 @@ def calculate_kelly(bookie_odds, predicted_prob):
 
 def calculate_bookie_probability(bookie_odds):
     """Calculate bookie probability from bookie odds."""
-    return 1 / (bookie_odds + 1)
+    return 1 / (bookie_odds)
 
 if __name__ == "__main__":
     analyze_predictions()

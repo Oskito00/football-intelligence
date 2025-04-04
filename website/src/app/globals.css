@@ -29,7 +29,7 @@ body {
 .ticker-content {
   display: flex;
   white-space: nowrap;
-  animation: ticker-animation 50s linear infinite;
+  animation: ticker-animation 100s linear infinite;
 }
 
 /* Keyframes for smooth infinite scrolling */
