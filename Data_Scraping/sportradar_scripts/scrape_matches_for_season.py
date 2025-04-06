@@ -1,4 +1,5 @@
 import os
+import random
 from dotenv import load_dotenv
 import requests
 import json
@@ -11,7 +12,7 @@ def scrape_all_seasons():
     """Function similar to scrape_all_lineups.py but for matches instead of lineups
     Scrapes all the matches for all the top seasons that have been identified"""
     # Load the seasons data
-    with open('Data/sportradar_league_defs.json', 'r') as f:
+    with open('Data/raw/season_info/top_seasons.json', 'r') as f:
         competitions = json.load(f)
     
     for competition_name, competition_data in competitions.items():
@@ -112,6 +113,10 @@ def get_season_matches(season_id, competition_name, season_name):
         
         # Re-format the competition and season names for the file name
         clean_season_name = season_name.replace(' ', '_').replace('/', '_')
+        
+        # Add random number to avoid filename conflicts
+        random_suffix = str(random.randint(1000, 9999))  # 4-digit random number
+        clean_season_name = f"{clean_season_name}_{random_suffix}"
         
         # Create the file and overwrite if it already exists
         output_file = output_dir / f"{clean_season_name}.json"
