@@ -14,7 +14,7 @@ def calculate_elos(conn):
         is_same_nation = (home_main_comp_country == away_main_comp_country)
         is_same_league = home_main_comp_id == away_main_comp_id
         is_domestic = is_same_nation and not is_same_league
-        # NOTE: For different datasets the competitions might be named differently.
+        # NOTE: For different datasets the competitions might be named differently. Please change to your naming convention
         continental_comps = ['UEFA Champions League', 'UEFA Europa League', 'UEFA Europa Conference League']
         is_continental = competition_name in continental_comps
         

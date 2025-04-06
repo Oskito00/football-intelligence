@@ -1,6 +1,14 @@
 #Create elo_history table
 import sqlite3
 
+#ELO TABLES
+#The following tables are used to store the ELO ratings for each team, league, and nation.
+
+def create_elo_tables(conn):
+    create_elo_history_table(conn)
+    create_club_elo_rating_table(conn)
+    create_league_elo_table(conn)
+    create_nation_elo_table(conn)
 
 def create_elo_history_table(conn):
     cursor = conn.cursor()
@@ -215,6 +223,23 @@ def create_nation_elo_table(conn):
     conn.commit()
     cursor.close()
 
+# Table for storing the main competition and country for each team
+def create_team_main_competition_table(conn):
+    """Create a table to store the main competition and country for each team"""
+    cursor = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS team_main_competition (
+        team_id TEXT PRIMARY KEY,
+        team_name TEXT,
+        main_competition_id TEXT,
+        main_competition_name TEXT,
+        main_competition_country TEXT,
+        match_count INTEGER
+    )
+    ''')
+    conn.commit()
+
+# Table for storing the form of each team
 def create_team_match_history_table(conn):
     cursor = conn.cursor()
     cursor.execute("""
@@ -233,25 +258,4 @@ def create_team_match_history_table(conn):
     conn.commit()
     cursor.close()
 
-def create_team_main_competition_table(conn):
-    """Create a table to store the main competition and country for each team"""
-    cursor = conn.cursor()
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS team_main_competition (
-        team_id TEXT PRIMARY KEY,
-        team_name TEXT,
-        main_competition_id TEXT,
-        main_competition_name TEXT,
-        main_competition_country TEXT,
-        match_count INTEGER
-    )
-    ''')
-    conn.commit()
-
 conn = sqlite3.connect('v2db.sqlite')
-# create_elo_history_table(conn)
-create_club_elo_rating_table(conn)
-create_league_elo_table(conn)
-create_nation_elo_table(conn)
-# create_team_match_history_table(conn)
-# create_team_main_competition_table(conn)
