@@ -1,7 +1,7 @@
 def get_all_matches(conn):
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT m.match_id, m.start_time, m.competition_id, m.competition_name, m.home_team_id, m.home_team_name, m.away_team_id, m.away_team_name, 
+        SELECT DISTINCT m.match_id, m.start_time, m.competition_id, m.competition_name, m.home_team_id, m.home_team_name, m.away_team_id, m.away_team_name, 
                m.home_score, m.away_score,
                home_comp.main_competition_id AS home_main_comp_id,
                home_comp.main_competition_country AS home_main_comp_country,

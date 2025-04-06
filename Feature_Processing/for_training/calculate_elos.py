@@ -72,7 +72,7 @@ def calculate_elos(conn):
         updated_home_club, updated_away_club = calculate_elo_ratings(
             conn, home_score, away_score, 
             updated_home_club, updated_away_club, 
-            'elo_general_K', k_values, match_info
+            'elo_K', k_values, match_info
         )
         
         # Home-specific ELOs
