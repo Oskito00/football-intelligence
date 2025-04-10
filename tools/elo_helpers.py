@@ -32,14 +32,14 @@ def elo_davidson_formula(
     
     # --- Calculate G(z; κ) from equation (33) ---
     # G(z; κ) = (10^(0.5z/σ) + (1/2)κ) / (10^(0.5z/σ) + 10^(-0.5z/σ) + κ)
-    term_home = 10 ** (0.5 * z / sigma)
-    term_away = 10 ** (-0.5 * z / sigma)
+    home_strength = 10 ** (0.5 * z / sigma)
+    away_strength = 10 ** (-0.5 * z / sigma)
     
     # Calculate G for home team
-    G_home = (term_home + 0.5 * kappa) / (term_home + term_away + kappa)
+    G_home = (home_strength + 0.5 * kappa) / (home_strength + away_strength + kappa)
     
     # Calculate G for away team (using -z)
-    G_away = (term_away + 0.5 * kappa) / (term_home + term_away + kappa)
+    G_away = (away_strength + 0.5 * kappa) / (home_strength + away_strength + kappa)
     
     # --- Apply the Elo-Davidson update rule from equation (34) ---
     home_elo_new = home_elo + k_factor * (s_home - G_home)

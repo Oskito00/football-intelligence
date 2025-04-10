@@ -36,7 +36,7 @@ def xgboost_model():
     
     # THEN drop it from features
     X = df.drop(columns=['match_id', 'home_team_id', 'away_team_id', 
-                        'home_team_score', 'away_team_score', 'result'])
+                        'home_team_score', 'away_team_score', 'k_draw_parameter', 'eta_home_advantage', 'result'])
     
     
     y = df['result']
@@ -47,7 +47,7 @@ def xgboost_model():
     
     # Update train/test split
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y_encoded, test_size=0.2, random_state=200
+        X, y_encoded, test_size=0.2, random_state=39
     )
 
 
