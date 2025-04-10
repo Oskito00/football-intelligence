@@ -4,50 +4,46 @@ from datetime import datetime
 
 def elo_davidson_formula(
     conn, home_score, away_score, home_elo, away_elo, 
-    k_factor, match_info, k_draw_parameter, eta_home_advantage, sigma=600
+    k_factor, match_info, k_draw_parameter, eta_home_advantage, sigma=400
 ):
     """Calculate and update Elo ratings using the Davidson draw model.
-    Implementation based on the BrBaLab formulation:
-    https://brbalab.com/algorithmes/
+    Implementation based on the mathematical derivation from equation (34):
+    θ̂(t+1,i) = θ̂(t,i) + K(s_i - G(Δ_i; κ))
+    where G(z; κ) is defined in equation (33).
     """
-    # --- Convert parameters ---
-    U = float(k_draw_parameter)       # Draw parameter U
-    H = float(eta_home_advantage)     # Home advantage parameter H
-    K = float(k_factor)               # K-factor
-    Sc = float(sigma)                 # Scale parameter (600 recommended)
+    # --- Parameters ---
+    kappa = float(k_draw_parameter)   # Draw parameter κ
+    z = float(home_elo - away_elo)    # Base rating difference
     
-    # --- Calculate rating difference with home advantage ---
-    D = float(home_elo - away_elo)    # Basic rating difference
-    D_adjusted = D + H * Sc           # Add home advantage
+    # Apply home advantage adjustment if needed
+    if eta_home_advantage:
+        z += float(eta_home_advantage) * sigma
     
-    # --- Calculate expected outcome using Elo-Davidson formula ---
-    # Calculate terms for denominator
-    term_home = 10 ** (0.5 * D_adjusted / Sc)
-    term_away = 10 ** (-0.5 * D_adjusted / Sc)
+    # --- Determine actual outcome (s_i) ---
+    if home_score > away_score:       # Home win
+        s_home = 1.0
+        s_away = 0.0
+    elif home_score < away_score:     # Away win
+        s_home = 0.0
+        s_away = 1.0
+    else:                             # Draw
+        s_home = 0.5
+        s_away = 0.5
     
-    # Calculate probabilities
-    denominator = term_home + term_away + U
-    p_home = term_home / denominator
-    p_away = term_away / denominator
-    p_draw = U / denominator
+    # --- Calculate G(z; κ) from equation (33) ---
+    # G(z; κ) = (10^(0.5z/σ) + (1/2)κ) / (10^(0.5z/σ) + 10^(-0.5z/σ) + κ)
+    term_home = 10 ** (0.5 * z / sigma)
+    term_away = 10 ** (-0.5 * z / sigma)
     
-    # --- Determine actual outcome (s) ---
-    if home_score > away_score:
-        s = 1.0    # Home win
-    elif home_score < away_score:
-        s = 0.0    # Away win
-    else:
-        s = 0.5    # Draw
+    # Calculate G for home team
+    G_home = (term_home + 0.5 * kappa) / (term_home + term_away + kappa)
     
-    # --- Apply Elo-Davidson update formula ---
-    # R'_h = R_h + K [s - F(D)]
-    # R'_a = R_a - K [s - F(D)]
-    # Where F(D) is the expected outcome for home team = p_home
-    rating_change = K * (s - p_home)
+    # Calculate G for away team (using -z)
+    G_away = (term_away + 0.5 * kappa) / (term_home + term_away + kappa)
     
-    # Update ratings
-    home_elo_new = home_elo + rating_change
-    away_elo_new = away_elo - rating_change
+    # --- Apply the Elo-Davidson update rule from equation (34) ---
+    home_elo_new = home_elo + k_factor * (s_home - G_home)
+    away_elo_new = away_elo + k_factor * (s_away - G_away)
     
     return home_elo_new, away_elo_new
 
@@ -131,7 +127,8 @@ def save_elo_history(conn, match_id, home_team_id, away_team_id,
                      home_club_elos, away_club_elos, 
                      home_nation_elos, away_nation_elos,
                      home_league_elos, away_league_elos,
-                     home_score, away_score):
+                     home_score, away_score,
+                     k_draw_parameter, eta_home_advantage):
     """
     Save the current ELO ratings to the elo_history table
     
@@ -143,6 +140,8 @@ def save_elo_history(conn, match_id, home_team_id, away_team_id,
         home_nation_elos, away_nation_elos: Dictionaries of nation ELO ratings or None
         home_league_elos, away_league_elos: Dictionaries of league ELO ratings or None
         home_score, away_score: Match scores
+        k_draw_parameter: Draw parameter κ used in the calculation of the elo_davidson_formula for this match
+        eta_home_advantage: Home advantage parameter η used in the calculation of the elo_davidson_formula for this match
     """
     cursor = conn.cursor()
     
@@ -155,8 +154,11 @@ def save_elo_history(conn, match_id, home_team_id, away_team_id,
         'match_id': match_id,
         'home_team_id': home_team_id,
         'away_team_id': away_team_id,
+        'k_draw_parameter': k_draw_parameter,
+        'eta_home_advantage': eta_home_advantage,
         'home_team_score': home_score,
-        'away_team_score': away_score
+        'away_team_score': away_score,
+        
     }
     
     # Add home and away team club ELOs
@@ -256,8 +258,8 @@ def update_nation_elo(conn, nation_name, elo_dict):
     return update_entity_elo(conn, 'nation_elo_ratings', 'nation_name', nation_name, elo_dict)
 
 def calculate_elo_ratings(conn, home_score, away_score, home_elos, away_elos, 
-                       column_pattern, k_values, match_info, league_counts,
-                       ):
+                       column_pattern, k_values, match_info,
+                       k_draw_parameter, eta_home_advantage):
     """
     Update ELO ratings for specific column pattern
     
@@ -270,21 +272,15 @@ def calculate_elo_ratings(conn, home_score, away_score, home_elos, away_elos,
         column_pattern: Pattern to match in column names (e.g., 'nation_elo_K')
         k_values: List of K-values to use
         match_info: Match information for logging
-        league_counts: Dictionary of league counts
+        k_draw_parameter: Draw parameter κ
+        eta_home_advantage: Home advantage parameter η
     Returns:
         Tuple of (updated_home_elos, updated_away_elos)
     """
     home_elo_updates = home_elos.copy()
     away_elo_updates = away_elos.copy()
 
-    home_wins, draw_wins, away_wins, count = league_counts
-
-    probability_home_win = home_wins / (home_wins + draw_wins + away_wins)
-    probability_away_win = away_wins / (home_wins + draw_wins + away_wins)
-    probability_draw = draw_wins / (home_wins + draw_wins + away_wins)
-
-    k_draw_parameter = probability_draw / math.sqrt(probability_home_win * probability_away_win)
-    eta_home_advantage = math.log10(probability_home_win / probability_away_win)
+    
 
     print(f"k_draw_parameter: {k_draw_parameter}, eta_home_advantage: {eta_home_advantage}")
 

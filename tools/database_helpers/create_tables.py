@@ -17,6 +17,8 @@ def create_elo_history_table(conn):
             match_id TEXT,
             home_team_id TEXT,
             away_team_id TEXT,
+            k_draw_parameter REAL,
+            eta_home_advantage REAL,
             
             -- HOME TEAM ELO RATINGS
             home_team_nation_elo_K5 INTEGER,
@@ -276,4 +278,5 @@ def create_counter_table(conn):
 
 if __name__ == "__main__":
     conn = sqlite3.connect('v2db.sqlite')
-    create_counter_table(conn)
+    # create_counter_table(conn)
+    create_elo_history_table(conn)

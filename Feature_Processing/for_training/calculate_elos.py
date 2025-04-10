@@ -1,3 +1,4 @@
+import math
 import sqlite3
 from Tools.elo_helpers import calculate_elo_ratings, elo_davidson_formula, get_club_elo, get_counts, get_league_elo, get_nation_elo, save_elo_history, update_club_elo, update_counter_table, update_league_elo, update_nation_elo
 from Tools.Database_helpers.get_and_set_functions import get_all_matches
@@ -45,8 +46,22 @@ def calculate_elos(conn):
         home_league_elos = get_league_elo(conn, home_main_comp_id) if home_main_comp_id else None
         away_league_elos = get_league_elo(conn, away_main_comp_id) if away_main_comp_id else None
 
+        # Get home, draw, away win counts for league (the league the game was played in)
+        # These are used to dynamically set the k_draw_parameter and eta_home_advantage
+        # used in the elo_davidson_formula.
+        league_counts = get_counts(conn, competition_id, get_nation=False)
+
+        home_wins, draw_wins, away_wins, count = league_counts
+
+        probability_home_win = home_wins / (home_wins + draw_wins + away_wins)
+        probability_away_win = away_wins / (home_wins + draw_wins + away_wins)
+        probability_draw = draw_wins / (home_wins + draw_wins + away_wins)
+
+        k_draw_parameter = probability_draw / math.sqrt(probability_home_win * probability_away_win)
+        eta_home_advantage = math.log10(probability_home_win / probability_away_win)
+
         # Save the current ELOs to elo_history
-        save_elo_history(conn, match_id, home_team_id, away_team_id, home_club_elos, away_club_elos, home_nation_elos, away_nation_elos, home_league_elos, away_league_elos, home_score, away_score)
+        save_elo_history(conn, match_id, home_team_id, away_team_id, home_club_elos, away_club_elos, home_nation_elos, away_nation_elos, home_league_elos, away_league_elos, home_score, away_score, k_draw_parameter, eta_home_advantage)
    
         # K-factor values
         k_values = [5, 10, 20, 30, 40, 80]
@@ -61,20 +76,14 @@ def calculate_elos(conn):
         
         match_info = f"{home_team_name} {home_score}-{away_score} {away_team_name}"
 
-        # Get home, draw, away win counts for league (the league the game was played in)
-        # These are used to dynamically set the k_draw_parameter and eta_home_advantage
-        # used in the elo_davidson_formula.
-        league_counts = get_counts(conn, competition_id, get_nation=False)
-
         # Update nation ELOs
-
         if not is_same_nation:
             print("Updating nation ELOs")
             updated_home_nation, updated_away_nation = calculate_elo_ratings(
                 conn, home_score, away_score, 
                 home_nation_elos, away_nation_elos, 
                 'nation_elo_K', k_values, match_info,
-                league_counts
+                k_draw_parameter, eta_home_advantage
             )
         
         # Update league ELOs
@@ -84,7 +93,7 @@ def calculate_elos(conn):
                 conn, home_score, away_score, 
                 updated_home_league, updated_away_league, 
                 'league_domestic_elo_K', k_values, match_info,
-                league_counts
+                k_draw_parameter, eta_home_advantage
             )
         
         if not is_same_league:
@@ -93,7 +102,7 @@ def calculate_elos(conn):
                 conn, home_score, away_score, 
                 updated_home_league, updated_away_league, 
                 'league_continental_elo_K', k_values, match_info,
-                league_counts
+                k_draw_parameter, eta_home_advantage
             )
         
         # Update club ELOs
@@ -102,7 +111,8 @@ def calculate_elos(conn):
         updated_home_club, updated_away_club = calculate_elo_ratings(
             conn, home_score, away_score, 
             updated_home_club, updated_away_club, 
-            'elo_K', k_values, match_info, league_counts
+            'elo_K', k_values, match_info, 
+            k_draw_parameter, eta_home_advantage
         )
         
         # Home-specific ELOs
@@ -111,7 +121,8 @@ def calculate_elos(conn):
         updated_home_club, _ = calculate_elo_ratings(
             conn, home_score, away_score, 
             updated_home_club, home_temp,  # Use same dict to prevent away updates 
-            'elo_home_matches_K', k_values, match_info, league_counts
+            'elo_home_matches_K', k_values, match_info, 
+            k_draw_parameter, eta_home_advantage
         )
         
         # Away-specific ELOs
@@ -120,7 +131,8 @@ def calculate_elos(conn):
         _, updated_away_club = calculate_elo_ratings(
             conn, home_score, away_score, 
             away_temp, updated_away_club,  # Use same dict to prevent home updates
-            'elo_away_matches_K', k_values, match_info, league_counts
+            'elo_away_matches_K', k_values, match_info, 
+            k_draw_parameter, eta_home_advantage
         )
         
         # Domestic ELOs
@@ -130,7 +142,8 @@ def calculate_elos(conn):
             updated_home_club, updated_away_club = calculate_elo_ratings(
                 conn, home_score, away_score, 
                 updated_home_club, updated_away_club, 
-                'elo_domestic_K', k_values, match_info, league_counts
+                'elo_domestic_K', k_values, match_info, 
+                k_draw_parameter, eta_home_advantage
             )
         
         # Intraleague ELOs
@@ -139,7 +152,8 @@ def calculate_elos(conn):
             updated_home_club, updated_away_club = calculate_elo_ratings(
                 conn, home_score, away_score, 
                 updated_home_club, updated_away_club, 
-                'elo_intraleague_K', k_values, match_info, league_counts
+                'elo_intraleague_K', k_values, match_info, 
+                k_draw_parameter, eta_home_advantage
             )
         
         # International ELOs
@@ -148,7 +162,8 @@ def calculate_elos(conn):
             updated_home_club, updated_away_club = calculate_elo_ratings(
                 conn, home_score, away_score, 
                 updated_home_club, updated_away_club, 
-                'elo_international_K', k_values, match_info, league_counts
+                'elo_international_K', k_values, match_info, 
+                k_draw_parameter, eta_home_advantage
             )
         
         result = 'home' if home_score > away_score else 'away' if home_score < away_score else 'draw'
