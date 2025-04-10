@@ -1,32 +1,49 @@
+import math
 import sqlite3
+from datetime import datetime
 
-def elo_formula(conn, home_score, away_score, home_elo, away_elo, k_factor, match):
-    """Calculate and update Elo ratings for home and away teams after a match."""
-    cursor = conn.cursor()
+def elo_davidson_formula(
+    conn, home_score, away_score, home_elo, away_elo, 
+    k_factor, match_info, k_draw_parameter, eta_home_advantage, sigma=400
+):
+    """Calculate and update Elo ratings using the Davidson draw model.
+    Implementation based on the mathematical derivation from equation (34):
+    θ̂(t+1,i) = θ̂(t,i) + K(s_i - G(Δ_i; κ))
+    where G(z; κ) is defined in equation (33).
+    """
+    # --- Parameters ---
+    kappa = float(k_draw_parameter)   # Draw parameter κ
+    z = float(home_elo - away_elo)    # Base rating difference
     
-    print("Processing match: ", match)
+    # Apply home advantage adjustment if needed
+    if eta_home_advantage:
+        z += float(eta_home_advantage) * sigma
     
-    # --- ELO FORMULA IMPLEMENTATION ---
-    # Home advantage: Add 100 Elo points to home team (common adjustment)
-    home_advantage = 14  # Adjust this value based on your sport
-    adjusted_home_elo = home_elo + home_advantage
+    # --- Determine actual outcome (s_i) ---
+    if home_score > away_score:       # Home win
+        s_home = 1.0
+        s_away = 0.0
+    elif home_score < away_score:     # Away win
+        s_home = 0.0
+        s_away = 1.0
+    else:                             # Draw
+        s_home = 0.5
+        s_away = 0.5
     
-    # 1. Calculate expected outcome (E)
-    expected_home = 1 / (1 + 10**((away_elo - adjusted_home_elo)/400))
-    expected_away = 1 - expected_home
+    # --- Calculate G(z; κ) from equation (33) ---
+    # G(z; κ) = (10^(0.5z/σ) + (1/2)κ) / (10^(0.5z/σ) + 10^(-0.5z/σ) + κ)
+    home_strength = 10 ** (0.5 * z / sigma)
+    away_strength = 10 ** (-0.5 * z / sigma)
     
-    # 2. Determine actual outcome (S)
-    if home_score > away_score:
-        actual_home, actual_away = 1, 0  # Home win
-    elif home_score < away_score:
-        actual_home, actual_away = 0, 1  # Away win
-    else:
-        actual_home, actual_away = 0.5, 0.5  # Draw
+    # Calculate G for home team
+    G_home = (home_strength + 0.5 * kappa) / (home_strength + away_strength + kappa)
     
-    # 3. Update ratings using Elo formula: R' = R + K*(S - E)
-    k = k_factor
-    home_elo_new = home_elo + k * (actual_home - expected_home)
-    away_elo_new = away_elo + k * (actual_away - expected_away)
+    # Calculate G for away team (using -z)
+    G_away = (away_strength + 0.5 * kappa) / (home_strength + away_strength + kappa)
+    
+    # --- Apply the Elo-Davidson update rule from equation (34) ---
+    home_elo_new = home_elo + k_factor * (s_home - G_home)
+    away_elo_new = away_elo + k_factor * (s_away - G_away)
     
     return home_elo_new, away_elo_new
 
@@ -110,7 +127,8 @@ def save_elo_history(conn, match_id, home_team_id, away_team_id,
                      home_club_elos, away_club_elos, 
                      home_nation_elos, away_nation_elos,
                      home_league_elos, away_league_elos,
-                     home_score, away_score):
+                     home_score, away_score,
+                     k_draw_parameter, eta_home_advantage):
     """
     Save the current ELO ratings to the elo_history table
     
@@ -122,6 +140,8 @@ def save_elo_history(conn, match_id, home_team_id, away_team_id,
         home_nation_elos, away_nation_elos: Dictionaries of nation ELO ratings or None
         home_league_elos, away_league_elos: Dictionaries of league ELO ratings or None
         home_score, away_score: Match scores
+        k_draw_parameter: Draw parameter κ used in the calculation of the elo_davidson_formula for this match
+        eta_home_advantage: Home advantage parameter η used in the calculation of the elo_davidson_formula for this match
     """
     cursor = conn.cursor()
     
@@ -134,8 +154,11 @@ def save_elo_history(conn, match_id, home_team_id, away_team_id,
         'match_id': match_id,
         'home_team_id': home_team_id,
         'away_team_id': away_team_id,
+        'k_draw_parameter': k_draw_parameter,
+        'eta_home_advantage': eta_home_advantage,
         'home_team_score': home_score,
-        'away_team_score': away_score
+        'away_team_score': away_score,
+        
     }
     
     # Add home and away team club ELOs
@@ -235,7 +258,8 @@ def update_nation_elo(conn, nation_name, elo_dict):
     return update_entity_elo(conn, 'nation_elo_ratings', 'nation_name', nation_name, elo_dict)
 
 def calculate_elo_ratings(conn, home_score, away_score, home_elos, away_elos, 
-                       column_pattern, k_values, match_info):
+                       column_pattern, k_values, match_info,
+                       k_draw_parameter, eta_home_advantage):
     """
     Update ELO ratings for specific column pattern
     
@@ -248,27 +272,34 @@ def calculate_elo_ratings(conn, home_score, away_score, home_elos, away_elos,
         column_pattern: Pattern to match in column names (e.g., 'nation_elo_K')
         k_values: List of K-values to use
         match_info: Match information for logging
-    
+        k_draw_parameter: Draw parameter κ
+        eta_home_advantage: Home advantage parameter η
     Returns:
         Tuple of (updated_home_elos, updated_away_elos)
     """
     home_elo_updates = home_elos.copy()
     away_elo_updates = away_elos.copy()
+
     
+
+    print(f"k_draw_parameter: {k_draw_parameter}, eta_home_advantage: {eta_home_advantage}")
+
     for k in k_values:
         column_name = f'{column_pattern}{k}'
         
         # Check if the column exists in both dictionaries
         if column_name in home_elos and column_name in away_elos:
             # Get new ELOs
-            home_elo_new, away_elo_new = elo_formula(
+            home_elo_new, away_elo_new = elo_davidson_formula(
                 conn, 
                 home_score, 
                 away_score, 
                 home_elos[column_name], 
                 away_elos[column_name], 
                 k, 
-                match_info
+                match_info,
+                k_draw_parameter,
+                eta_home_advantage
             )
             
             # Update the dictionaries
@@ -338,6 +369,68 @@ def analyze_elo_differences(conn):
     
     cursor.close()
     return results
+
+
+def update_counter_table(conn, competition_id, result, lambda_val=0.99):
+    """Update counters with nation information and exponential decay."""
+    cursor = conn.cursor()
+    result = result.lower()
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    # Upsert for specific competition
+    cursor.execute("""
+        INSERT INTO counter_table (competition_id, home_wins, draw_wins, away_wins, count, last_updated)
+        VALUES (?, 0, 0, 0, 0, ?)
+        ON CONFLICT(competition_id) DO UPDATE SET
+            home_wins = home_wins * ? + CASE WHEN ? = 'home' THEN 1 ELSE 0 END,
+            draw_wins = draw_wins * ? + CASE WHEN ? = 'draw' THEN 1 ELSE 0 END,
+            away_wins = away_wins * ? + CASE WHEN ? = 'away' THEN 1 ELSE 0 END,
+            count = count + 1,
+            last_updated = excluded.last_updated
+    """, (competition_id, now,
+          lambda_val, result,
+          lambda_val, result,
+          lambda_val, result))
+
+    # Update combined leagues (without nation)
+    cursor.execute("""
+        INSERT INTO counter_table (competition_id, home_wins, draw_wins, away_wins, count, last_updated)
+        VALUES ('combined_leagues', 0, 0, 0, 0, ?)
+        ON CONFLICT(competition_id) DO UPDATE SET
+            home_wins = home_wins * ? + CASE WHEN ? = 'home' THEN 1 ELSE 0 END,
+            draw_wins = draw_wins * ? + CASE WHEN ? = 'draw' THEN 1 ELSE 0 END,
+            away_wins = away_wins * ? + CASE WHEN ? = 'away' THEN 1 ELSE 0 END,
+            count = count + 1,
+            last_updated = excluded.last_updated
+    """, (now,
+          lambda_val, result,
+          lambda_val, result,
+          lambda_val, result))
+
+    conn.commit()
+    cursor.close()
+
+def get_counts(conn, index, get_nation=False):
+    """Get aggregated counts for a competition or nation."""
+    cursor = conn.cursor()
+    
+    # Direct competition lookup
+    cursor.execute("""
+            SELECT home_wins, draw_wins, away_wins, count 
+            FROM counter_table 
+            WHERE competition_id = ?
+    """, (index,))
+        
+    result = cursor.fetchone()
+    if result and result[3] > 200:  # Check count > 0
+        return result
+    else:
+        cursor.execute("""
+                SELECT home_wins, draw_wins, away_wins, count 
+                FROM counter_table 
+                WHERE competition_id = 'combined_leagues'
+            """)
+        return cursor.fetchone()
 
 if __name__ == "__main__":
     pass
