@@ -308,8 +308,6 @@ def calculate_elo_ratings(conn, home_score, away_score, home_elos, away_elos,
     
     return home_elo_updates, away_elo_updates
 
-
-
 # This function was used in the setup to determine the home advantage bias, but is no longer necessary (after we have established the home advantage is +14 elo points)
 def analyze_elo_differences(conn):
     """
