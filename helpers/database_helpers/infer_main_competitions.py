@@ -1,7 +1,7 @@
 import sqlite3
 from collections import defaultdict
-from Tools.Database_helpers.get_and_set_functions import get_main_league_and_nation_data
-from Tools.Database_helpers.create_tables import create_team_main_competition_table
+from helpers.database_helpers.get_and_set_functions import get_main_league_and_nation_data
+from helpers.database_helpers.create_tables import create_team_main_competition_table
 
 def infer_main_competitions(conn):
     """Infer the main competition and country for each team"""

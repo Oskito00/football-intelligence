@@ -1,10 +1,8 @@
 import math
 import sqlite3
-from Tools.elo_helpers import calculate_elo_ratings, elo_davidson_formula, get_club_elo, get_counts, get_league_elo, get_nation_elo, save_elo_history, update_club_elo, update_counter_table, update_league_elo, update_nation_elo
-from Tools.Database_helpers.get_and_set_functions import get_all_matches
+from helpers.elo.elo_helpers import calculate_elo_ratings, get_club_elo, get_counts, get_league_elo, get_nation_elo, save_elo_history, update_club_elo, update_counter_table, update_league_elo, update_nation_elo
 
-def calculate_elos(conn):
-    matches = get_all_matches(conn)
+def calculate_elos(matches):
     print("Number of matches: ", len(matches))
     # First 1000 matches will be used to set initial priors on probability if home, away or draw
     first_1000 = matches[:1000]

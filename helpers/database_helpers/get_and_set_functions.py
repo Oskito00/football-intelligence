@@ -1,6 +1,7 @@
-#NOTE: This function fetches from both matches and team_main_competition tables.
-# If you do not have team_main_competition table, run the Tools/infer_main_competition.py script to create it.
-# This will create a new table with the main competition and country for each team you have in your dataset.
+
+# TODO: This function should only fetch matches that have is_processed = 0
+# So that when new matches are added to the database, the old matches are not processed again...
+# Will add this when I combine elo and form functions into one script.
 def get_all_matches(conn):
     """Gets all matches ordered by start time."""
     cursor = conn.cursor()

@@ -4,9 +4,8 @@ import sqlite3
 import requests
 from bs4 import BeautifulSoup
 import random
-
-from Fifa_Ratings.utils.helpers import check_if_player_exists
-from Tools.player_name_formatting_helper import format_player_name, normalise_player_name
+from helpers.fifaratings.helpers import check_if_player_exists
+from helpers.fifaratings.player_name_formatting_helper import format_player_name, normalise_player_name
 
 #********************************************************************************
 #MAIN FUNCTION

@@ -4,8 +4,8 @@ import os
 
 # Add the project root directory to the path so we can import modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from Tools.elo_helpers import get_club_elo, get_league_elo, get_nation_elo
-from Tools.Database_helpers.create_tables import create_club_elo_rating_table, create_league_elo_table, create_nation_elo_table, create_elo_history_table
+from helpers.elo.elo_helpers import get_club_elo, get_league_elo, get_nation_elo
+from helpers.database_helpers.create_tables import create_club_elo_rating_table, create_league_elo_table, create_nation_elo_table, create_elo_history_table
 
 def save_elo_history(conn, match_id, home_team_id, away_team_id, 
                      home_club_elos, away_club_elos, 

@@ -2,7 +2,7 @@
 # returned no data in the orgiginal scrape, due to either name formatting issues or no data on the website
 
 import sqlite3
-from Fifa_Ratings.scrape_and_store_player_stats import add_player_ratings_to_db, parse_html_to_json, scrape_player_ratings
+from fifa_ratings.scrape_and_store_player_stats import add_player_ratings_to_db, parse_html_to_json, scrape_player_ratings
 
 def get_all_players(conn):
     cursor = conn.cursor()

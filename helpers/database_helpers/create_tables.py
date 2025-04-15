@@ -248,12 +248,14 @@ def create_team_match_history_table(conn):
         CREATE TABLE TeamMatchHistory (
             team_id      TEXT,
             match_id     TEXT,
-            date         DATE,
+            start_time         DATE,
             goals_scored INT,
             goals_conceded INT,
             result       VARCHAR(4),  -- 'win', 'loss', 'draw'
-            points       INT,         -- e.g., 3 for a win
             is_home      INTEGER,     -- 0 for away, 1 for home
+            is_intraleague_match INTEGER,
+            is_domestic_cup_match INTEGER,
+            is_continental_cup_match INTEGER,
             PRIMARY KEY (team_id, match_id)
         )
     """)
@@ -276,7 +278,15 @@ def create_counter_table(conn):
     conn.commit()
     cursor.close()
 
-if __name__ == "__main__":
-    conn = sqlite3.connect('v2db.sqlite')
-    # create_counter_table(conn)
-    create_elo_history_table(conn)
+def create_h2h_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS h2h (
+            team1_id INTEGER NOT NULL,
+            team2_id INTEGER NOT NULL,
+            matches JSON NOT NULL DEFAULT '[]',
+            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (team1_id, team2_id),
+            CHECK (team1_id < team2_id)
+        )
+    """)

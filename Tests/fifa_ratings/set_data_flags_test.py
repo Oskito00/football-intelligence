@@ -1,6 +1,7 @@
 import pytest
 import sqlite3
-from Fifa_Ratings.deepseek_help_scraping import set_no_ai_data_flag
+
+from fifa_ratings.deepseek_player_scraping import set_no_ai_data_flag
 
 @pytest.fixture
 def test_db():

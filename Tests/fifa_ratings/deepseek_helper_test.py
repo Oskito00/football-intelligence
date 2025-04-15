@@ -1,7 +1,8 @@
 import pytest
 from unittest.mock import Mock, patch
 import sqlite3
-from Fifa_Ratings.deepseek_help_scraping import scrape_and_process_player
+
+from fifa_ratings.deepseek_player_scraping import scrape_and_process_player
 
 @pytest.fixture
 def test_db():
