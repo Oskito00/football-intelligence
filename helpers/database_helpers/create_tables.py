@@ -248,7 +248,7 @@ def create_team_match_history_table(conn):
         CREATE TABLE TeamMatchHistory (
             team_id      TEXT,
             match_id     TEXT,
-            start_time         DATE,
+            start_time   DATETIME,
             goals_scored INT,
             goals_conceded INT,
             result       VARCHAR(4),  -- 'win', 'loss', 'draw'
@@ -290,3 +290,8 @@ def create_h2h_table(conn):
             CHECK (team1_id < team2_id)
         )
     """)
+
+
+if __name__ == "__main__":
+    conn = sqlite3.connect("v2db.sqlite")
+    create_team_match_history_table(conn)
