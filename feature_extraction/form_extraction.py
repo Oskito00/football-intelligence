@@ -1,5 +1,5 @@
 import sqlite3
-from helpers.database_helpers.sql_statements.form import calculate_form_stats_for_multiple_ns, get_last_n_matches_for_team
+from helpers.database_helpers.sql_statements.form import calculate_form_stats_for_multiple_ns, enrich_matches_data_with_elo_ratings, get_last_n_matches_for_team, get_elo_ratings_for_multiple_matches
 
 
 def form_extraction(matches):
@@ -15,6 +15,14 @@ def form_extraction(matches):
 
         home_matches = get_last_n_matches_for_team(conn, home_team_id, start_time, 50)
         away_matches = get_last_n_matches_for_team(conn, away_team_id, start_time, 50)
+
+        home_elo_ratings = get_elo_ratings_for_multiple_matches(conn, home_matches, home_team_id)
+        away_elo_ratings = get_elo_ratings_for_multiple_matches(conn, away_matches, away_team_id)
+
+        home_matches_and_elo_ratings = enrich_matches_data_with_elo_ratings(home_matches,home_elo_ratings)
+        away_matches_and_elo_ratings = enrich_matches_data_with_elo_ratings(away_matches,away_elo_ratings)
+
+
 
         home_stats = calculate_form_stats_for_multiple_ns(home_matches, n)
         away_stats = calculate_form_stats_for_multiple_ns(away_matches, n)
