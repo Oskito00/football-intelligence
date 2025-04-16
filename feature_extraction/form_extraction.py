@@ -1,8 +1,11 @@
-from helpers.database_helpers.sql_statements.form import get_last_n_matches_for_team
+import sqlite3
+from helpers.database_helpers.sql_statements.form import calculate_form_stats_for_multiple_ns, get_last_n_matches_for_team
 
 
 def form_extraction(matches):
+    conn = sqlite3.connect('v2db.sqlite')
     n = [1,3,5,10,20,50]
+
 
     # Ignore first 1000 matches for parameter tuning as in all the other processing files.
     for match in matches:
@@ -10,10 +13,11 @@ def form_extraction(matches):
         home_score, away_score, home_main_comp_id, home_main_comp_country, \
         away_main_comp_id, away_main_comp_country = match
 
-        home_stats = get_last_n_matches_for_team(50, home_team_id, start_time)
-        away_stats = get_last_n_matches_for_team(50, away_team_id, start_time)
+        home_matches = get_last_n_matches_for_team(conn, home_team_id, start_time, 50)
+        away_matches = get_last_n_matches_for_team(conn, away_team_id, start_time, 50)
 
-
+        home_stats = calculate_form_stats_for_multiple_ns(home_matches, n)
+        away_stats = calculate_form_stats_for_multiple_ns(away_matches, n)
 
 
 
