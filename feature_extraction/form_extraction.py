@@ -6,7 +6,6 @@ def form_extraction(matches):
     conn = sqlite3.connect('v2db.sqlite')
     n = [1,3,5,10,20,50]
 
-
     # Ignore first 1000 matches for parameter tuning as in all the other processing files.
     for match in matches:
         match_id, start_time, competition_id, competition_name, competition_country, home_team_id, home_team_name, away_team_id, away_team_name, \
@@ -21,8 +20,6 @@ def form_extraction(matches):
 
         home_matches_and_elo_ratings = enrich_matches_data_with_elo_ratings(home_matches,home_elo_ratings)
         away_matches_and_elo_ratings = enrich_matches_data_with_elo_ratings(away_matches,away_elo_ratings)
-
-
 
         home_stats = calculate_form_stats_for_multiple_ns(home_matches, n)
         away_stats = calculate_form_stats_for_multiple_ns(away_matches, n)
