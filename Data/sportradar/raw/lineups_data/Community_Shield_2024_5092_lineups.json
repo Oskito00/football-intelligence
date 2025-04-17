@@ -1,0 +1,892 @@
+{
+    "generated_at": "2025-04-04T16:49:46+00:00",
+    "lineups": [
+        {
+            "sport_event": {
+                "id": "sr:sport_event:50388121",
+                "start_time": "2024-08-10T14:00:00+00:00",
+                "start_time_confirmed": true,
+                "sport_event_context": {
+                    "sport": {
+                        "id": "sr:sport:1",
+                        "name": "Soccer"
+                    },
+                    "category": {
+                        "id": "sr:category:1",
+                        "name": "England",
+                        "country_code": "ENG"
+                    },
+                    "competition": {
+                        "id": "sr:competition:346",
+                        "name": "Community Shield",
+                        "gender": "men"
+                    },
+                    "season": {
+                        "id": "sr:season:118711",
+                        "name": "Community Shield 2024",
+                        "start_date": "2024-08-10",
+                        "end_date": "2024-08-11",
+                        "year": "2024",
+                        "competition_id": "sr:competition:346"
+                    },
+                    "stage": {
+                        "order": 1,
+                        "type": "cup",
+                        "phase": "playoffs",
+                        "start_date": "2024-08-10",
+                        "end_date": "2024-08-11",
+                        "year": "2024"
+                    },
+                    "round": {
+                        "name": "final",
+                        "cup_round_sport_event_number": 1,
+                        "cup_round_number_of_sport_events": 1,
+                        "cup_round_id": "sr:cup_round:2127717"
+                    },
+                    "groups": [
+                        {
+                            "id": "sr:cup:165547",
+                            "name": "Community Shield 2024"
+                        }
+                    ]
+                },
+                "coverage": {
+                    "type": "sport_event",
+                    "sport_event_properties": {
+                        "lineups": true,
+                        "formations": false,
+                        "venue": true,
+                        "extended_player_stats": true,
+                        "extended_team_stats": true,
+                        "lineups_availability": "pre",
+                        "ballspotting": true,
+                        "commentary": true,
+                        "fun_facts": true,
+                        "goal_scorers": true,
+                        "goal_scorers_live": true,
+                        "scores": "live",
+                        "game_clock": true,
+                        "deeper_play_by_play": true,
+                        "deeper_player_stats": true,
+                        "deeper_team_stats": true,
+                        "basic_play_by_play": true,
+                        "basic_player_stats": true,
+                        "basic_team_stats": true
+                    }
+                },
+                "competitors": [
+                    {
+                        "id": "sr:competitor:17",
+                        "name": "Manchester City",
+                        "country": "England",
+                        "country_code": "ENG",
+                        "abbreviation": "MCI",
+                        "qualifier": "home",
+                        "gender": "male"
+                    },
+                    {
+                        "id": "sr:competitor:35",
+                        "name": "Manchester United",
+                        "country": "England",
+                        "country_code": "ENG",
+                        "abbreviation": "MUN",
+                        "qualifier": "away",
+                        "gender": "male"
+                    }
+                ],
+                "venue": {
+                    "id": "sr:venue:8",
+                    "name": "Wembley Stadium",
+                    "capacity": 90000,
+                    "city_name": "London",
+                    "country_name": "England",
+                    "map_coordinates": "51.5560,-0.2796",
+                    "country_code": "ENG",
+                    "timezone": "Europe/London"
+                },
+                "channels": [
+                    {
+                        "name": "Sport TV2 HD - Hispasat 1B/1C/1D (30.0 W) - NOS PT",
+                        "url": "https://www.sporttv.pt/guia",
+                        "country": "Portugal",
+                        "country_code": "PRT"
+                    },
+                    {
+                        "name": "V Sport Premium HD - Thor 2/3 (1.0W)",
+                        "url": "https://www.allente.se/tv-guide/",
+                        "country": "Sweden",
+                        "country_code": "SWE"
+                    }
+                ],
+                "sport_event_conditions": {
+                    "referees": [
+                        {
+                            "id": "sr:referee:138289",
+                            "name": "Gillett, Jarred",
+                            "nationality": "Australia",
+                            "country_code": "AUS",
+                            "type": "main_referee"
+                        }
+                    ],
+                    "weather": {
+                        "pitch_conditions": "good",
+                        "overall_conditions": "good"
+                    },
+                    "ground": {
+                        "neutral": true
+                    },
+                    "lineups": {
+                        "confirmed": true
+                    }
+                }
+            },
+            "sport_event_status": {
+                "status": "closed",
+                "match_status": "ap",
+                "home_score": 1,
+                "away_score": 1,
+                "home_normaltime_score": 1,
+                "away_normaltime_score": 1,
+                "winner_id": "sr:competitor:17",
+                "period_scores": [
+                    {
+                        "home_score": 0,
+                        "away_score": 0,
+                        "type": "regular_period",
+                        "number": 1
+                    },
+                    {
+                        "home_score": 1,
+                        "away_score": 1,
+                        "type": "regular_period",
+                        "number": 2
+                    },
+                    {
+                        "home_score": 7,
+                        "away_score": 6,
+                        "type": "penalties"
+                    }
+                ],
+                "ball_locations": [
+                    {
+                        "order": 4,
+                        "x": 44,
+                        "y": 79,
+                        "qualifier": "away"
+                    },
+                    {
+                        "order": 3,
+                        "x": 46,
+                        "y": 82,
+                        "qualifier": "away"
+                    },
+                    {
+                        "order": 2,
+                        "x": 53,
+                        "y": 76,
+                        "qualifier": "away"
+                    },
+                    {
+                        "order": 1,
+                        "x": 53,
+                        "y": 76,
+                        "qualifier": "home"
+                    }
+                ],
+                "match_situation": {
+                    "status": "attack",
+                    "qualifier": "away",
+                    "updated_at": "2024-08-10T15:54:13+00:00"
+                }
+            },
+            "lineups": {
+                "competitors": [
+                    {
+                        "id": "sr:competitor:17",
+                        "name": "Manchester City",
+                        "country": "England",
+                        "country_code": "ENG",
+                        "abbreviation": "MCI",
+                        "qualifier": "home",
+                        "gender": "male",
+                        "players": [
+                            {
+                                "id": "sr:player:125274",
+                                "name": "Ortega, Stefan",
+                                "type": "goalkeeper",
+                                "date_of_birth": "1992-11-06",
+                                "nationality": "Germany",
+                                "country_code": "DEU",
+                                "height": 185,
+                                "weight": 88,
+                                "jersey_number": 18,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Calden"
+                            },
+                            {
+                                "id": "sr:player:716",
+                                "name": "Carson, Scott",
+                                "type": "goalkeeper",
+                                "date_of_birth": "1985-09-03",
+                                "nationality": "England",
+                                "country_code": "ENG",
+                                "height": 190,
+                                "weight": 76,
+                                "jersey_number": 33,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Whitehaven"
+                            },
+                            {
+                                "id": "sr:player:790679",
+                                "name": "Phillips, Kalvin",
+                                "type": "midfielder",
+                                "date_of_birth": "1995-12-02",
+                                "nationality": "England",
+                                "country_code": "ENG",
+                                "height": 178,
+                                "weight": 72,
+                                "jersey_number": 4,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Leeds"
+                            },
+                            {
+                                "id": "sr:player:149663",
+                                "name": "Ake, Nathan",
+                                "type": "defender",
+                                "date_of_birth": "1995-02-18",
+                                "nationality": "Netherlands",
+                                "country_code": "NLD",
+                                "height": 180,
+                                "weight": 75,
+                                "jersey_number": 6,
+                                "preferred_foot": "left",
+                                "place_of_birth": "Den Haag",
+                                "played": true
+                            },
+                            {
+                                "id": "sr:player:70996",
+                                "name": "De Bruyne, Kevin",
+                                "type": "midfielder",
+                                "date_of_birth": "1991-06-28",
+                                "nationality": "Belgium",
+                                "country_code": "BEL",
+                                "height": 181,
+                                "weight": 68,
+                                "jersey_number": 17,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Drongen",
+                                "played": true
+                            },
+                            {
+                                "id": "sr:player:331209",
+                                "name": "Silva, Bernardo",
+                                "type": "midfielder",
+                                "date_of_birth": "1994-08-10",
+                                "nationality": "Portugal",
+                                "country_code": "PRT",
+                                "height": 173,
+                                "weight": 64,
+                                "jersey_number": 20,
+                                "preferred_foot": "left",
+                                "place_of_birth": "Lisboa",
+                                "played": true
+                            },
+                            {
+                                "id": "sr:player:2057939",
+                                "name": "Savinho",
+                                "type": "midfielder",
+                                "date_of_birth": "2004-04-10",
+                                "nationality": "Brazil",
+                                "country_code": "BRA",
+                                "height": 176,
+                                "weight": 71,
+                                "jersey_number": 26,
+                                "preferred_foot": "left",
+                                "place_of_birth": "Sao Mateus",
+                                "played": true
+                            },
+                            {
+                                "id": "sr:player:1560920",
+                                "name": "Nunes, Matheus",
+                                "type": "midfielder",
+                                "date_of_birth": "1998-08-27",
+                                "nationality": "Portugal",
+                                "country_code": "PRT",
+                                "height": 184,
+                                "weight": 78,
+                                "jersey_number": 27,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Rio de Janeiro (BRAZIL)",
+                                "played": true
+                            },
+                            {
+                                "id": "sr:player:1869664",
+                                "name": "Kabore, Issa",
+                                "type": "defender",
+                                "date_of_birth": "2001-05-12",
+                                "nationality": "Burkina faso",
+                                "country_code": "BFA",
+                                "height": 180,
+                                "weight": 75,
+                                "jersey_number": 78,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Bobo-Dioulasso"
+                            },
+                            {
+                                "id": "sr:player:318941",
+                                "name": "Dias, Ruben",
+                                "type": "defender",
+                                "date_of_birth": "1997-05-14",
+                                "nationality": "Portugal",
+                                "country_code": "PRT",
+                                "height": 188,
+                                "weight": 76,
+                                "jersey_number": 3,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Amadora",
+                                "starter": true,
+                                "played": true,
+                                "order": 4,
+                                "position": "central_defender"
+                            },
+                            {
+                                "id": "sr:player:1645860",
+                                "name": "Gvardiol, Josko",
+                                "type": "defender",
+                                "date_of_birth": "2002-01-23",
+                                "nationality": "Croatia",
+                                "country_code": "HRV",
+                                "height": 185,
+                                "weight": 80,
+                                "jersey_number": 24,
+                                "preferred_foot": "left",
+                                "place_of_birth": "Zagreb",
+                                "starter": true,
+                                "played": true,
+                                "order": 5,
+                                "position": "left_back"
+                            },
+                            {
+                                "id": "sr:player:383560",
+                                "name": "Akanji, Manuel",
+                                "type": "defender",
+                                "date_of_birth": "1995-07-19",
+                                "nationality": "Switzerland",
+                                "country_code": "CHE",
+                                "height": 186,
+                                "weight": 90,
+                                "jersey_number": 25,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Wiesendangen",
+                                "starter": true,
+                                "played": true,
+                                "order": 3,
+                                "position": "central_defender"
+                            },
+                            {
+                                "id": "sr:player:254491",
+                                "name": "Ederson",
+                                "type": "goalkeeper",
+                                "date_of_birth": "1993-08-17",
+                                "nationality": "Brazil",
+                                "country_code": "BRA",
+                                "height": 188,
+                                "weight": 86,
+                                "jersey_number": 31,
+                                "preferred_foot": "left",
+                                "place_of_birth": "Osasco",
+                                "starter": true,
+                                "played": true,
+                                "order": 1,
+                                "position": "goalkeeper"
+                            },
+                            {
+                                "id": "sr:player:136710",
+                                "name": "Kovacic, Mateo",
+                                "type": "midfielder",
+                                "date_of_birth": "1994-05-06",
+                                "nationality": "Croatia",
+                                "country_code": "HRV",
+                                "height": 177,
+                                "weight": 77,
+                                "jersey_number": 8,
+                                "preferred_foot": "right",
+                                "place_of_birth": "LInz",
+                                "starter": true,
+                                "played": true,
+                                "order": 6,
+                                "position": "central_midfielder"
+                            },
+                            {
+                                "id": "sr:player:991181",
+                                "name": "Haaland, Erling",
+                                "type": "forward",
+                                "date_of_birth": "2000-07-21",
+                                "nationality": "Norway",
+                                "country_code": "NOR",
+                                "height": 194,
+                                "weight": 88,
+                                "jersey_number": 9,
+                                "preferred_foot": "left",
+                                "place_of_birth": "Leeds",
+                                "starter": true,
+                                "played": true,
+                                "order": 11,
+                                "position": "striker"
+                            },
+                            {
+                                "id": "sr:player:2221700",
+                                "name": "McAtee, James",
+                                "type": "midfielder",
+                                "date_of_birth": "2002-10-18",
+                                "nationality": "England",
+                                "country_code": "ENG",
+                                "height": 180,
+                                "weight": 75,
+                                "jersey_number": 87,
+                                "preferred_foot": "left",
+                                "place_of_birth": "Salford",
+                                "starter": true,
+                                "played": true,
+                                "order": 9,
+                                "position": "central_midfielder"
+                            },
+                            {
+                                "id": "sr:player:1297614",
+                                "name": "Doku, Jeremy",
+                                "type": "forward",
+                                "date_of_birth": "2002-05-27",
+                                "nationality": "Belgium",
+                                "country_code": "BEL",
+                                "height": 173,
+                                "weight": 68,
+                                "jersey_number": 11,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Borgerhout",
+                                "starter": true,
+                                "played": true,
+                                "order": 10,
+                                "position": "left_winger"
+                            },
+                            {
+                                "id": "sr:player:1956474",
+                                "name": "Bobb, Oscar",
+                                "type": "midfielder",
+                                "date_of_birth": "2003-07-12",
+                                "nationality": "Norway",
+                                "country_code": "NOR",
+                                "height": 174,
+                                "weight": 70,
+                                "jersey_number": 52,
+                                "preferred_foot": "left",
+                                "place_of_birth": "Oslo",
+                                "starter": true,
+                                "played": true,
+                                "order": 8,
+                                "position": "right_winger"
+                            },
+                            {
+                                "id": "sr:player:2246775",
+                                "name": "Lewis, Rico",
+                                "type": "defender",
+                                "date_of_birth": "2004-11-21",
+                                "nationality": "England",
+                                "country_code": "ENG",
+                                "height": 170,
+                                "weight": 66,
+                                "jersey_number": 82,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Bury (ENGLAND)",
+                                "starter": true,
+                                "played": true,
+                                "order": 2,
+                                "position": "right_back"
+                            },
+                            {
+                                "id": "sr:player:2265485",
+                                "name": "O'Reilly, Nico",
+                                "type": "midfielder",
+                                "date_of_birth": "2005-03-21",
+                                "nationality": "England",
+                                "country_code": "ENG",
+                                "height": 177,
+                                "weight": 77,
+                                "jersey_number": 75,
+                                "preferred_foot": "left",
+                                "place_of_birth": "Manchester (ENGLAND)",
+                                "starter": true,
+                                "played": true,
+                                "order": 7,
+                                "position": "central_midfielder"
+                            }
+                        ],
+                        "jersey": {
+                            "type": "home",
+                            "base": "abd1f5",
+                            "sleeve": "abd1f5",
+                            "number": "ffffff",
+                            "squares": false,
+                            "stripes": false,
+                            "horizontal_stripes": false,
+                            "split": false,
+                            "shirt_type": "short_sleeves",
+                            "sleeve_detail": "00376b"
+                        },
+                        "manager": {
+                            "id": "sr:player:53463",
+                            "name": "Guardiola, Pep",
+                            "date_of_birth": "1971-01-18",
+                            "nationality": "Spain",
+                            "country_code": "ESP"
+                        },
+                        "formation": {
+                            "type": "4-2-3-1"
+                        }
+                    },
+                    {
+                        "id": "sr:competitor:35",
+                        "name": "Manchester United",
+                        "country": "England",
+                        "country_code": "ENG",
+                        "abbreviation": "MUN",
+                        "qualifier": "away",
+                        "gender": "male",
+                        "players": [
+                            {
+                                "id": "sr:player:909328",
+                                "name": "Bayindir, Altay",
+                                "type": "goalkeeper",
+                                "date_of_birth": "1998-04-14",
+                                "nationality": "Turkey",
+                                "country_code": "TUR",
+                                "height": 198,
+                                "weight": 88,
+                                "jersey_number": 1,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Bursa (TURKEY)"
+                            },
+                            {
+                                "id": "sr:player:2651045",
+                                "name": "Collyer, Toby",
+                                "type": "midfielder",
+                                "date_of_birth": "2004-01-03",
+                                "nationality": "England",
+                                "country_code": "ENG",
+                                "height": 180,
+                                "weight": 75,
+                                "jersey_number": 43,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Worthing (ENGLAND)",
+                                "played": true
+                            },
+                            {
+                                "id": "sr:player:105734",
+                                "name": "Eriksen, Christian",
+                                "type": "midfielder",
+                                "date_of_birth": "1992-02-14",
+                                "nationality": "Denmark",
+                                "country_code": "DNK",
+                                "height": 181,
+                                "weight": 76,
+                                "jersey_number": 14,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Middelfart"
+                            },
+                            {
+                                "id": "sr:player:908372",
+                                "name": "Mctominay, Scott",
+                                "type": "midfielder",
+                                "date_of_birth": "1996-12-08",
+                                "nationality": "Scotland",
+                                "country_code": "SCO",
+                                "height": 191,
+                                "weight": 88,
+                                "jersey_number": 39,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Lancaster",
+                                "played": true
+                            },
+                            {
+                                "id": "sr:player:1768908",
+                                "name": "Pellistri, Facundo",
+                                "type": "midfielder",
+                                "date_of_birth": "2001-12-20",
+                                "nationality": "Uruguay",
+                                "country_code": "URY",
+                                "height": 174,
+                                "weight": 65,
+                                "jersey_number": 28,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Montevideo",
+                                "played": true
+                            },
+                            {
+                                "id": "sr:player:1955902",
+                                "name": "Garnacho, Alejandro",
+                                "type": "forward",
+                                "date_of_birth": "2004-07-01",
+                                "nationality": "Argentina",
+                                "country_code": "ARG",
+                                "height": 180,
+                                "weight": 75,
+                                "jersey_number": 17,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Madrid (SPAIN)",
+                                "played": true
+                            },
+                            {
+                                "id": "sr:player:1614982",
+                                "name": "Antony",
+                                "type": "forward",
+                                "date_of_birth": "2000-02-24",
+                                "nationality": "Brazil",
+                                "country_code": "BRA",
+                                "height": 172,
+                                "weight": 63,
+                                "jersey_number": 21,
+                                "preferred_foot": "left",
+                                "place_of_birth": "Sao Paulo (BRAZIL)"
+                            },
+                            {
+                                "id": "sr:player:1047147",
+                                "name": "Sancho, Jadon",
+                                "type": "forward",
+                                "date_of_birth": "2000-03-25",
+                                "nationality": "England",
+                                "country_code": "ENG",
+                                "height": 180,
+                                "weight": 76,
+                                "jersey_number": 25,
+                                "preferred_foot": "right",
+                                "place_of_birth": "London",
+                                "played": true
+                            },
+                            {
+                                "id": "sr:player:1382367",
+                                "name": "Zirkzee, Joshua",
+                                "type": "forward",
+                                "date_of_birth": "2001-05-22",
+                                "nationality": "Netherlands",
+                                "country_code": "NLD",
+                                "height": 193,
+                                "weight": 89,
+                                "jersey_number": 11,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Schiedam"
+                            },
+                            {
+                                "id": "sr:player:149380",
+                                "name": "Maguire, Harry",
+                                "type": "defender",
+                                "date_of_birth": "1993-03-05",
+                                "nationality": "England",
+                                "country_code": "ENG",
+                                "height": 193,
+                                "weight": 100,
+                                "jersey_number": 5,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Sheffield",
+                                "starter": true,
+                                "played": true,
+                                "order": 3,
+                                "position": "central_defender"
+                            },
+                            {
+                                "id": "sr:player:1134755",
+                                "name": "Martinez, Lisandro",
+                                "type": "defender",
+                                "date_of_birth": "1998-01-18",
+                                "nationality": "Argentina",
+                                "country_code": "ARG",
+                                "height": 175,
+                                "weight": 72,
+                                "jersey_number": 6,
+                                "preferred_foot": "left",
+                                "place_of_birth": "Gualeguay",
+                                "starter": true,
+                                "played": true,
+                                "order": 5,
+                                "position": "left_back"
+                            },
+                            {
+                                "id": "sr:player:772389",
+                                "name": "Onana, Andre",
+                                "type": "goalkeeper",
+                                "date_of_birth": "1996-04-02",
+                                "nationality": "Cameroon",
+                                "country_code": "CMR",
+                                "height": 190,
+                                "weight": 91,
+                                "jersey_number": 24,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Nkol Ngok",
+                                "starter": true,
+                                "played": true,
+                                "order": 1,
+                                "position": "goalkeeper"
+                            },
+                            {
+                                "id": "sr:player:30144",
+                                "name": "Evans, Jonny",
+                                "type": "defender",
+                                "date_of_birth": "1988-01-03",
+                                "nationality": "Northern ireland",
+                                "country_code": "NIR",
+                                "height": 188,
+                                "weight": 77,
+                                "jersey_number": 35,
+                                "preferred_foot": "both",
+                                "place_of_birth": "Belfast",
+                                "starter": true,
+                                "played": true,
+                                "order": 4,
+                                "position": "central_defender"
+                            },
+                            {
+                                "id": "sr:player:817522",
+                                "name": "Dalot, Diogo",
+                                "type": "defender",
+                                "date_of_birth": "1999-03-18",
+                                "nationality": "Portugal",
+                                "country_code": "PRT",
+                                "height": 184,
+                                "weight": 78,
+                                "jersey_number": 20,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Braga",
+                                "starter": true,
+                                "played": true,
+                                "order": 2,
+                                "position": "right_back"
+                            },
+                            {
+                                "id": "sr:player:288205",
+                                "name": "Fernandes, Bruno",
+                                "type": "midfielder",
+                                "date_of_birth": "1994-09-08",
+                                "nationality": "Portugal",
+                                "country_code": "PRT",
+                                "height": 183,
+                                "weight": 64,
+                                "jersey_number": 8,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Maria",
+                                "starter": true,
+                                "played": true,
+                                "order": 10,
+                                "position": "striker"
+                            },
+                            {
+                                "id": "sr:player:936126",
+                                "name": "Mount, Mason",
+                                "type": "midfielder",
+                                "date_of_birth": "1999-01-10",
+                                "nationality": "England",
+                                "country_code": "ENG",
+                                "height": 180,
+                                "weight": 65,
+                                "jersey_number": 7,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Portsmouth",
+                                "starter": true,
+                                "played": true,
+                                "order": 6,
+                                "position": "central_midfielder"
+                            },
+                            {
+                                "id": "sr:player:122951",
+                                "name": "Casemiro",
+                                "type": "midfielder",
+                                "date_of_birth": "1992-02-23",
+                                "nationality": "Brazil",
+                                "country_code": "BRA",
+                                "height": 185,
+                                "weight": 84,
+                                "jersey_number": 18,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Sao Jose dos Campos",
+                                "starter": true,
+                                "played": true,
+                                "order": 7,
+                                "position": "central_midfielder"
+                            },
+                            {
+                                "id": "sr:player:2264945",
+                                "name": "Mainoo, Kobbie",
+                                "type": "midfielder",
+                                "date_of_birth": "2005-04-19",
+                                "nationality": "England",
+                                "country_code": "ENG",
+                                "height": 175,
+                                "weight": 71,
+                                "jersey_number": 37,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Stockport",
+                                "starter": true,
+                                "played": true,
+                                "order": 8,
+                                "position": "central_midfielder"
+                            },
+                            {
+                                "id": "sr:player:903830",
+                                "name": "Rashford, Marcus",
+                                "type": "forward",
+                                "date_of_birth": "1997-10-31",
+                                "nationality": "England",
+                                "country_code": "ENG",
+                                "height": 180,
+                                "weight": 70,
+                                "jersey_number": 10,
+                                "preferred_foot": "right",
+                                "place_of_birth": "Manchester",
+                                "starter": true,
+                                "played": true,
+                                "order": 11,
+                                "position": "striker"
+                            },
+                            {
+                                "id": "sr:player:1886726",
+                                "name": "Diallo, Amad",
+                                "type": "midfielder",
+                                "date_of_birth": "2002-07-11",
+                                "nationality": "Cote d ivoire",
+                                "country_code": "CIV",
+                                "height": 173,
+                                "weight": 70,
+                                "jersey_number": 16,
+                                "preferred_foot": "left",
+                                "place_of_birth": "Abidjan",
+                                "starter": true,
+                                "played": true,
+                                "order": 9,
+                                "position": "striker"
+                            }
+                        ],
+                        "jersey": {
+                            "type": "home",
+                            "base": "ea0000",
+                            "sleeve": "ea0000",
+                            "number": "ffffff",
+                            "squares": false,
+                            "stripes": false,
+                            "horizontal_stripes": false,
+                            "split": false,
+                            "shirt_type": "short_sleeves",
+                            "sleeve_detail": "ff0000"
+                        },
+                        "manager": {
+                            "id": "sr:player:53013",
+                            "name": "ten Hag, Erik",
+                            "date_of_birth": "1970-02-02",
+                            "nationality": "Netherlands",
+                            "country_code": "NLD"
+                        },
+                        "formation": {
+                            "type": "4-3-3"
+                        }
+                    }
+                ]
+            }
+        }
+    ]
+}

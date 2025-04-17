@@ -18,7 +18,7 @@ def datetime_string_converter(raw_datetime):
 scraped_data = []
 
 # Load dict of leagues to scrape
-with open('C:/Users/Admin/Football Predictor/Football-Predictor/Data/APIfootball/league_dict.json', 'r') as file:
+with open('data/apifootball/league_dict.json', 'r') as file:
     dict_of_scrapable_leagues = json.load(file)
 
 # API setup
@@ -29,8 +29,6 @@ headers = {
     'x-rapidapi-key': api_key,
     'x-rapidapi-host': 'v3.football.api-sports.io'
 }
-
-
 
 ##### Fetch data ########################################################################
 for country in dict_of_scrapable_leagues:
@@ -44,9 +42,7 @@ for country in dict_of_scrapable_leagues:
 
         for year in years:
             print(f"-------- {year}")
-
             try:
-            
                 # Get fixtures info
                 fixtures_response = requests.get(url + f"fixtures?league={competition_id}&season={year}", headers=headers, data=payload)
                 if fixtures_response.status_code != 200:
@@ -159,7 +155,7 @@ for i, match in enumerate(scraped_data):
 
 
 ######### Save to JSON file ###################################################################
-output_path = 'C:/Users/Admin/Football Predictor/Football-Predictor/Data/APIfootball/raw/basic_match_data.json'
+output_path = 'data/apifootball/raw/basic_match_data.json'
 with open(output_path, 'w') as file:
     json.dump(scraped_data, file, indent=4)
     print(f"Data saved to {output_path}")
