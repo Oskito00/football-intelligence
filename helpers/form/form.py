@@ -1,7 +1,6 @@
 import sqlite3
 import json
 
-
 def get_last_n_matches_for_team(conn, team_id, start_time, n=50):
     cursor = conn.cursor()
     cursor.execute("""

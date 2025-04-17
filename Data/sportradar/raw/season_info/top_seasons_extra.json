@@ -1,0 +1,205 @@
+{
+    "ScottishPremiership": {
+        "competition_id": "sr:competition:36",
+        "seasons": [
+            {
+                "id": "sr:season:93979",
+                "name": "Premiership 22/23",
+                "start_date": "2022-07-30",
+                "end_date": "2023-06-04",
+                "year": "22/23",
+                "competition_id": "sr:competition:36"
+            },
+            {
+                "id": "sr:season:106227",
+                "name": "Premiership 23/24",
+                "start_date": "2023-08-05",
+                "end_date": "2024-05-26",
+                "year": "23/24",
+                "competition_id": "sr:competition:36"
+            },
+            {
+                "id": "sr:season:118957",
+                "name": "Premiership 24/25",
+                "start_date": "2024-08-03",
+                "end_date": "2025-05-18",
+                "year": "24/25",
+                "competition_id": "sr:competition:36"
+            }
+        ]
+    },
+    "Liga Portugal": {
+        "competition_id": "sr:competition:238",
+        "seasons": [
+            {
+                "id": "sr:season:94179",
+                "name": "Liga Portugal 22/23",
+                "start_date": "2022-08-05",
+                "end_date": "2023-06-11",
+                "year": "22/23",
+                "competition_id": "sr:competition:238"
+            },
+            {
+                "id": "sr:season:107373",
+                "name": "Liga Portugal 23/24",
+                "start_date": "2023-08-11",
+                "end_date": "2024-06-02",
+                "year": "23/24",
+                "competition_id": "sr:competition:238"
+            },
+            {
+                "id": "sr:season:119847",
+                "name": "Liga Portugal 24/25",
+                "start_date": "2024-08-09",
+                "end_date": "2025-06-02",
+                "year": "24/25",
+                "competition_id": "sr:competition:238"
+            }
+        ]
+    },
+    "Coratian HNL": {
+        "competition_id": "sr:competition:170",
+        "seasons": [
+            {
+                "id": "sr:season:94283",
+                "name": "HNL 22/23",
+                "start_date": "2022-07-15",
+                "end_date": "2023-06-04",
+                "year": "22/23",
+                "competition_id": "sr:competition:170"
+            },
+            {
+                "id": "sr:season:106503",
+                "name": "HNL 23/24",
+                "start_date": "2023-07-21",
+                "end_date": "2024-05-26",
+                "year": "23/24",
+                "competition_id": "sr:competition:170"
+            },
+            {
+                "id": "sr:season:119313",
+                "name": "HNL 24/25",
+                "start_date": "2024-08-02",
+                "end_date": "2025-05-26",
+                "year": "24/25",
+                "competition_id": "sr:competition:170"
+            }
+        ]
+    },
+    "Belgian Pro League": {
+        "competition_id": "sr:competition:38",
+        "seasons": [
+            {
+                "id": "sr:season:94707",
+                "name": "Pro League 22/23",
+                "start_date": "2022-07-22",
+                "end_date": "2023-06-04",
+                "year": "22/23",
+                "competition_id": "sr:competition:38"
+            },
+            {
+                "id": "sr:season:106301",
+                "name": "Pro League 23/24",
+                "start_date": "2023-07-28",
+                "end_date": "2024-06-02",
+                "year": "23/24",
+                "competition_id": "sr:competition:38"
+            },
+            {
+                "id": "sr:season:119497",
+                "name": "Pro League 24/25",
+                "start_date": "2024-07-26",
+                "end_date": "2025-05-29",
+                "year": "24/25",
+                "competition_id": "sr:competition:38"
+            }
+        ]
+    },
+    "Slovakian SuperLiga": {
+        "competition_id": "sr:competition:211",
+        "seasons": [
+            {
+                "id": "sr:season:94443",
+                "name": "Superliga 22/23",
+                "start_date": "2022-07-15",
+                "end_date": "2023-05-26",
+                "year": "22/23",
+                "competition_id": "sr:competition:211"
+            },
+            {
+                "id": "sr:season:107013",
+                "name": "Superliga 23/24",
+                "start_date": "2023-07-28",
+                "end_date": "2024-05-26",
+                "year": "23/24",
+                "competition_id": "sr:competition:211"
+            },
+            {
+                "id": "sr:season:119989",
+                "name": "Superliga 24/25",
+                "start_date": "2024-07-27",
+                "end_date": "2025-05-26",
+                "year": "24/25",
+                "competition_id": "sr:competition:211"
+            }
+        ]
+    },
+    "Serbian SuperLiga": {
+        "competition_id": "sr:competition:210",
+        "seasons": [
+            {
+                "id": "sr:season:94503",
+                "name": "Superliga 22/23",
+                "start_date": "2022-07-07",
+                "end_date": "2023-06-04",
+                "year": "22/23",
+                "competition_id": "sr:competition:210"
+            },
+            {
+                "id": "sr:season:107891",
+                "name": "Superliga 23/24",
+                "start_date": "2023-07-29",
+                "end_date": "2024-06-03",
+                "year": "23/24",
+                "competition_id": "sr:competition:210"
+            },
+            {
+                "id": "sr:season:119517",
+                "name": "Superliga 24/25",
+                "start_date": "2024-07-19",
+                "end_date": "2025-06-30",
+                "year": "24/25",
+                "competition_id": "sr:competition:210"
+            }
+        ]
+    },
+    "Ukrainian Premier League": {
+        "competition_id": "sr:competition:218",
+        "seasons": [
+            {
+                "id": "sr:season:96865",
+                "name": "Premier League 22/23",
+                "start_date": "2022-08-23",
+                "end_date": "2023-06-14",
+                "year": "22/23",
+                "competition_id": "sr:competition:218"
+            },
+            {
+                "id": "sr:season:107443",
+                "name": "Premier League 23/24",
+                "start_date": "2023-07-28",
+                "end_date": "2024-06-02",
+                "year": "23/24",
+                "competition_id": "sr:competition:218"
+            },
+            {
+                "id": "sr:season:120467",
+                "name": "Premier League 24/25",
+                "start_date": "2024-07-26",
+                "end_date": "2025-06-02",
+                "year": "24/25",
+                "competition_id": "sr:competition:218"
+            }
+        ]
+    }
+}
