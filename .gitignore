@@ -4,6 +4,7 @@
 *.txt
 *.log
 *.joblib
+*.json
 sportradar/AI/models/analysis/hybrid_model_importance.png
 sportradar/AI/feature_engineering/jobs/competition_id_encoder.joblib
 football_data.db-shm
