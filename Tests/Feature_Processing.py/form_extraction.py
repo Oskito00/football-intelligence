@@ -14,7 +14,7 @@
 
 import pytest
 
-from helpers.form import calculate_form_stats_for_multiple_ns, enrich_matches_data_with_elo_ratings, get_elo_ratings_for_multiple_matches, get_last_n_matches_for_team
+from helpers.form.form import calculate_form_stats_for_multiple_ns, enrich_matches_data_with_elo_ratings, get_elo_ratings_for_multiple_matches, get_last_n_matches_for_team
 
 
 def test_get_last_n_matches_for_team(conn):
