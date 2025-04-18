@@ -42,22 +42,29 @@ def calculate_elo_based_stats(previous_matches, n):
     Returns:
         Dictionary of ELO-based statistics
     """
-    # Find all ELO categories from the data
-    elo_categories = set()
-    for match in previous_matches:
-        if 'elo_ratings' in match:
-            for key in match['elo_ratings']:
-                if key.startswith('average_') and not key.startswith('opponent_'):
-                    elo_type = key[8:]  # Remove 'average_' prefix
-                    elo_categories.add(elo_type)
-    
+
+    predefined_elo_categories = [
+        'nation_elo',
+        'league_domestic_elo',
+        'league_continental_elo',
+        'elo_home_matches',
+        'elo_away_matches',
+        'elo',
+        'elo_domestic',
+        'elo_intraleague',
+        'elo_international'
+    ]
+
     # Initialize statistics dictionary
     stats = {}
+
+    # Find all ELO categories from the data
+    # Initialize all possible stats to 0
     
     # For each ELO category (nation_elo, league_domestic_elo, etc.)
-    for elo_type in elo_categories:
+    for elo_type in predefined_elo_categories:
         # Initialize counters for better/worse comparisons
-        for comparison in ['better', 'worse']:
+        for comparison in ['better', 'worse', 'similar']:
             stats[f'matches_vs_{comparison}_{elo_type}'] = 0
             stats[f'wins_vs_{comparison}_{elo_type}'] = 0
             stats[f'draws_vs_{comparison}_{elo_type}'] = 0
@@ -65,7 +72,7 @@ def calculate_elo_based_stats(previous_matches, n):
             stats[f'goals_conceded_vs_{comparison}_{elo_type}'] = 0
     
     # Track ELO changes
-    for elo_type in elo_categories:
+    for elo_type in predefined_elo_categories:
         stats[f'total_{elo_type}_change'] = 0
     
     # Process matches
@@ -74,7 +81,7 @@ def calculate_elo_based_stats(previous_matches, n):
             continue
             
         # For each ELO category
-        for elo_type in elo_categories:
+        for elo_type in predefined_elo_categories:
             team_key = f'average_{elo_type}'
             opponent_key = f'opponent_{team_key}'
             
@@ -83,7 +90,14 @@ def calculate_elo_based_stats(previous_matches, n):
                 opponent_elo = match['elo_ratings'][opponent_key]
                 
                 # Determine if opponent has better or worse ELO
-                comparison = 'better' if opponent_elo > team_elo else 'worse'
+                elo_difference = opponent_elo - team_elo
+                epsilon = 2
+                if abs(elo_difference) < epsilon:  # Considered similar if difference less than 3
+                    comparison = 'similar'
+                elif elo_difference > epsilon:
+                    comparison = 'better'
+                elif elo_difference < -epsilon:
+                    comparison = 'worse'
                 
                 # Count match
                 stats[f'matches_vs_{comparison}_{elo_type}'] += 1
@@ -107,39 +121,33 @@ def calculate_elo_based_stats(previous_matches, n):
                         stats[f'total_{elo_type}_change'] += elo_change
     
     # Calculate derived statistics
-    for elo_type in elo_categories:
-        for comparison in ['better', 'worse']:
+    for elo_type in predefined_elo_categories:
+        for comparison in ['better', 'worse', 'similar']:
             matches_key = f'matches_vs_{comparison}_{elo_type}'
             
             if stats[matches_key] > 0:
                 # Calculate win and draw rates
-                stats[f'wins_vs_{comparison}_{elo_type}'] = stats[f'wins_vs_{comparison}_{elo_type}'] / stats[matches_key]
-                stats[f'draws_vs_{comparison}_{elo_type}'] = stats[f'draws_vs_{comparison}_{elo_type}'] / stats[matches_key]
-                
-                # Calculate average goals
-                stats[f'ave_goals_scored_vs_{comparison}_{elo_type}'] = stats[f'goals_scored_vs_{comparison}_{elo_type}'] / stats[matches_key]
-                stats[f'ave_goals_conceded_vs_{comparison}_{elo_type}'] = stats[f'goals_conceded_vs_{comparison}_{elo_type}'] / stats[matches_key]
-                
-                # Remove raw totals
-                del stats[f'goals_scored_vs_{comparison}_{elo_type}']
-                del stats[f'goals_conceded_vs_{comparison}_{elo_type}']
+                stats[f'wins_vs_{comparison}_{elo_type}'] = stats[f'wins_vs_{comparison}_{elo_type}']
+                stats[f'draws_vs_{comparison}_{elo_type}'] = stats[f'draws_vs_{comparison}_{elo_type}']
+                stats[f'ave_goals_scored_vs_{comparison}_{elo_type}'] = stats[f'goals_scored_vs_{comparison}_{elo_type}']/stats[f'matches_vs_{comparison}_{elo_type}']
+                stats[f'ave_goals_conceded_vs_{comparison}_{elo_type}'] = stats[f'goals_conceded_vs_{comparison}_{elo_type}']/stats[f'matches_vs_{comparison}_{elo_type}']
             else:
                 # Set defaults for no matches
                 stats[f'wins_vs_{comparison}_{elo_type}'] = 0
                 stats[f'draws_vs_{comparison}_{elo_type}'] = 0
                 stats[f'ave_goals_scored_vs_{comparison}_{elo_type}'] = 0
                 stats[f'ave_goals_conceded_vs_{comparison}_{elo_type}'] = 0
-                
-                # Remove raw totals
-                if f'goals_scored_vs_{comparison}_{elo_type}' in stats:
-                    del stats[f'goals_scored_vs_{comparison}_{elo_type}']
-                if f'goals_conceded_vs_{comparison}_{elo_type}' in stats:
-                    del stats[f'goals_conceded_vs_{comparison}_{elo_type}']
+            
+            del stats[f'goals_scored_vs_{comparison}_{elo_type}']
+            del stats[f'goals_conceded_vs_{comparison}_{elo_type}']
+    
+
     
     # Calculate average ELO change
-    for elo_type in elo_categories:
+    for elo_type in predefined_elo_categories:
         stats[f'ave_{elo_type}_change'] = stats[f'total_{elo_type}_change'] / (len(previous_matches) - 1) if len(previous_matches) > 1 else 0
         del stats[f'total_{elo_type}_change']
+
     
     return stats
 
@@ -164,7 +172,19 @@ def calculate_form_stats_in_last_n_matches(previous_matches, n):
         'away_match_count': 0,
         'intraleague_match_count': 0,
         'domestic_comp_match_count': 0,
-        'continental_match_count': 0
+        'continental_match_count': 0,
+        'ave_goals_scored': 0,
+        'ave_goals_conceded': 0,
+        'ave_goals_scored_at_home': 0,
+        'ave_goals_conceded_at_home': 0,
+        'ave_goals_scored_away': 0,
+        'ave_goals_conceded_away': 0,
+        'ave_intraleague_goals_scored': 0,
+        'ave_intraleague_goals_conceded': 0,
+        'ave_domestic_comp_goals_scored': 0,
+        'ave_domestic_comp_goals_conceded': 0,
+        'ave_continental_goals_scored': 0,
+        'ave_continental_goals_conceded': 0
     }
 
     calculation_stats ={
@@ -181,6 +201,9 @@ def calculate_form_stats_in_last_n_matches(previous_matches, n):
         'continental_goals_scored': 0,
         'continental_goals_conceded': 0
         }
+    
+    if not previous_matches:
+        elo_stats = calculate_elo_based_stats(previous_matches, n)
     
     # Single pass through matches
     for match in previous_matches:
@@ -286,12 +309,10 @@ def calculate_form_stats_for_multiple_ns(previous_matches, n_lengths=[1, 3, 5, 1
         Combined dictionary with all statistics for all periods
     """
     all_stats = {}
-    
     # Process each period length
     for n in n_lengths:
         # Only use matches up to length n (or all if we have fewer)
         matches_to_use = previous_matches[:n] if len(previous_matches) >= n else previous_matches
-        
         # Calculate stats for this period
         n_stats = calculate_form_stats_in_last_n_matches(matches_to_use, n)
         
@@ -304,7 +325,7 @@ def safe_divide(numerator, denominator):
     """Handle division by zero gracefully"""
     return numerator / denominator if denominator else 0
 
-def get_elo_ratings_for_match(conn, match_id, team_id, is_home):
+def get_elo_ratings_for_match(conn, match_id, team_id, is_home, data_exists=True):
     """
     Retrieve and calculate average ELO ratings for both the team and opponent in a specific match.
     
@@ -313,7 +334,7 @@ def get_elo_ratings_for_match(conn, match_id, team_id, is_home):
         match_id: The match ID
         team_id: The team ID
         is_home: Boolean indicating if the team is the home team
-    
+        data_exists: Boolean indicating if the data exists
     Returns:
         Dictionary with averaged ELO ratings for both team and opponent
     """
@@ -335,7 +356,7 @@ def get_elo_ratings_for_match(conn, match_id, team_id, is_home):
         "elo_intraleague",
         "elo_international"
     ]
-    
+
     # Define K-factors
     k_factors = [5, 10, 20, 30, 40, 80]
     
@@ -348,58 +369,43 @@ def get_elo_ratings_for_match(conn, match_id, team_id, is_home):
     cursor.execute(query, (match_id,))
     row = cursor.fetchone()
     
-    if not row:
-        return None
-    
     # Get column names from cursor
     column_names = [description[0] for description in cursor.description]
     
-    # Create result dictionary
     result = {}
     
-    # Calculate averages for each category for team
+    # Update averages only if data exists
     for category in categories:
-        # Find all columns for this category with different K-factors
-        team_category_values = []
+        # Team processing
+        team_values = []
         for k in k_factors:
-            column_name = f"{team_prefix}_{category}_K{k}"
-            if column_name in column_names:
-                column_index = column_names.index(column_name)
-                value = row[column_index]
-                if value is not None:  # Skip NULL values
-                    team_category_values.append(value)
+            col_name = f"{team_prefix}_{category}_K{k}"
+            if col_name in column_names:
+                val = row[column_names.index(col_name)]
+                if val is not None:
+                    team_values.append(val)
+        if team_values:
+            result[f"average_{category}"] = sum(team_values)/len(team_values)
         
-        # Calculate average if we have values
-        if team_category_values:
-            average_value = sum(team_category_values) / len(team_category_values)
-            result[f"average_{category}"] = average_value
-    
-    # Calculate averages for each category for opponent
-    for category in categories:
-        # Find all columns for this category with different K-factors
-        opponent_category_values = []
+        # Opponent processing
+        opponent_values = []
         for k in k_factors:
-            column_name = f"{opponent_prefix}_{category}_K{k}"
-            if column_name in column_names:
-                column_index = column_names.index(column_name)
-                value = row[column_index]
-                if value is not None:  # Skip NULL values
-                    opponent_category_values.append(value)
-        
-        # Calculate average if we have values
-        if opponent_category_values:
-            average_value = sum(opponent_category_values) / len(opponent_category_values)
-            result[f"opponent_average_{category}"] = average_value
+            col_name = f"{opponent_prefix}_{category}_K{k}"
+            if col_name in column_names:
+                val = row[column_names.index(col_name)]
+                if val is not None:
+                    opponent_values.append(val)
+        if opponent_values:
+            result[f"opponent_average_{category}"] = sum(opponent_values)/len(opponent_values)
     
-    # Also store team and opponent IDs for reference
-    team_id_column = f"{team_prefix}_id"
-    opponent_id_column = f"{opponent_prefix}_id"
+    # Update IDs if available
+    team_id_col = f"{team_prefix}_id"
+    if team_id_col in column_names:
+        result["team_id"] = row[column_names.index(team_id_col)] or team_id
     
-    if team_id_column in column_names:
-        result["team_id"] = row[column_names.index(team_id_column)]
-    
-    if opponent_id_column in column_names:
-        result["opponent_id"] = row[column_names.index(opponent_id_column)]
+    opponent_id_col = f"{opponent_prefix}_id"
+    if opponent_id_col in column_names:
+        result["opponent_id"] = row[column_names.index(opponent_id_col)]
     
     cursor.close()
     return result
@@ -414,7 +420,6 @@ def get_elo_ratings_for_multiple_matches(conn, matches, team_id):
     return results
 
 def enrich_matches_data_with_elo_ratings(matches, elo_ratings):
-
     enriched_matches = []
     for match in matches:
         match_id = match['match_id']
@@ -425,10 +430,11 @@ def enrich_matches_data_with_elo_ratings(matches, elo_ratings):
 
 
 
-if __name__ == "__main__":
-    conn = sqlite3.connect("v2db.sqlite")
-    matches = get_last_n_matches_for_team(conn, 'sr:competitor:42', '2024-03-31T12:30:00+00:00',50)
-    elo_ratings = get_elo_ratings_for_multiple_matches(conn, matches, 'sr:competitor:42')
-    enriched_matches = enrich_matches_data_with_elo_ratings(matches, elo_ratings)
-    form_stats = calculate_form_stats_for_multiple_ns(enriched_matches, [1,3,5,10,20,50])
-    print(form_stats)
+# if __name__ == "__main__":
+#     conn = sqlite3.connect("v2db.sqlite")
+#     matches = get_last_n_matches_for_team(conn, 'sr:competitor:42', '2023-04-22T14:00:00+00:00',10)
+#     elo_ratings = get_elo_ratings_for_multiple_matches(conn, matches, 'sr:competitor:42')
+#     enriched_matches = enrich_matches_data_with_elo_ratings(matches, elo_ratings)
+#     form_stats = calculate_form_stats_for_multiple_ns(enriched_matches, [3])
+#     form_stats = {f'home_{key}': value for key, value in form_stats.items()}
+#     print(form_stats)
