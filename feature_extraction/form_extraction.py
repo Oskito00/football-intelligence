@@ -1,5 +1,5 @@
 from asyncio import sleep
-from datetime import time
+import time
 import sqlite3
 from helpers.database_helpers.dict_to_sqlite import dict_to_sqlite
 from helpers.database_helpers.form_history import combine_stats
@@ -10,11 +10,16 @@ def form_extraction(matches):
     conn = sqlite3.connect('v2db.sqlite')
     n = [1, 3, 5, 10, 20]
 
+    function_start_time = time.time()
+
     #Always ignore the first 1000 matches for elo parameter tuning
     first_1000 = matches[:1000]
     rest = matches[1000:]
 
     # Ignore first 1000 matches for parameter tuning as in all the other processing files.
+    batch = []
+    BATCH_SIZE = 100  # Tune based on memory
+    
     for match in rest:
         match_id, start_time, competition_id, competition_name, competition_country, home_team_id, home_team_name, away_team_id, away_team_name, \
         home_score, away_score, home_main_comp_id, home_main_comp_country, \
@@ -35,8 +40,20 @@ def form_extraction(matches):
         away_stats = calculate_form_stats_for_multiple_ns(away_matches_and_elo_ratings, n)
 
         combined_stats = combine_stats(match_id, home_stats, away_stats)
+        batch.append(combined_stats)
+        
+        if len(batch) >= BATCH_SIZE:
+            print("Processing batch of size: ", len(batch))
+            dict_to_sqlite('v2db.sqlite', 'form_history', batch)
+            batch = []
 
-        dict_to_sqlite('v2db.sqlite', 'form_history', combined_stats)
+    # Process remaining items
+    if batch:
+        print("Processing remaining items of size: ", len(batch))
+        dict_to_sqlite('v2db.sqlite', 'form_history', batch)
+
+    function_end_time = time.time()
+    print(f"Function took {function_end_time - function_start_time} seconds to run")
 
 if __name__ == "__main__":
     conn = sqlite3.connect('v2db.sqlite')
