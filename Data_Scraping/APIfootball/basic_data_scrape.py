@@ -33,7 +33,8 @@ headers = {
 
 
 ##### Fetch data ########################################################################
-for country in dict_of_scrapable_leagues:
+# for country in dict_of_scrapable_leagues:
+for country in ['Germany']:
     print(f"Uploading {country}...")
     competition_list = dict_of_scrapable_leagues[country]
 
@@ -79,11 +80,10 @@ for country in dict_of_scrapable_leagues:
                     home_score = content['score']['fulltime']['home']
                     away_score = content['score']['fulltime']['away']
 
-                    try:
+                    if home_score and away_score:
                         result = 'Draw' if home_score == away_score else 'Home Win' if home_score > away_score else 'Away Win';
-                    except TypeError:
+                    else:
                         result = None;
-                
                     
                     
                     match_obj = {
@@ -147,15 +147,11 @@ for i, match in enumerate(scraped_data):
     home_team_all_competitions_dict = domestic_league_dict[home_team_id][year];
     away_team_all_competitions_dict = domestic_league_dict[away_team_id][year];
 
-    home_team_all_competitions_list = [home_team_all_competitions_dict[comp] for comp in home_team_all_competitions_dict];
-    away_team_all_competitions_list = [home_team_all_competitions_dict[comp] for comp in home_team_all_competitions_dict];
-
-    home_team_domestic_league = max(home_team_all_competitions_list);
-    away_team_domestic_league = max(away_team_all_competitions_list);
+    home_team_domestic_league = max(home_team_all_competitions_dict, key=home_team_all_competitions_dict.get);
+    away_team_domestic_league = max(away_team_all_competitions_dict, key=away_team_all_competitions_dict.get);
 
     scraped_data[i]['home_team_domestic_league_id'] = home_team_domestic_league;
     scraped_data[i]['away_team_domestic_league_id'] = away_team_domestic_league;
-
 
 
 ######### Save to JSON file ###################################################################
@@ -163,3 +159,9 @@ output_path = 'C:/Users/Admin/Football Predictor/Football-Predictor/Data/APIfoot
 with open(output_path, 'w') as file:
     json.dump(scraped_data, file, indent=4)
     print(f"Data saved to {output_path}")
+
+
+###### Close Connection to Remote Host ################################################
+with requests.Session() as session:
+    response = session.get(url, headers=headers, params=params)
+    data = response.json()
