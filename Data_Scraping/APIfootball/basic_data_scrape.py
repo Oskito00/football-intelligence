@@ -159,9 +159,3 @@ output_path = 'C:/Users/Admin/Football Predictor/Football-Predictor/Data/APIfoot
 with open(output_path, 'w') as file:
     json.dump(scraped_data, file, indent=4)
     print(f"Data saved to {output_path}")
-
-
-###### Close Connection to Remote Host ################################################
-with requests.Session() as session:
-    response = session.get(url, headers=headers, params=params)
-    data = response.json()
