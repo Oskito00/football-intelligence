@@ -101,6 +101,13 @@ def xgboost_model():
         X, y_encoded, test_size=0.2, random_state=165
     )
 
+    class_weights = {
+    'home_win': 1,  # 0
+    'draw': 1,       # 1
+    'away_win': 1    # 2
+    }
+    sample_weights = np.array([class_weights[encoder.categories_[0][y]] for y in y_train])
+
     xgb_classifier = xgb.XGBClassifier(
         n_estimators=100,
         objective='multi:softprob',
@@ -109,7 +116,13 @@ def xgboost_model():
         max_depth=3,
         enable_categorical=True
     )
-    xgb_classifier.fit(X_train, y_train)
+    # Pass weights during training
+    xgb_classifier.fit(
+    X_train, y_train,
+    sample_weight=sample_weights,
+    eval_set=[(X_test, y_test)],
+    verbose=True
+)
 
     y_pred = xgb_classifier.predict(X_test)
     
@@ -147,23 +160,28 @@ def xgboost_model():
 
 if __name__ == "__main__":
     X, y = prepare_data()
-    columns_to_analyse = ['home_draws_in_last_5', 'away_draws_in_last_5', 'home_team_elo_K30', 'away_team_elo_K30', 'home_draws_in_last_10', 'away_draws_in_last_10', ]
-    #drop all but columns_to_analyse
-    X = X[columns_to_analyse]
-    #change y to be either draw or not draw
-    #so home_win= 0 ,away win=0, draw=1
-    #basically if its a draw mark it as 1 otherwise 0
-    #drop the first 1000
-    X = X.iloc[1000:]
-    y = y.iloc[1000:]
-    # Convert y to binary 'draw' vs 'not_draw'
-    y_binary = np.where(y == 'draw', 'draw', 'not_draw')
+    #print all columns
+    #save to text file
+    # with open('columns.txt', 'w') as f:
+    #     for column in X.columns:
+    #         f.write(column + '\n')
+    # columns_to_analyse = ['home_draws_in_last_5', 'away_draws_in_last_5', 'home_team_elo_K30', 'away_team_elo_K30', 'home_draws_in_last_10', 'away_draws_in_last_10', ]
+    # #drop all but columns_to_analyse
+    # X = X[columns_to_analyse]
+    # #change y to be either draw or not draw
+    # #so home_win= 0 ,away win=0, draw=1
+    # #basically if its a draw mark it as 1 otherwise 0
+    # #drop the first 1000
+    # X = X.iloc[1000:]
+    # y = y.iloc[1000:]
+    # # Convert y to binary 'draw' vs 'not_draw'
+    # y_binary = np.where(y == 'draw', 'draw', 'not_draw')
 
-    # Create DataFrame for plotting
-    plot_df = X.copy()
-    plot_df['result'] = y_binary
+    # # Create DataFrame for plotting
+    # plot_df = X.copy()
+    # plot_df['result'] = y_binary
 
-    # Generate pairplot
-    sns.pairplot(plot_df, hue='result', palette={'draw': 'red', 'not_draw': 'blue'})
-    plt.show()
-    # xgboost_model()
+    # # Generate pairplot
+    # sns.pairplot(plot_df, hue='result', palette={'draw': 'red', 'not_draw': 'blue'})
+    # plt.show()
+    xgboost_model()
