@@ -31,7 +31,8 @@ headers = {
 }
 
 ##### Fetch data ########################################################################
-for country in dict_of_scrapable_leagues:
+# for country in dict_of_scrapable_leagues:
+for country in ['Germany']:
     print(f"Uploading {country}...")
     competition_list = dict_of_scrapable_leagues[country]
 
@@ -75,11 +76,10 @@ for country in dict_of_scrapable_leagues:
                     home_score = content['score']['fulltime']['home']
                     away_score = content['score']['fulltime']['away']
 
-                    try:
+                    if home_score and away_score:
                         result = 'Draw' if home_score == away_score else 'Home Win' if home_score > away_score else 'Away Win';
-                    except TypeError:
+                    else:
                         result = None;
-                
                     
                     
                     match_obj = {
@@ -123,39 +123,37 @@ for country in dict_of_scrapable_leagues:
 
 
 ########### Assign domestic leagues to matches #################################################
-# NOTE: This is a temporary solution to assign domestic leagues to matches.
 
-# domestic_league_dict = defaultdict(lambda: defaultdict(lambda: defaultdict(int)));
+domestic_league_dict = defaultdict(lambda: defaultdict(lambda: defaultdict(int)));
 
-# for i, match in enumerate(scraped_data):
+for i, match in enumerate(scraped_data):
 
-#     year = match['competition_season_name'];
-#     home_team_id = match['home_team_id'];
-#     away_team_id = match['away_team_id'];
-#     competition_id = match['competition_id'];
+    year = match['competition_season_name'];
+    home_team_id = match['home_team_id'];
+    away_team_id = match['away_team_id'];
+    competition_id = match['competition_id'];
     
-#     domestic_league_dict[home_team_id][year][competition_id] += 1;
-#     domestic_league_dict[away_team_id][year][competition_id] += 1;
+    domestic_league_dict[home_team_id][year][competition_id] += 1;
+    domestic_league_dict[away_team_id][year][competition_id] += 1;
 
        
-# for i, match in enumerate(scraped_data):
+for i, match in enumerate(scraped_data):
 
-#     year = match['competition_season_name'];
-#     home_team_id = match['home_team_id'];
-#     away_team_id = match['away_team_id'];
+    year = match['competition_season_name'];
+    home_team_id = match['home_team_id'];
+    away_team_id = match['away_team_id'];
 
-#     home_team_all_competitions_dict = domestic_league_dict[home_team_id][year];
-#     away_team_all_competitions_dict = domestic_league_dict[away_team_id][year];
+    home_team_all_competitions_dict = domestic_league_dict[home_team_id][year];
+    away_team_all_competitions_dict = domestic_league_dict[away_team_id][year];
 
-#     home_team_all_competitions_list = [home_team_all_competitions_dict[comp] for comp in home_team_all_competitions_dict];
-#     away_team_all_competitions_list = [home_team_all_competitions_dict[comp] for comp in home_team_all_competitions_dict];
+    home_team_domestic_league = max(home_team_all_competitions_dict, key=home_team_all_competitions_dict.get);
+    away_team_domestic_league = max(away_team_all_competitions_dict, key=away_team_all_competitions_dict.get);
 
-#     home_team_domestic_league = max(home_team_all_competitions_list);
-#     away_team_domestic_league = max(away_team_all_competitions_list);
+    scraped_data[i]['home_team_domestic_league_id'] = home_team_domestic_league;
+    scraped_data[i]['away_team_domestic_league_id'] = away_team_domestic_league;
 
-#     scraped_data[i]['home_team_domestic_league_id'] = home_team_domestic_league;
-#     scraped_data[i]['away_team_domestic_league_id'] = away_team_domestic_league;
-
+    scraped_data[i]['home_team_domestic_league_id'] = home_team_domestic_league;
+    scraped_data[i]['away_team_domestic_league_id'] = away_team_domestic_league;
 
 ######### Save to JSON file ###################################################################
 output_path = 'data/apifootball/raw/basic_match_data.json'
