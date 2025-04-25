@@ -7,27 +7,35 @@ import json
 
 def create_matches_table(conn):
     conn.execute('''CREATE TABLE IF NOT EXISTS matches
+
                  (match_id TEXT, 
                  start_time TEXT, 
                  competition_id TEXT, 
                  competition_name TEXT,
                  competition_country TEXT,
-                 competition_season_id TEXT,
                  competition_season_name TEXT,
+                 competition_season_id TEXT,
                  season_start_date TEXT,
                  season_end_date TEXT,
                  round_info TEXT,
                  home_team_id TEXT,
                  home_team_name TEXT,
+                 home_team_domestic_league_id TEXT,
+                 home_team_domestic_country TEXT,
+                 away_team_domestic_league_id TEXT,
+                 away_team_domestic_country TEXT,
                  away_team_id TEXT,
                  away_team_name TEXT,
+                 match_status TEXT,
+                 home_score INTEGER,
+                 away_score INTEGER,
+                 result TEXT,
+                 is_processed INTEGER DEFAULT 0,
+
                  venue_id TEXT,
                  venue_name TEXT,
                  venue_capacity INTEGER,
                  status TEXT,
-                 match_status TEXT,
-                 home_score INTEGER,
-                 away_score INTEGER,
                  period_scores JSON, 
                  winner_id TEXT,
                  home_team_stats JSON,
@@ -39,8 +47,8 @@ def create_matches_table(conn):
                  home_team_formation TEXT,
                  away_team_lineup_info JSON,
                  away_team_manager_info JSON,
-                 away_team_formation TEXT,
-                 is_processed INTEGER DEFAULT 0
+                 away_team_formation TEXT
+                 
                  )''')
 
 #********************************************************************************************************************
@@ -76,6 +84,13 @@ def process_matches_jsons_to_sql(matches_directory, db_path):
                         home_team_player_stats = None
                         away_team_stats = None
                         away_team_player_stats = None
+                        
+                    home_score = summary.get('sport_event_status', {}).get('home_score')
+                    away_score = summary.get('sport_event_status', {}).get('away_score')
+                    if home_score and away_score:
+                        result = 'Draw' if home_score == away_score else 'Home Win' if home_score > away_score else 'Away Win';
+                    else:
+                        result = None;
                     match = {
                         'match_id': match_id,
                         'start_time': summary.get('sport_event', {}).get('start_time'),
@@ -89,15 +104,22 @@ def process_matches_jsons_to_sql(matches_directory, db_path):
                         'round_info': summary.get('sport_event', {}).get('sport_event_context', {}).get('round', {}),
                         'home_team_id': next(c.get('id') for c in summary.get('sport_event', {}).get('competitors', []) if c.get('qualifier') == 'home'),
                         'home_team_name': next(c.get('name') for c in summary.get('sport_event', {}).get('competitors', []) if c.get('qualifier') == 'home'),
+                        'home_team_domestic_league_id': None,
+                        'home_team_domestic_country': None,
+                        'away_team_domestic_league_id': None,
+                        'away_team_domestic_country': None,
                         'away_team_id': next(c.get('id') for c in summary.get('sport_event', {}).get('competitors', []) if c.get('qualifier') == 'away'),
                         'away_team_name': next(c.get('name') for c in summary.get('sport_event', {}).get('competitors', []) if c.get('qualifier') == 'away'),
+                        'match_status': summary.get('sport_event_status', {}).get('match_status'),
+                        'home_score': summary.get('sport_event_status', {}).get('home_score'),
+                        'away_score': summary.get('sport_event_status', {}).get('away_score'),
+                        'result': result,
+
+                        # Extra sport radar data
                         'venue_id': summary.get('sport_event', {}).get('venue', {}).get('id'),
                         'venue_name': summary.get('sport_event', {}).get('venue', {}).get('name'),
                         'venue_capacity': summary.get('sport_event', {}).get('venue', {}).get('capacity'),
                         'status': summary.get('sport_event_status', {}).get('status'),
-                        'match_status': summary.get('sport_event_status', {}).get('match_status'),
-                        'home_score': summary.get('sport_event_status', {}).get('home_score'),
-                        'away_score': summary.get('sport_event_status', {}).get('away_score'),
                         'period_scores': summary.get('sport_event_status', {}).get('period_scores'),
                         'winner_id': summary.get('sport_event_status', {}).get('winner_id'),
                         'home_team_stats': home_team_stats,
@@ -146,6 +168,13 @@ def process_lineups_jsons_to_sql(conn, lineups_directory, db_path):
                     away_team_lineup_info = competitors[1].get('players')
                     away_team_manager_info = competitors[1].get('manager')
                     away_team_formation = competitors[1].get('formation')
+
+                home_score = summary.get('sport_event_status', {}).get('home_score')
+                away_score = summary.get('sport_event_status', {}).get('away_score')
+                if home_score and away_score:
+                    result = 'Draw' if home_score == away_score else 'Home Win' if home_score > away_score else 'Away Win';
+                else:
+                    result = None;
                 
                 match = {
                     'match_id': match_id,
@@ -160,15 +189,21 @@ def process_lineups_jsons_to_sql(conn, lineups_directory, db_path):
                     'round_info': summary.get('sport_event', {}).get('sport_event_context', {}).get('round', {}),
                     'home_team_id': next(c.get('id') for c in summary.get('sport_event', {}).get('competitors', []) if c.get('qualifier') == 'home'),
                     'home_team_name': next(c.get('name') for c in summary.get('sport_event', {}).get('competitors', []) if c.get('qualifier') == 'home'),
+                    'home_team_domestic_league_id': None,
+                    'home_team_domestic_country': None,
+                    'away_team_domestic_league_id': None,
+                    'away_team_domestic_country': None,
                     'away_team_id': next(c.get('id') for c in summary.get('sport_event', {}).get('competitors', []) if c.get('qualifier') == 'away'),
                     'away_team_name': next(c.get('name') for c in summary.get('sport_event', {}).get('competitors', []) if c.get('qualifier') == 'away'),
+                    'match_status': summary.get('sport_event_status', {}).get('match_status'),
+                    'home_score': summary.get('sport_event_status', {}).get('home_score'),
+                    'away_score': summary.get('sport_event_status', {}).get('away_score'),
+                    'result': result,
+
                     'venue_id': summary.get('sport_event', {}).get('venue', {}).get('id'),
                     'venue_name': summary.get('sport_event', {}).get('venue', {}).get('name'),
                     'venue_capacity': summary.get('sport_event', {}).get('venue', {}).get('capacity'),
                     'status': summary.get('sport_event_status', {}).get('status'),
-                    'match_status': summary.get('sport_event_status', {}).get('match_status'),
-                    'home_score': summary.get('sport_event_status', {}).get('home_score'),
-                    'away_score': summary.get('sport_event_status', {}).get('away_score'),
                     'period_scores': summary.get('sport_event_status', {}).get('period_scores'),
                     'winner_id': summary.get('sport_event_status', {}).get('winner_id'),
                     'home_team_lineup_info': home_team_lineup_info,
@@ -250,5 +285,5 @@ def check_if_match_exists_and_has_ended(conn, match_id):
 if __name__ == '__main__':
     conn = sqlite3.connect('v2db.sqlite')
     # initialize_db('v2db.sqlite')
-    process_matches_jsons_to_sql('Data/raw/matches_data', 'v2db.sqlite')
-    process_lineups_jsons_to_sql(conn,'Data/raw/lineups_data', 'v2db.sqlite')
+    process_matches_jsons_to_sql('Data/sportradar/raw/matches_data', 'v2db.sqlite')
+    process_lineups_jsons_to_sql(conn,'Data/sportradar/raw/lineups_data', 'v2db.sqlite')
