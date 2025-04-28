@@ -280,9 +280,6 @@ def calculate_elo_ratings(conn, home_score, away_score, home_elos, away_elos,
     home_elo_updates = home_elos.copy()
     away_elo_updates = away_elos.copy()
 
-    
-
-    print(f"k_draw_parameter: {k_draw_parameter}, eta_home_advantage: {eta_home_advantage}")
 
     for k in k_values:
         column_name = f'{column_pattern}{k}'

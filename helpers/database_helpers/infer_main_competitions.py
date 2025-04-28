@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from collections import defaultdict
 from helpers.database_helpers.get_and_set_functions import get_main_league_and_nation_data
@@ -18,8 +19,8 @@ def count_competitions_per_year(matches):
          competition_name, competition_country) = match
 
         # Process season years
-        season_start_year = season_start_date.split(',')[0].strip()
-        season_end_year = season_end_date.split(',')[0].strip()
+        season_start_year = season_start_date.split('-')[0].strip()
+        season_end_year = season_end_date.split('-')[0].strip()
         combined_season_years = f"{season_start_year}_{season_end_year}"
 
         # Update home team data
@@ -30,7 +31,6 @@ def count_competitions_per_year(matches):
         team_dict[away_team_id]['seasons'][combined_season_years][competition_id] += 1
         team_dict[away_team_id]['countries'][competition_country] += 1
 
-    return team_dict
 
 def get_main_league_per_season(conn):
     """Infer the main competition and country for each team"""
@@ -46,8 +46,8 @@ def get_main_league_per_season(conn):
         match_id, home_team_id, home_team_name, away_team_id, away_team_name, competition_season_id, season_start_date, season_end_date, competition_id, competition_name, competition_country = match
 
         # Split on comma and take first element
-        season_start_year = season_start_date.split(',')[0]
-        season_end_year = season_end_date.split(',')[0]
+        season_start_year = season_start_date.split('-')[0]
+        season_end_year = season_end_date.split('-')[0]
         combined_season_years = f"{season_start_year}_{season_end_year}"
 
         home_team_all_competitions_dict = domestic_league_dict[home_team_id]['seasons'][combined_season_years];
