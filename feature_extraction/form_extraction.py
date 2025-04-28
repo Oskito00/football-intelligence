@@ -15,6 +15,7 @@ def form_extraction(matches):
     #Always ignore the first 1000 matches for elo parameter tuning
     first_1000 = matches[:1000]
     rest = matches[1000:]
+    remaining_matches = len(rest)
 
     # Ignore first 1000 matches for parameter tuning as in all the other processing files.
     batch = []
@@ -45,8 +46,9 @@ def form_extraction(matches):
         if len(batch) >= BATCH_SIZE:
             print("Processing batch of size: ", len(batch))
             dict_to_sqlite('v2db.sqlite', 'form_history', batch)
+            remaining_matches -= BATCH_SIZE
+            print("Matches remaining: ", remaining_matches)
             batch = []
-
     # Process remaining items
     if batch:
         print("Processing remaining items of size: ", len(batch))

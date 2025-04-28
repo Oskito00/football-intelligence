@@ -31,7 +31,7 @@ def get_last_n_matches_for_team(conn, team_id, start_time, n=50):
         return json.loads(result[0])
     return []
 
-def calculate_elo_based_stats(previous_matches, n):
+def calculate_elo_based_stats(previous_matches):
     """
     Calculate form statistics based on ELO comparisons
     
@@ -203,7 +203,7 @@ def calculate_form_stats_in_last_n_matches(previous_matches, n):
         }
     
     if not previous_matches:
-        elo_stats = calculate_elo_based_stats(previous_matches, n)
+        elo_stats = calculate_elo_based_stats(previous_matches)
     
     # Single pass through matches
     for match in previous_matches:
@@ -285,7 +285,7 @@ def calculate_form_stats_in_last_n_matches(previous_matches, n):
     )
     
     # Calculate ELO-based statistics
-    elo_stats = calculate_elo_based_stats(previous_matches, n)
+    elo_stats = calculate_elo_based_stats(previous_matches)
     
     # Merge ELO stats into main stats
     stats.update(elo_stats)
@@ -325,56 +325,59 @@ def safe_divide(numerator, denominator):
     """Handle division by zero gracefully"""
     return numerator / denominator if denominator else 0
 
-def get_elo_ratings_for_match(conn, match_id, team_id, is_home, data_exists=True):
+def get_elo_ratings_for_multiple_matches(conn, matches, team_id):
+    if not matches:
+        return {}
+
+    # Get all match IDs
+    match_ids = [str(m['match_id']) for m in matches]
+    placeholders = ','.join(['?'] * len(match_ids))
+
+    # Batch query
+    query = f"""
+        SELECT * FROM elo_history
+        WHERE match_id IN ({placeholders})
     """
-    Retrieve and calculate average ELO ratings for both the team and opponent in a specific match.
     
-    Args:
-        conn: Database connection
-        match_id: The match ID
-        team_id: The team ID
-        is_home: Boolean indicating if the team is the home team
-        data_exists: Boolean indicating if the data exists
-    Returns:
-        Dictionary with averaged ELO ratings for both team and opponent
-    """
+    # Execute batch query
     cursor = conn.cursor()
+    cursor.execute(query, match_ids)
+    rows = cursor.fetchall()
+    column_names = [desc[0] for desc in cursor.description]
     
-    # Determine team prefix based on home/away status
+    # Create lookup dictionary
+    elo_data = {row[column_names.index('match_id')]: row for row in rows}
+    
+    # Process all matches
+    results = {}
+    for match in matches:
+        match_id = match['match_id']
+        is_home = match['is_home']
+        
+        if match_id not in elo_data:
+            results[match_id] = {}
+            continue
+            
+        row = elo_data[match_id]
+        results[match_id] = get_elo_ratings_for_match(row, column_names, team_id, is_home)
+    
+    cursor.close()
+    return results
+
+def get_elo_ratings_for_match(row, column_names, team_id, is_home):
+    """Process a single ELO row into averaged values"""
     team_prefix = "home_team" if is_home else "away_team"
     opponent_prefix = "away_team" if is_home else "home_team"
     
-    # Define the categories we want to average
     categories = [
-        "nation_elo",
-        "league_domestic_elo",
-        "league_continental_elo",
-        "elo_home_matches",
-        "elo_away_matches",
-        "elo",
-        "elo_domestic",
-        "elo_intraleague",
-        "elo_international"
+        "nation_elo", "league_domestic_elo", "league_continental_elo",
+        "elo_home_matches", "elo_away_matches", "elo", "elo_domestic",
+        "elo_intraleague", "elo_international"
     ]
-
-    # Define K-factors
     k_factors = [5, 10, 20, 30, 40, 80]
-    
-    # Query to get all ELO columns for the match
-    query = f"""
-        SELECT * FROM elo_history 
-        WHERE match_id = ?
-    """
-    
-    cursor.execute(query, (match_id,))
-    row = cursor.fetchone()
-    
-    # Get column names from cursor
-    column_names = [description[0] for description in cursor.description]
     
     result = {}
     
-    # Update averages only if data exists
     for category in categories:
         # Team processing
         team_values = []
@@ -398,7 +401,7 @@ def get_elo_ratings_for_match(conn, match_id, team_id, is_home, data_exists=True
         if opponent_values:
             result[f"opponent_average_{category}"] = sum(opponent_values)/len(opponent_values)
     
-    # Update IDs if available
+    # Add IDs
     team_id_col = f"{team_prefix}_id"
     if team_id_col in column_names:
         result["team_id"] = row[column_names.index(team_id_col)] or team_id
@@ -407,17 +410,7 @@ def get_elo_ratings_for_match(conn, match_id, team_id, is_home, data_exists=True
     if opponent_id_col in column_names:
         result["opponent_id"] = row[column_names.index(opponent_id_col)]
     
-    cursor.close()
     return result
-
-def get_elo_ratings_for_multiple_matches(conn, matches, team_id):
-    results = {}
-    for match in matches:
-        match_id = match['match_id']
-        is_home = match['is_home']
-        elo_ratings = get_elo_ratings_for_match(conn, match_id, team_id, is_home)
-        results[match_id] = elo_ratings
-    return results
 
 def enrich_matches_data_with_elo_ratings(matches, elo_ratings):
     enriched_matches = []
@@ -427,7 +420,6 @@ def enrich_matches_data_with_elo_ratings(matches, elo_ratings):
         match['elo_ratings'] = elo_ratings[match_id]
         enriched_matches.append(match)
     return enriched_matches
-
 
 
 # if __name__ == "__main__":
