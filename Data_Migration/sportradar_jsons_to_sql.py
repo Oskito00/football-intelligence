@@ -55,8 +55,7 @@ def create_matches_table(conn):
 #MAIN FUNCTION
 #********************************************************************************************************************
 
-def process_matches_jsons_to_sql(matches_directory, db_path):
-    conn = sqlite3.connect(db_path)
+def process_matches_jsons_to_sql(conn, matches_directory, db_path):
     create_matches_table(conn)
 
     for filename in os.listdir(matches_directory):
@@ -64,14 +63,13 @@ def process_matches_jsons_to_sql(matches_directory, db_path):
             with open(os.path.join(matches_directory, filename), 'r') as file:
                 data = json.load(file)
                 print("Processing matches data file: ", filename)
+
+                matches_list = []
                 
                 # Loop through each summary (match) in the summaries (match) list
                 for summary in data['summaries']:
                     # If the match exists and has ended and all data is present, skip it, because we don't need to re-process it...
                     match_id = summary.get('sport_event', {}).get('id')
-                    if check_if_match_exists_and_has_ended(conn, match_id) :
-                        print(f"Match {match_id} already exists and has ended, skipping")
-                        continue
                     match_status = summary.get('sport_event_status', {}).get('match_status')
                     has_stats = summary.get('statistics') is not None                    
                     if (match_status != 'not_started' or match_status != 'postponed') and has_stats:
@@ -87,10 +85,6 @@ def process_matches_jsons_to_sql(matches_directory, db_path):
                         
                     home_score = summary.get('sport_event_status', {}).get('home_score')
                     away_score = summary.get('sport_event_status', {}).get('away_score')
-                    if home_score and away_score:
-                        result = 'Draw' if home_score == away_score else 'Home Win' if home_score > away_score else 'Away Win';
-                    else:
-                        result = None;
                     match = {
                         'match_id': match_id,
                         'start_time': summary.get('sport_event', {}).get('start_time'),
@@ -113,7 +107,7 @@ def process_matches_jsons_to_sql(matches_directory, db_path):
                         'match_status': summary.get('sport_event_status', {}).get('match_status'),
                         'home_score': summary.get('sport_event_status', {}).get('home_score'),
                         'away_score': summary.get('sport_event_status', {}).get('away_score'),
-                        'result': result,
+
 
                         # Extra sport radar data
                         'venue_id': summary.get('sport_event', {}).get('venue', {}).get('id'),
@@ -127,25 +121,27 @@ def process_matches_jsons_to_sql(matches_directory, db_path):
                         'away_team_stats': away_team_stats,
                         'away_team_player_stats': away_team_player_stats,
                     }
-                    insert_or_update_match_record(conn, match)
+                    matches_list.append(match)
+                
+                processed_match_ids = get_processed_matches(conn, matches_list)
+                unprocessed_matches = [m for m in matches_list if m['match_id'] not in processed_match_ids]
+
+                batch_upsert_matches(conn, unprocessed_matches)
+                    
     conn.commit()
-    conn.close()
 
 def process_lineups_jsons_to_sql(conn, lineups_directory, db_path):
+
     for filename in os.listdir(lineups_directory):
         if filename.endswith('.json'):
             with open(os.path.join(lineups_directory, filename), 'r') as file:
                 data = json.load(file)
                 print("Processing lineups data file: ", filename)
 
+            matches_list = []
 
-            # Loop through each summary (match) in the summaries (match) list
             for summary in data.get('lineups', []):
                 match_id = summary.get('sport_event', {}).get('id')
-                # If the match exists and has ended and all data is present, skip it, because we don't need to re-process it...
-                if check_if_match_exists_and_has_ended(conn, match_id) :
-                    print(f"Match {match_id} already exists and has ended, skipping")
-                    continue
 
                 lineups = summary.get('lineups', {})
                 competitors = lineups.get('competitors', [])
@@ -169,12 +165,12 @@ def process_lineups_jsons_to_sql(conn, lineups_directory, db_path):
                     away_team_manager_info = competitors[1].get('manager')
                     away_team_formation = competitors[1].get('formation')
 
-                home_score = summary.get('sport_event_status', {}).get('home_score')
-                away_score = summary.get('sport_event_status', {}).get('away_score')
-                if home_score and away_score:
-                    result = 'Draw' if home_score == away_score else 'Home Win' if home_score > away_score else 'Away Win';
+                match_status = summary.get('sport_event_status', {}).get('match_status')
+
+                if match_status == 'ended':
+                    is_processed = 1
                 else:
-                    result = None;
+                    is_processed = 0
                 
                 match = {
                     'match_id': match_id,
@@ -196,9 +192,7 @@ def process_lineups_jsons_to_sql(conn, lineups_directory, db_path):
                     'away_team_id': next(c.get('id') for c in summary.get('sport_event', {}).get('competitors', []) if c.get('qualifier') == 'away'),
                     'away_team_name': next(c.get('name') for c in summary.get('sport_event', {}).get('competitors', []) if c.get('qualifier') == 'away'),
                     'match_status': summary.get('sport_event_status', {}).get('match_status'),
-                    'home_score': summary.get('sport_event_status', {}).get('home_score'),
-                    'away_score': summary.get('sport_event_status', {}).get('away_score'),
-                    'result': result,
+                    'is_processed': is_processed,
 
                     'venue_id': summary.get('sport_event', {}).get('venue', {}).get('id'),
                     'venue_name': summary.get('sport_event', {}).get('venue', {}).get('name'),
@@ -213,60 +207,145 @@ def process_lineups_jsons_to_sql(conn, lineups_directory, db_path):
                     'away_team_manager_info': away_team_manager_info,
                     'away_team_formation': away_team_formation
                 }
-                insert_or_update_match_record(conn, match)
+                matches_list.append(match)
+            
+            processed_match_ids = get_processed_matches(conn, matches_list)
+            unprocessed_matches = [m for m in matches_list if m['match_id'] not in processed_match_ids]
+
+            batch_upsert_matches(conn, unprocessed_matches)
+            
+
+
     conn.commit()
     conn.close()
 
 #********************************************************************************************************************
 #Helper functions
 #********************************************************************************************************************
-    
-def insert_or_update_match_record(conn, match):
+
+def get_processed_matches(conn, incoming_matches):
+    """Return list of match IDs that already exist and are marked as processed"""
+    print("Len of incoming matches: ", len(incoming_matches))
+    if not incoming_matches:
+        return []
+
+    incoming_match_ids = [str(match['match_id']) for match in incoming_matches]
+    placeholders = ','.join(['?'] * len(incoming_match_ids))
+
+    query = f"""
+        SELECT match_id 
+        FROM matches 
+        WHERE match_id IN ({placeholders})
+          AND is_processed = 1
+    """
+
     try:
-        # Check if match already exists
         cursor = conn.cursor()
-        cursor.execute('SELECT * FROM matches WHERE match_id = ?', (match.get('match_id'),))
-        existing_match = cursor.fetchone()
-
-        if existing_match is None:
-            # Match doesn't exist - insert new record with all available data
-            columns = []
-            values = []
-            placeholders = []
-            
-            # Build dynamic INSERT query based on available data
-            for key, value in match.items():
-                if value is not None:
-                    columns.append(key)
-                    values.append(value if not isinstance(value, (dict, list)) else json.dumps(value))
-                    placeholders.append('?')
-            
-            query = f'''INSERT INTO matches ({','.join(columns)}) 
-                       VALUES ({','.join(placeholders)})'''
-            conn.execute(query, values)
-            
-        else:
-            # Match exists - update with any new data
-            updates = []
-            values = []
-            
-            # Only update fields that have new data
-            for key, value in match.items():
-                if value is not None:
-                    updates.append(f"{key} = ?")
-                    values.append(value if not isinstance(value, (dict, list)) else json.dumps(value))
-            
-            values.append(match.get('match_id'))  # Add match_id for WHERE clause
-            
-            query = f'''UPDATE matches 
-                       SET {','.join(updates)}
-                       WHERE match_id = ?'''
-            conn.execute(query, values)
-
+        cursor.execute(query, incoming_match_ids)
+        return [row[0] for row in cursor.fetchall()]
     except Exception as e:
-        print(f"Error inserting/updating match: {e}")
-        print(f"Problematic match data: {match}")
+        print(f"Error checking processed matches: {str(e)}")
+        return []
+
+def batch_upsert_matches(conn, matches):
+    if not matches:
+        return
+
+    # Prepare data
+    insert_data = []
+    update_data = []
+    all_match_ids = [m['match_id'] for m in matches]
+
+    # Check existing matches in bulk
+    existing_match_ids = get_existing_match_ids(conn, all_match_ids)
+
+    # Separate inserts and updates
+    for match in matches:
+        if match['match_id'] in existing_match_ids:
+            update_data.append(match)
+        else:
+            insert_data.append(match)
+
+    # Batch insert
+    if insert_data:
+        batch_insert_matches(conn, insert_data)
+    
+    # Batch update
+    if update_data:
+        batch_update_matches(conn, update_data)
+
+def get_existing_match_ids(conn, match_ids):
+    if not match_ids:
+        return set()
+    
+    placeholders = ','.join(['?'] * len(match_ids))
+    query = f"SELECT match_id FROM matches WHERE match_id IN ({placeholders})"
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute(query, match_ids)
+        return {row[0] for row in cursor.fetchall()}
+    except Exception as e:
+        print(f"Error in get_existing_match_ids: {str(e)}")
+        return set()
+
+def batch_insert_matches(conn, matches):
+    if not matches:
+        return
+
+    try:
+        columns = list(matches[0].keys())
+        insert_query = f"""
+            INSERT INTO matches ({','.join(columns)})
+            VALUES ({','.join(['?'] * len(columns))})
+        """
+        
+        values = [
+            tuple(json.dumps(v) if isinstance(v, (dict, list)) else v 
+                 for v in match.values())
+            for match in matches
+        ]
+        
+        cursor = conn.cursor()
+        cursor.executemany(insert_query, values)
+        conn.commit()
+        
+    except Exception as e:
+        print(f"Batch insert failed: {str(e)}")
+        conn.rollback()
         raise
+
+def batch_update_matches(conn, matches):
+    if not matches:
+        return
+
+    # Get columns to update (exclude match_id)
+    columns = [col for col in matches[0].keys() if col != 'match_id']
+    
+    # Prepare update query
+    set_clause = ','.join([f"{col} = ?" for col in columns])
+    update_query = f"""
+        UPDATE matches
+        SET {set_clause}
+        WHERE match_id = ?
+    """
+    
+    # Prepare data tuples
+    values = []
+    for match in matches:
+        row = [json.dumps(match[col]) if isinstance(match[col], (dict, list)) else match[col] 
+               for col in columns]
+        row.append(match['match_id'])
+        values.append(tuple(row))
+    
+    # Execute batch update
+    try:
+        cursor = conn.cursor()
+        cursor.executemany(update_query, values)
+        conn.commit()
+    except Exception as e:
+        print(f"Batch update failed: {str(e)}")
+        conn.rollback()
 
 def initialize_db(db_path):
     conn = sqlite3.connect(db_path)
@@ -275,15 +354,9 @@ def initialize_db(db_path):
     conn.commit()
     conn.close()
 
-def check_if_match_exists_and_has_ended(conn, match_id):
-    cursor = conn.cursor()
-    cursor.execute('SELECT match_status, home_team_lineup_info, away_team_lineup_info FROM matches WHERE match_id  = ?', (match_id,))
-    existing_match = cursor.fetchone()
-    return existing_match is not None and existing_match[0] == 'ended' and existing_match[1] is not None and existing_match[2] is not None
-
 # Example usage:
 if __name__ == '__main__':
     conn = sqlite3.connect('v2db.sqlite')
     # initialize_db('v2db.sqlite')
-    process_matches_jsons_to_sql('Data/sportradar/raw/matches_data', 'v2db.sqlite')
+    process_matches_jsons_to_sql(conn, 'Data/sportradar/raw/matches_data', 'v2db.sqlite')
     process_lineups_jsons_to_sql(conn,'Data/sportradar/raw/lineups_data', 'v2db.sqlite')

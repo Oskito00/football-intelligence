@@ -23,5 +23,5 @@ def get_all_matches(conn):
 
 def get_main_league_and_nation_data(conn):
     cursor = conn.cursor()
-    cursor.execute("SELECT match_id, home_team_id, home_team_name, away_team_id, away_team_name, competition_season_id, season_start_date, season_end_date, competition_id, competition_name, competition_country FROM matches")
+    cursor.execute("SELECT match_id, home_team_id, home_team_name, away_team_id, away_team_name, competition_season_id, season_start_date, season_end_date, competition_id, competition_name, competition_country FROM matches WHERE home_team_domestic_league_id IS NULL AND away_team_domestic_league_id IS NULL AND away_team_domestic_country IS NULL AND home_team_domestic_country IS NULL")
     return cursor.fetchall()
