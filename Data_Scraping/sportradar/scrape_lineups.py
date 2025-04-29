@@ -13,7 +13,7 @@ def scrape_all_lineups():
     """Scrapes all the lineups for all the top seasons that have been identified"""
 
     # This is the file that contains the seasons to scrape
-    with open('Data/raw/season_info/top_seasons.json', 'r') as f:
+    with open('Data/sportradar/raw/season_info/top_seasons.json', 'r') as f:
         competitions = json.load(f)
     
     # Iterate over each competition and season
@@ -107,7 +107,7 @@ def get_season_lineups(season_id, competition_name, season_name):
         }
         
         # Save to file
-        output_dir = Path.cwd() / 'Data' / 'raw' / 'lineups_data'
+        output_dir = Path.cwd() / 'Data' / 'sportradar' / 'raw' / 'lineups_data'
         output_dir.mkdir(parents=True, exist_ok=True)
         
         # Change competition and season name to a more readable format
