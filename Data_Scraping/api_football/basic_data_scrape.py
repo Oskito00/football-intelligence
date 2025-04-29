@@ -18,7 +18,7 @@ def datetime_string_converter(raw_datetime):
 scraped_data = []
 
 # Load dict of leagues to scrape
-with open('data/apifootball/league_dict.json', 'r') as file:
+with open('data/api_football/league_dict.json', 'r') as file:
     dict_of_scrapable_leagues = json.load(file)
 
 # API setup
@@ -119,12 +119,17 @@ for country in dict_of_scrapable_leagues:
                 print(fixtures_response, '\n');
                 print("Season Info Response:")
                 print(season_info_response, '\n\n');
+                break
 
 
 
 ########### Assign domestic leagues to matches #################################################
 
-domestic_league_dict = defaultdict(lambda: defaultdict(lambda: defaultdict(int)));
+domestic_league_dict = defaultdict(lambda: {
+    'seasons': defaultdict(lambda: defaultdict(int)),
+    'countries': defaultdict(int)
+})
+
 
 for i, match in enumerate(scraped_data):
 
@@ -135,11 +140,11 @@ for i, match in enumerate(scraped_data):
     country = match['competition_country'];
 
     #A team never changes countries so we just count the occurunces of different countries for that team and take the most common one
-    domestic_league_dict[home_team_id][country] += 1;
-    domestic_league_dict[away_team_id][country] += 1;
+    domestic_league_dict[home_team_id]['countries'][country] += 1;
+    domestic_league_dict[away_team_id]['countries'][country] += 1;
     
-    domestic_league_dict[home_team_id][year][competition_id] += 1;
-    domestic_league_dict[away_team_id][year][competition_id] += 1;
+    domestic_league_dict[home_team_id]['seasons'][year][competition_id] += 1;
+    domestic_league_dict[away_team_id]['seasons'][year][competition_id] += 1;
 
        
 for i, match in enumerate(scraped_data):
@@ -148,11 +153,11 @@ for i, match in enumerate(scraped_data):
     home_team_id = match['home_team_id'];
     away_team_id = match['away_team_id'];
 
-    home_team_all_competitions_dict = domestic_league_dict[home_team_id][year];
-    away_team_all_competitions_dict = domestic_league_dict[away_team_id][year];
+    home_team_all_competitions_dict = domestic_league_dict[home_team_id]['seasons'][year];
+    away_team_all_competitions_dict = domestic_league_dict[away_team_id]['seasons'][year];
 
-    home_team_country_dict = domestic_league_dict[home_team_id][country];
-    away_team_country_dict = domestic_league_dict[away_team_id][country];
+    home_team_country_dict = domestic_league_dict[home_team_id]['countries'];
+    away_team_country_dict = domestic_league_dict[away_team_id]['countries'];
 
     home_team_domestic_league = max(home_team_all_competitions_dict, key=home_team_all_competitions_dict.get);
     away_team_domestic_league = max(away_team_all_competitions_dict, key=away_team_all_competitions_dict.get);
@@ -166,8 +171,9 @@ for i, match in enumerate(scraped_data):
     scraped_data[i]['home_team_domestic_country'] = home_team_domestic_country;
     scraped_data[i]['away_team_domestic_country'] = away_team_domestic_country;
 
+
 ######### Save to JSON file ###################################################################
-output_path = 'data/apifootball/raw/basic_match_data.json'
+output_path = 'data/api_football/raw/basic_match_data.json'
 with open(output_path, 'w') as file:
     json.dump(scraped_data, file, indent=4)
     print(f"Data saved to {output_path}")
