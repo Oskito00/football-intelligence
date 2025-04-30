@@ -35,7 +35,12 @@ cursor.execute('''
         home_score INTEGER,
         away_score INTEGER,
         result TEXT,
-        is_processed INTEGER
+        is_processed INTEGER,
+        home_team_formation VARCHAR(10),
+        away_team_formation VARCHAR(10),
+        home_team_lineup JSONB,
+        away_team_lineup JSONB,
+        attempted_formation_scrape INTEGER DEFAULT 0
     )
 ''')
 

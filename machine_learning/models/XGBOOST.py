@@ -8,6 +8,9 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import LabelEncoder, OrdinalEncoder
 from imblearn.over_sampling import SMOTE
 from machine_learning.load_data import prepare_data
+from xgboost import XGBClassifier
+
+
 
 def xgboost_draw_model():
     X, y = prepare_data(remove_draws=False)
@@ -121,9 +124,9 @@ def xgboost_draw_model():
 def xgboost_model():
     X, y = prepare_data()
 
-    #remove first 1000 rows
-    X = X.iloc[2000:]
-    y = y.iloc[2000:]
+    #remove first 500 rows
+    X = X.iloc[300:]
+    y = y.iloc[300:]
 
     desired_order = [['home_win', 'draw', 'away_win']]  # Note double list
     encoder = OrdinalEncoder(categories=desired_order)
@@ -133,7 +136,7 @@ def xgboost_model():
     X_train, X_temp, y_train, y_temp = train_test_split(X, y_encoded, test_size=0.2, random_state=42)
     X_dev, X_test, y_dev, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
 
-    SMOTE
+    # SMOTE
     smote = SMOTE(random_state=42)
     X_train, y_train = smote.fit_resample(X_train, y_train)
 
