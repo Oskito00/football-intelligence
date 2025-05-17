@@ -30,6 +30,8 @@ def prepare_data(remove_draws=False, training_data_filter=None, test_year=None, 
     # form_df = load_csv_data('data/api_football/processed/form_features.csv')
     match_info_df = load_csv_data('data/api_football/processed/match_info_features.csv')
     formation_df = load_csv_data('data/api_football/processed/formation_features.csv')
+    stage_of_season_df = load_csv_data('data/api_football/processed/stage_of_season_features.csv')
+    stage_of_season_df.drop(columns=['start_time','season_start_date','season_end_date'], inplace=True)
 
     # Merge data
     merged = df.merge(
@@ -44,7 +46,13 @@ def prepare_data(remove_draws=False, training_data_filter=None, test_year=None, 
         formation_df[['match_id', 'home_team_formation', 'away_team_formation']],
         on='match_id',
         how='inner'
+    ).merge(
+        stage_of_season_df,
+        on='match_id',
+        how='inner'
     )
+
+    print("Length of merged data:", len(merged))
 
     # Create result column
     merged['result'] = np.where(
@@ -65,25 +73,33 @@ def prepare_data(remove_draws=False, training_data_filter=None, test_year=None, 
         verbose_feature_names_out=False
     )
 
+    print("1111")
+
     # Fit on ALL data to learn all possible formation categories
     merged = preprocessor.fit_transform(merged)
 
     #convert to dataframe
     merged = pd.DataFrame(merged, columns=preprocessor.get_feature_names_out())
+
+    print("2222")
     
     # 2. Now split into train/test
     if training_data_filter and test_competition_id and test_year:
         print("Filtering data for test competition and year")
         
+        print("Length of data before filtering:", len(merged))
         filtered_data = merged[merged['competition_id'].astype('category').isin(training_data_filter)]
-        print(filtered_data.head(100))
-
+        print("Length of filtered data by competitions:", len(filtered_data))
         training_data = filtered_data[filtered_data['competition_id'].astype('category') != test_competition_id]
+        print("Length of training data:", len(training_data))
         test_data = filtered_data[filtered_data['competition_id'].astype('category') == test_competition_id]
+        print("Length of test data:", len(test_data))
 
         #filter every year before test_year
         training_data = training_data[training_data['competition_season_name'] < test_year]
         test_data = test_data[test_data['competition_season_name'] == test_year]
+        print("Length of training data after filtering by year:", len(training_data))
+        print("Length of test data after filtering by year:", len(test_data))
 
         X_train = training_data.drop(columns=['result'])
 
@@ -97,26 +113,35 @@ def prepare_data(remove_draws=False, training_data_filter=None, test_year=None, 
         X_train = X_train.apply(pd.to_numeric, errors='ignore')
         X_test = X_test.apply(pd.to_numeric, errors='ignore')
         
+        # Ensure categorical columns remain categorical right before returning
+        if 'stage_of_season_category' in X_train.columns:
+            X_train['stage_of_season_category'] = X_train['stage_of_season_category'].astype('category')
+            X_test['stage_of_season_category'] = X_test['stage_of_season_category'].astype('category')
+        
         return X_train, y_train, X_test, y_test
     
-
-
     X = merged.drop(columns=['result'])
-
-    X_processed = preprocessor.fit_transform(X)
-    X_processed = pd.DataFrame(X_processed, columns=preprocessor.get_feature_names_out())
     
     y = merged['result']
 
     #split into training, test and dev data
-    X_train, X_temp, y_train, y_temp = train_test_split(X_processed, y, test_size=0.2, random_state=42)
-    X_dev, X_test, y_dev, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
+    X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.2, random_state=20)
+    X_dev, X_test, y_dev, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=20)
 
     # 4. Convert to numeric
     X_train = X_train.apply(pd.to_numeric, errors='ignore')
     X_dev = X_dev.apply(pd.to_numeric, errors='ignore')
     X_test = X_test.apply(pd.to_numeric, errors='ignore')
     
+    # Ensure categorical columns remain categorical right before returning
+    if 'stage_of_season_category' in X_train.columns:
+        X_train['stage_of_season_category'] = X_train['stage_of_season_category'].astype('category')
+        X_dev['stage_of_season_category'] = X_dev['stage_of_season_category'].astype('category')
+        X_test['stage_of_season_category'] = X_test['stage_of_season_category'].astype('category')
+    
+    print("3333")
+    print("Columns right before processing:", X_train.columns)
+
     return X_train, y_train, X_dev, y_dev, X_test, y_test
 
 def analyze_feature_importance(model, X, top_n=20):
