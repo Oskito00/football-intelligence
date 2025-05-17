@@ -2,7 +2,7 @@ import sqlite3
 import time
 
 from fifa_ratings.scrape_and_store_player_stats import add_player_ratings_to_db, parse_html_to_json, scrape_player_ratings
-from helpers.deepseek_api import DeepSeekAPI
+from helpers.fifaratings.deepseek_api import DeepSeekAPI
 
 
 def get_players_with_no_data(conn):
