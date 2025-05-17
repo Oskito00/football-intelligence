@@ -15,3 +15,4 @@ venv/
 Data/APIfootball/raw/
 *.db
 *.DS_Store
+api_football.db

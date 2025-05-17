@@ -1,12 +1,11 @@
 import time
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
 import xgboost as xgb
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
 import seaborn as sns
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import LabelEncoder, OrdinalEncoder
+from sklearn.preprocessing import OrdinalEncoder
 from imblearn.over_sampling import SMOTE
 from helpers.machine_learning.load_data import analyze_feature_importance, prepare_data
 from xgboost import XGBClassifier
@@ -17,14 +16,16 @@ def xgboost_model(remove_draws=False, training_data_filter=None, test_year=None,
     y_test = None
     X_dev = None
     
-
     if test_competition_id and test_year:
         X_train, y_train, X_test, y_test = prepare_data(remove_draws, training_data_filter, test_year, test_competition_id)
         print(X_test.head())
         print(y_test.head())
         X_test, metadata_test = prepare_data_for_inference(X_test)
     else:
-        X_train, y_train, X_dev, y_dev, X_test, y_test = prepare_data(remove_draws, training_data_filter, test_competition_id)
+        X_train, y_train, X_dev, y_dev, X_test, y_test = prepare_data()
+        X_train, metadata_train = prepare_data_for_inference(X_train)
+        X_dev, metadata_dev = prepare_data_for_inference(X_dev)
+        X_test, metadata_test = prepare_data_for_inference(X_test)
 
 
     desired_order = [['home_win', 'draw', 'away_win']]  # Note double list
@@ -59,9 +60,6 @@ def xgboost_model(remove_draws=False, training_data_filter=None, test_year=None,
         max_depth=3,
         enable_categorical=True
     )
-
-    #remove metadata columns
-    X_train, metadata_train = prepare_data_for_inference(X_train)
 
     #     # SMOTE
     # smote = SMOTE(random_state=42)
@@ -106,13 +104,12 @@ def xgboost_model(remove_draws=False, training_data_filter=None, test_year=None,
         return results
     
     else:
-
         y_dev_pred = xgb_classifier.predict(X_dev)
         y_train_pred = xgb_classifier.predict(X_train)
 
         # Inverse transform
-        y_dev_2d = y_dev.reshape(-1, 1)
-        y_train_2d = y_train.reshape(-1, 1)
+        y_dev_2d = y_dev_encoded.reshape(-1, 1)
+        y_train_2d = y_train_encoded.reshape(-1, 1)
         # Inverse transform
         y_dev_labels = encoder.inverse_transform(y_dev_2d).flatten()
         y_train_labels = encoder.inverse_transform(y_train_2d).flatten()
@@ -125,7 +122,7 @@ def xgboost_model(remove_draws=False, training_data_filter=None, test_year=None,
         y_train_pred_labels = encoder.inverse_transform(y_train_pred_2d).flatten()
 
         # Update all metrics to use original labels
-        train_overall_accuracy = accuracy_score(y_train, y_train_pred)
+        train_overall_accuracy = accuracy_score(y_train_labels, y_train_pred_labels)
         dev_overall_accuracy = accuracy_score(y_dev_labels, y_dev_pred_labels)
 
         #Print both train and dev accuracy and both classification reports and confusion matrices
@@ -172,4 +169,4 @@ def prepare_data_for_inference(df):
     return X, metadata
 
 if __name__ == "__main__":
-    xgboost_model(remove_draws=False, training_data_filter=[61,140,39,78,2], test_year=2023, test_competition_id=78)
+    xgboost_model(remove_draws=False)
