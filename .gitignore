@@ -13,3 +13,5 @@ scheduler.log
 sportradar/AI/competition_id_encoder_basic.joblib
 venv/
 Data/APIfootball/raw/
+*.db
+*.DS_Store

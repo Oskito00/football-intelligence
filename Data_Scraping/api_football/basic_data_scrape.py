@@ -119,8 +119,6 @@ for country in dict_of_scrapable_leagues:
                 print(fixtures_response, '\n');
                 print("Season Info Response:")
                 print(season_info_response, '\n\n');
-                break
-
 
 
 ########### Assign domestic leagues to matches #################################################

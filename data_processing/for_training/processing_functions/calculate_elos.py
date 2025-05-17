@@ -1,15 +1,18 @@
 import math
 import sqlite3
+from helpers.database_helpers.create_tables import create_elo_tables
 from helpers.elo.elo_helpers import calculate_elo_ratings, get_club_elo, get_counts, get_league_elo, get_nation_elo, save_elo_history, update_club_elo, update_counter_table, update_league_elo, update_nation_elo
 
 def calculate_elos(conn, matches):
     print("Number of matches: ", len(matches))
     # First 1000 matches will be used to set initial priors on probability if home, away or draw
-    first_1000 = matches[:1000]
-    rest = matches[1000:]
+    first_5000 = matches[:5000]
+    rest = matches[5000:]
 
-    # First 1000 matches will be used solely as counter data (not used for ELO calculations)
-    for match in first_1000:
+    create_elo_tables(conn)
+
+    # First 5000 matches will be used solely as counter data (not used for ELO calculations)
+    for match in first_5000:
         match_id, start_time, competition_id, competition_name, competition_country, home_team_id, home_team_name, away_team_id, away_team_name, \
         home_score, away_score, home_team_domestic_league_id, home_team_domestic_country, \
         away_team_domestic_league_id, away_team_domestic_country = match
@@ -32,7 +35,7 @@ def calculate_elos(conn, matches):
         is_same_league = home_team_domestic_league_id == away_team_domestic_league_id
         is_domestic = is_same_nation and not is_same_league
         # NOTE: For different datasets the competitions might be named differently. Please change to your naming convention
-        continental_comps = ['UEFA Champions League', 'UEFA Europa League', 'UEFA Europa Conference League']
+        continental_comps = ['Champions League', 'Europa League', 'Europa Conference League']
         is_continental = competition_name in continental_comps
         
         # Get all ELO ratings for both teams

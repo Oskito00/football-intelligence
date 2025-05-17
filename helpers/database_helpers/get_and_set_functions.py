@@ -6,7 +6,7 @@ def get_all_matches(conn):
     """Gets all matches ordered by start time."""
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT DISTINCT m.match_id, m.start_time, m.competition_id, m.competition_name, m.competition_country, m.home_team_id, m.home_team_name, m.away_team_id, m.away_team_name, 
+        SELECT DISTINCT m.match_id, m.start_time, m.competition_season_name, m.competition_id, m.competition_name, m.competition_country, m.home_team_id, m.home_team_name, m.away_team_id, m.away_team_name, 
                m.home_score, m.away_score, m.home_team_domestic_league_id, m.home_team_domestic_country, m.away_team_domestic_league_id, m.away_team_domestic_country
         FROM matches m
         WHERE m.home_score IS NOT NULL AND m.away_score IS NOT NULL AND m.is_processed = 0
@@ -14,6 +14,13 @@ def get_all_matches(conn):
     ''')
     return cursor.fetchall()
 #TODO: Need to make it when is_processed = 0
+
+def get_all_formations(conn):
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT match_id, home_team_formation, away_team_formation FROM matches WHERE home_team_formation IS NOT NULL AND away_team_formation IS NOT NULL AND home_score IS NOT NULL AND away_score IS NOT NULL
+    ''')
+    return cursor.fetchall()
 
 def get_main_league_and_nation_data(conn):
     cursor = conn.cursor()
