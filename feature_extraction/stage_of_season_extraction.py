@@ -1,5 +1,5 @@
 import sqlite3
-from helpers.database_helpers.dict_to_sqlite import dict_to_sqlite
+from helpers.database_helpers.dictionary_helpers import dict_to_sqlite
 from helpers.database_helpers.get_and_set_functions import get_all_stage_of_season
 from datetime import datetime
 import time

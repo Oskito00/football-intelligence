@@ -1,7 +1,7 @@
 import pytest
 import sqlite3
 import json
-from data_migration.sportradar_jsons_to_sql import create_matches_table, insert_or_update_match_record
+from sportradar_scripts.sportradar_jsons_to_sql import create_matches_table, insert_or_update_match_record
 
 def test_create_matches_table():
     """Test to see if the table creation creates a table with all the columns specified in the schema"""
