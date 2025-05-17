@@ -2,7 +2,7 @@ import json
 import sqlite3
 
 # Load JSON data
-with open('data/api_football/raw/basic_match_data.json') as f:
+with open('data/api_football/raw/basic_match_data2.json') as f:
     matches = json.load(f)
 
 # Connect to SQLite DB
@@ -44,9 +44,9 @@ cursor.execute('''
     )
 ''')
 
-# Insert data
+# Insert data only if match_id doesn't exist
 insert_query = '''
-INSERT INTO matches (
+INSERT OR IGNORE INTO matches (
     match_id, start_time, clean_date, competition_id,
     competition_name, competition_country, competition_season_name,
     competition_season_id, season_start_date, season_end_date,
@@ -57,6 +57,10 @@ INSERT INTO matches (
     home_score, away_score, result, is_processed
 ) VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 '''
+
+# For tracking statistics
+inserted_count = 0
+skipped_count = 0
 
 for match in matches:
     cursor.execute(insert_query, (
@@ -85,6 +89,16 @@ for match in matches:
         match['result'],
         match['is_processed']
     ))
+    
+    # Check if a row was actually inserted
+    if cursor.rowcount > 0:
+        inserted_count += 1
+    else:
+        skipped_count += 1
+
+# Print summary
+print(f"Inserted {inserted_count} new matches")
+print(f"Skipped {skipped_count} existing matches")
 
 # Commit and close
 conn.commit()

@@ -12,14 +12,14 @@ def form_extraction(matches):
 
     function_start_time = time.time()
 
-    #Always ignore the first 1000 matches for elo parameter tuning
-    first_1000 = matches[:1000]
-    rest = matches[1000:]
+    #Always ignore the first 5000 matches for elo parameter tuning
+    first_5000 = matches[:5000]
+    rest = matches[5000:]
     remaining_matches = len(rest)
 
     # Ignore first 1000 matches for parameter tuning as in all the other processing files.
     batch = []
-    BATCH_SIZE = 100  # Tune based on memory
+    BATCH_SIZE = 3000  # Tune based on memory
     
     for match in rest:
         match_id, start_time, competition_id, competition_name, competition_country, home_team_id, home_team_name, away_team_id, away_team_name, \
@@ -45,20 +45,20 @@ def form_extraction(matches):
         
         if len(batch) >= BATCH_SIZE:
             print("Processing batch of size: ", len(batch))
-            dict_to_sqlite('v2db.sqlite', 'form_history', batch)
+            dict_to_sqlite('api_football.db', 'form_history', batch)
             remaining_matches -= BATCH_SIZE
             print("Matches remaining: ", remaining_matches)
             batch = []
     # Process remaining items
     if batch:
         print("Processing remaining items of size: ", len(batch))
-        dict_to_sqlite('v2db.sqlite', 'form_history', batch)
+        dict_to_sqlite('api_football.db', 'form_history', batch)
 
     function_end_time = time.time()
     print(f"Function took {function_end_time - function_start_time} seconds to run")
 
 if __name__ == "__main__":
-    conn = sqlite3.connect('v2db.sqlite')
+    conn = sqlite3.connect('api_football.db')
     matches = get_all_matches(conn)
     form_extraction(matches)
 

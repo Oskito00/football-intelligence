@@ -10,5 +10,5 @@ def process_data(conn):
 
 
 if __name__ == "__main__":
-    conn = sqlite3.connect('v2db.sqlite')
+    conn = sqlite3.connect('api_football.db')
     process_data(conn)

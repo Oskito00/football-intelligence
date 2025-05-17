@@ -4,11 +4,11 @@ from datetime import datetime
 from helpers.database_helpers.get_and_set_functions import get_all_matches
 
 def process_matches_to_history(matches, batch_size=1000):
-    conn = sqlite3.connect('v2db.sqlite')
+    conn = sqlite3.connect('api_football.db')
     cursor = conn.cursor()
 
     print("Number of matches: ", len(matches))
-    rest = matches[1000:]  # Processing matches after first 1000
+    rest = matches[5000:]  # Processing matches after first 1000
     
     team_data_batch = []
     processed_count = 0
@@ -27,7 +27,7 @@ def process_matches_to_history(matches, batch_size=1000):
         is_domestic_league_match = is_same_nation and is_same_league
         is_domestic_cup_match = is_same_nation and not is_same_league
         # NOTE: For different datasets the competitions might be named differently. Please change to your naming convention
-        continental_comps = ['UEFA Champions League', 'UEFA Europa League', 'UEFA Europa Conference League']
+        continental_comps = ['Champions League', 'Europa League', 'Conference League']
         is_continental_cup_match = competition_name in continental_comps
 
         # Home team entry
@@ -86,5 +86,5 @@ def process_matches_to_history(matches, batch_size=1000):
 
 if __name__ == "__main__":
     # Usage
-    conn = sqlite3.connect('v2db.sqlite')
+    conn = sqlite3.connect('api_football.db')
     process_matches_to_history(get_all_matches(conn))

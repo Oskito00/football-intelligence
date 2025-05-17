@@ -9,18 +9,14 @@ def formation_extraction(matches):
     for match in matches:
         try:
             match_id, home_formation_str, away_formation_str = match
-            
-            # Parse JSON strings
-            home_formation = json.loads(home_formation_str)
-            away_formation = json.loads(away_formation_str)
 
             print(match_id)
             
             # Safely get formation type
             formations.append({
                 'match_id': match_id,
-                'home_team_formation': home_formation.get('type'),
-                'away_team_formation': away_formation.get('type')
+                'home_team_formation': home_formation_str,
+                'away_team_formation': away_formation_str
             })
             
         except (json.JSONDecodeError, KeyError, TypeError) as e:
@@ -32,7 +28,7 @@ def formation_extraction(matches):
     return formations
 
 
-def bulk_insert_formations(formations: List[Dict], db_path: str = 'v2db.sqlite'):
+def bulk_insert_formations(formations: List[Dict], db_path: str = 'api_football.db'):
     """
     Bulk insert formations into SQL table.
     
@@ -75,7 +71,7 @@ def bulk_insert_formations(formations: List[Dict], db_path: str = 'v2db.sqlite')
 
 
 if __name__ == "__main__":
-    conn = sqlite3.connect('v2db.sqlite')
+    conn = sqlite3.connect('api_football.db')
     formations = get_all_formations(conn)
     print("Length of formations: ", len(formations))
     formation_extraction(formations)

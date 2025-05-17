@@ -9,6 +9,7 @@ def create_elo_tables(conn):
     create_club_elo_rating_table(conn)
     create_league_elo_table(conn)
     create_nation_elo_table(conn)
+    create_counter_table(conn)
 
 def create_elo_history_table(conn):
     cursor = conn.cursor()
@@ -293,5 +294,5 @@ def create_h2h_table(conn):
 
 
 if __name__ == "__main__":
-    conn = sqlite3.connect("v2db.sqlite")
+    conn = sqlite3.connect("api_football.db")
     create_team_match_history_table(conn)

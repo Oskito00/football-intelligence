@@ -6,7 +6,7 @@ def get_all_matches(conn):
     """Gets all matches ordered by start time."""
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT DISTINCT m.match_id, m.start_time, m.competition_id, m.competition_name, m.competition_country, m.home_team_id, m.home_team_name, m.away_team_id, m.away_team_name, 
+        SELECT DISTINCT m.match_id, m.start_time, m.competition_season_name, m.competition_id, m.competition_name, m.competition_country, m.home_team_id, m.home_team_name, m.away_team_id, m.away_team_name, 
                m.home_score, m.away_score, m.home_team_domestic_league_id, m.home_team_domestic_country, m.away_team_domestic_league_id, m.away_team_domestic_country
         FROM matches m
         WHERE m.home_score IS NOT NULL AND m.away_score IS NOT NULL AND m.is_processed = 0

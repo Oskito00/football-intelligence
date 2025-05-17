@@ -1,6 +1,8 @@
 import json
 import sqlite3
 import time
+import requests
+from requests.exceptions import HTTPError
 
 from helpers.data_scraping.scrape_formation import get_fixture_lineups
 
@@ -36,8 +38,16 @@ def update_match_lineups(conn):
     for match_id in match_ids:
         try:
             data = get_fixture_lineups(match_id)
+            
+            # Check for API call limit in response
+            if data.get('errors'):
+                error_msg = data['errors'].get('requests', '')
+                if 'request limit' in error_msg.lower():
+                    print("Daily API call limit reached. Stopping...")
+                    break  # Exit loop completely
+                    
+            # Process data if available
             home_form, away_form, home_lineup, away_lineup = process_lineup_data(data)
-            print(f"Processed match {match_id}")
             
             cur.execute("""
                 UPDATE matches
@@ -50,8 +60,21 @@ def update_match_lineups(conn):
             """, (home_form, away_form, home_lineup, away_lineup, match_id))
             
             conn.commit()
-            time.sleep(0)  # Maintain rate limit
+            time.sleep(0)
+            print(f"Processed match {match_id}")
             
+        except HTTPError as e:
+            if e.response.status_code == 429:
+                print("API rate limit exceeded (HTTP 429). Try again tomorrow.")
+                # Reset current match's attempt status
+                cur.execute("UPDATE matches SET attempted_formation_scrape = 0 WHERE match_id = ?", 
+                          (match_id,))
+                conn.commit()
+                break
+            else:
+                print(f"HTTP Error {e.response.status_code} for match {match_id}")
+                conn.rollback()
+                
         except Exception as e:
             print(f"Error processing match {match_id}: {str(e)}")
             conn.rollback()
