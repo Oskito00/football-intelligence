@@ -1,28 +1,31 @@
 import math
 import sqlite3
 from helpers.database_helpers.create_tables import create_elo_tables
-from helpers.elo.elo_helpers import calculate_elo_ratings, get_club_elo, get_counts, get_league_elo, get_nation_elo, save_elo_history, update_club_elo, update_counter_table, update_league_elo, update_nation_elo
+from helpers.elo.elo_helpers import calculate_elo_ratings, get_club_elo, get_counts, get_entity_elo, get_league_elo, get_nation_elo, save_elo_history, update_club_elo, update_counter_table, update_entity_elo, update_league_elo, update_nation_elo
 
 def calculate_elos(conn, matches):
+    """Main function to calculate ELO ratings for both teams before a match and update their ratings based on the result of the match in question
+    
+    Args:
+        conn (sqlite3.Connection): The database connection
+        matches (list): The list of matches to process from
+    """
     print("Number of matches: ", len(matches))
-    # First 1000 matches will be used to set initial priors on probability if home, away or draw
-    first_5000 = matches[:5000]
+    first_5000 = matches[:5000] #first 5000 matches are used to establish k_draw_parameter and eta_home advantage in elo_extraction
     rest = matches[5000:]
 
-    create_elo_tables(conn)
+    create_elo_tables(conn) #If not already created
 
-    # First 5000 matches will be used solely as counter data (not used for ELO calculations)
-    for match in first_5000:
+    #Generate initial priors for k_draw_parameter and eta_home_advantage
+    for match in first_5000: 
         match_id, start_time, competition_id, competition_name, competition_country, home_team_id, home_team_name, away_team_id, away_team_name, \
         home_score, away_score, home_team_domestic_league_id, home_team_domestic_country, \
         away_team_domestic_league_id, away_team_domestic_country = match
 
-        # Update counter table
         result = 'home' if home_score > away_score else 'away' if home_score < away_score else 'draw'
-        #Must have created the counter table first
         update_counter_table(conn, competition_id, result)
 
-    # Now that we have initialised our priors, we can start calculating ELOs
+    # Start calculating ELOs for the rest of the matches
     for match in rest:
         match_id, start_time, competition_id, competition_name, competition_country, home_team_id, home_team_name, away_team_id, away_team_name, \
         home_score, away_score, home_team_domestic_league_id, home_team_domestic_country, \
@@ -30,45 +33,41 @@ def calculate_elos(conn, matches):
 
         print("Processing match: ", match_id)
         
-        # Determine if match is domestic or international
-        is_same_nation = (home_team_domestic_country == away_team_domestic_country)
+        is_same_nation = (home_team_domestic_country == away_team_domestic_country) 
         is_same_league = home_team_domestic_league_id == away_team_domestic_league_id
         is_domestic = is_same_nation and not is_same_league
+
         # NOTE: For different datasets the competitions might be named differently. Please change to your naming convention
         continental_comps = ['Champions League', 'Europa League', 'Europa Conference League']
         is_continental = competition_name in continental_comps
         
-        # Get all ELO ratings for both teams
-        home_club_elos = get_club_elo(conn, home_team_id, home_team_name)
-        away_club_elos = get_club_elo(conn, away_team_id, away_team_name)
+        # Get ALL elo ratings for both team (club, nation, league)
+        home_club_elos = get_entity_elo(conn, 'club_elo_ratings', 'team_id', home_team_id, 'team_name', home_team_name)
+        home_nation_elos = get_entity_elo(conn, 'nation_elo_ratings', 'nation_name', home_team_domestic_country) if home_team_domestic_country else None
+        home_league_elos = get_entity_elo(conn, 'league_elo_ratings', 'league_id', home_team_domestic_league_id) if home_team_domestic_league_id else None
 
-        home_nation_elos = get_nation_elo(conn, home_team_domestic_country) if home_team_domestic_country else None
-        away_nation_elos = get_nation_elo(conn, away_team_domestic_country) if away_team_domestic_country else None
+        away_club_elos = get_entity_elo(conn, 'club_elo_ratings', 'team_id', away_team_id, 'team_name', away_team_name)
+        away_nation_elos = get_entity_elo(conn, 'nation_elo_ratings', 'nation_name', away_team_domestic_country) if away_team_domestic_country else None
+        away_league_elos = get_entity_elo(conn, 'league_elo_ratings', 'league_id', away_team_domestic_league_id) if away_team_domestic_league_id else None
 
-        home_league_elos = get_league_elo(conn, home_team_domestic_league_id) if home_team_domestic_league_id else None
-        away_league_elos = get_league_elo(conn, away_team_domestic_league_id) if away_team_domestic_league_id else None
-
-        # Get home, draw, away win counts for league (the league the game was played in)
-        # These are used to dynamically set the k_draw_parameter and eta_home_advantage
-        # used in the elo_davidson_formula.
+        # Get match result counts for the competition, used to dynamically set the k_draw_parameter and eta_home_advantage
         league_counts = get_counts(conn, competition_id, get_nation=False)
-
         home_wins, draw_wins, away_wins, count = league_counts
 
         probability_home_win = home_wins / (home_wins + draw_wins + away_wins)
         probability_away_win = away_wins / (home_wins + draw_wins + away_wins)
         probability_draw = draw_wins / (home_wins + draw_wins + away_wins)
 
-        k_draw_parameter = probability_draw / math.sqrt(probability_home_win * probability_away_win)
-        eta_home_advantage = math.log10(probability_home_win / probability_away_win)
+        k_draw_parameter = probability_draw / math.sqrt(probability_home_win * probability_away_win) #Useful in elo_davidson_formula
+        eta_home_advantage = math.log10(probability_home_win / probability_away_win) #Useful in elo_davidson_formula
 
-        # Save the current ELOs to elo_history
+        # Important: Save the current ELO ratings before updating them
         save_elo_history(conn, match_id, home_team_id, away_team_id, home_club_elos, away_club_elos, home_nation_elos, away_nation_elos, home_league_elos, away_league_elos, home_score, away_score, k_draw_parameter, eta_home_advantage)
    
-        # K-factor values
-        k_values = [5, 10, 20, 30, 40, 80]
+        k_values = [5, 10, 20, 30, 40, 80] #Parameter of the elo_davidson_formula
 
         # Create copies for updates
+        #TODO: Check if this is necessary
         updated_home_club = home_club_elos.copy()
         updated_away_club = away_club_elos.copy()
         updated_home_league = home_league_elos.copy() 
@@ -78,9 +77,8 @@ def calculate_elos(conn, matches):
         
         match_info = f"{home_team_name} {home_score}-{away_score} {away_team_name}"
 
-        # Update nation ELOs
+        # NATION ELOs
         if not is_same_nation:
-            # print("Updating nation ELOs")
             updated_home_nation, updated_away_nation = calculate_elo_ratings(
                 conn, home_score, away_score, 
                 home_nation_elos, away_nation_elos, 
@@ -88,7 +86,7 @@ def calculate_elos(conn, matches):
                 k_draw_parameter, eta_home_advantage
             )
         
-        # Update league ELOs
+        # LEAGUE ELOs
         if is_domestic:
             updated_home_league, updated_away_league = calculate_elo_ratings(
                 conn, home_score, away_score, 
@@ -105,9 +103,7 @@ def calculate_elos(conn, matches):
                 k_draw_parameter, eta_home_advantage
             )
         
-        
-        
-        # Update club ELOs
+        # CLUB ELOs
         # General ELOs (all matches)
         updated_home_club, updated_away_club = calculate_elo_ratings(
             conn, home_score, away_score, 
@@ -164,12 +160,17 @@ def calculate_elos(conn, matches):
         result = 'home' if home_score > away_score else 'away' if home_score < away_score else 'draw'
         update_counter_table(conn, competition_id, result)
 
-        update_club_elo(conn, home_team_id, updated_home_club)
-        update_club_elo(conn, away_team_id, updated_away_club)
-        update_league_elo(conn, home_team_domestic_league_id, updated_home_league)
-        update_league_elo(conn, away_team_domestic_league_id, updated_away_league)
-        update_nation_elo(conn, home_team_domestic_country, updated_home_nation)
-        update_nation_elo(conn, away_team_domestic_country, updated_away_nation)
+        # Update ALL Elo ratings for both clubs in the database
+        #Home team
+        update_entity_elo(conn, 'club_elo_ratings', 'team_id', home_team_id, updated_home_club)
+        update_entity_elo(conn, 'nation_elo_ratings', 'nation_name', home_team_domestic_country, updated_home_nation)
+        update_entity_elo(conn, 'league_elo_ratings', 'league_id', home_team_domestic_league_id, updated_home_league)
+
+        #Away team
+        update_entity_elo(conn, 'club_elo_ratings', 'team_id', away_team_id, updated_away_club)
+        update_entity_elo(conn, 'nation_elo_ratings', 'nation_name', away_team_domestic_country, updated_away_nation)
+        update_entity_elo(conn, 'league_elo_ratings', 'league_id', away_team_domestic_league_id, updated_away_league)
+
 
 if __name__ == "__main__":
     conn = sqlite3.connect('v2db.sqlite')

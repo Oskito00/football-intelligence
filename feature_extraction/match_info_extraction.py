@@ -1,4 +1,5 @@
 import sqlite3
+from helpers.database_helpers.create_tables import create_match_info_table
 from helpers.database_helpers.get_and_set_functions import get_all_matches
 
 def process_competition_history(db_path, batch_size=10000):
@@ -11,25 +12,10 @@ def process_competition_history(db_path, batch_size=10000):
     """
     conn = sqlite3.connect(db_path)
     
-    # Create the competition_history table if it doesn't exist
-    conn.execute('''
-    CREATE TABLE IF NOT EXISTS match_info_history (
-        match_id INTEGER,
-        start_time DATETIME,
-        competition_season_name TEXT,
-        competition_id INTEGER,
-        competition_name TEXT,
-        competition_country TEXT,
-        home_team_name TEXT,
-        away_team_name TEXT,
-        PRIMARY KEY (match_id, competition_id)
-    )
-    ''')
+    create_match_info_table(conn)
     
-    # Get all unprocessed matches using the existing function
     matches = get_all_matches(conn)
-    first_5000 = matches[:5000]
-    rest = matches[5000:]
+    rest = matches[5000:] #first 5000 matches are used to establish k_draw_parameter and eta_home advantage in elo_extraction
     print(f"Found {len(matches)} unprocessed matches")
     
     # Extract match_id and competition_id from each match
@@ -71,6 +57,7 @@ def process_competition_history(db_path, batch_size=10000):
     conn.commit()
     print(f"Inserted {total_inserted} rows into match_info_history")
     conn.close()
+
 
 if __name__ == "__main__":
     process_competition_history('api_football.db')

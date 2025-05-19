@@ -1,7 +1,6 @@
 
 import sqlite3
 
-
 def create_players_stats_table(conn):
     """Create table if not exists"""
     conn.execute('''CREATE TABLE IF NOT EXISTS player_stats (

@@ -1,7 +1,6 @@
-from asyncio import sleep
 import time
 import sqlite3
-from helpers.database_helpers.dictionary_helpers import combine_stats, dict_to_sqlite
+from helpers.database_helpers.dictionaries import combine_stats, dict_to_sqlite
 from helpers.form.form import calculate_form_stats_for_multiple_ns, enrich_matches_data_with_elo_ratings, get_last_n_matches_for_team, get_elo_ratings_for_multiple_matches
 from helpers.database_helpers.get_and_set_functions import get_all_matches
 
@@ -11,19 +10,14 @@ def form_extraction(matches):
 
     function_start_time = time.time()
 
-    #Always ignore the first 5000 matches for elo parameter tuning
-    first_5000 = matches[:5000]
-    rest = matches[5000:]
+    rest = matches[5000:] #first 5000 matches are used to establish k_draw_parameter and eta_home advantage in elo_extraction
     remaining_matches = len(rest)
 
-    # Ignore first 1000 matches for parameter tuning as in all the other processing files.
     batch = []
     BATCH_SIZE = 3000  # Tune based on memory
     
     for match in rest:
-        match_id, start_time, competition_id, competition_name, competition_country, home_team_id, home_team_name, away_team_id, away_team_name, \
-        home_score, away_score, home_main_comp_id, home_main_comp_country, \
-        away_main_comp_id, away_main_comp_country = match
+        match_id, start_time, home_team_id, away_team_id = match
 
         print("Running Form Extraction for match: ", match_id)
 

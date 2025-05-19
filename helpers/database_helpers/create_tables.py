@@ -1,10 +1,8 @@
-#Create elo_history table
+#This file contains all the code to create the necessary tables in the database
 import sqlite3
 
-#ELO TABLES
-#The following tables are used to store the ELO ratings for each team, league, and nation.
-
 def create_elo_tables(conn):
+    """Creates all ELO tables"""
     create_elo_history_table(conn)
     create_club_elo_rating_table(conn)
     create_league_elo_table(conn)
@@ -226,7 +224,7 @@ def create_nation_elo_table(conn):
     conn.commit()
     cursor.close()
 
-# Table for storing the main competition and country for each team
+#MAIN COMPETITION
 def create_team_main_competition_table(conn):
     """Create a table to store the main competition and country for each team"""
     cursor = conn.cursor()
@@ -242,7 +240,7 @@ def create_team_main_competition_table(conn):
     ''')
     conn.commit()
 
-# Table for storing the form of each team
+#MATCH HISTORY
 def create_team_match_history_table(conn):
     cursor = conn.cursor()
     cursor.execute("""
@@ -267,6 +265,7 @@ def create_team_match_history_table(conn):
     conn.commit()
     cursor.close()
 
+#COUNTER FOR ALL MATCH RESULTS
 def create_counter_table(conn):
     cursor = conn.cursor()
     cursor.execute("""
@@ -283,19 +282,21 @@ def create_counter_table(conn):
     conn.commit()
     cursor.close()
 
-def create_h2h_table(conn):
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS h2h (
-            team1_id INTEGER NOT NULL,
-            team2_id INTEGER NOT NULL,
-            matches JSON NOT NULL DEFAULT '[]',
-            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (team1_id, team2_id),
-            CHECK (team1_id < team2_id)
-        )
-    """)
-
+#MATCH INFO
+def create_match_info_table(conn):
+    conn.execute('''
+    CREATE TABLE IF NOT EXISTS match_info_history (
+        match_id INTEGER,
+        start_time DATETIME,
+        competition_season_name TEXT,
+        competition_id INTEGER,
+        competition_name TEXT,
+        competition_country TEXT,
+        home_team_name TEXT,
+        away_team_name TEXT,
+        PRIMARY KEY (match_id, competition_id)
+    )
+    ''')
 
 if __name__ == "__main__":
     conn = sqlite3.connect("api_football.db")

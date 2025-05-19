@@ -1,13 +1,12 @@
 import sqlite3
-from helpers.database_helpers.dictionary_helpers import dict_to_sqlite
+from helpers.database_helpers.dictionaries import dict_to_sqlite
 from helpers.database_helpers.get_and_set_functions import get_all_stage_of_season
 from datetime import datetime
 import time
 
 def extract_stage_of_season(matches):
     function_start_time = time.time()
-    first_5000 = matches[:5000]
-    rest = matches[5000:]
+    rest = matches[5000:] #first 5000 matches are used to establish k_draw_parameter and eta_home advantage in elo_extraction
 
     batch=[]
     BATCH_SIZE = 3000
@@ -38,8 +37,8 @@ def extract_stage_of_season(matches):
     function_end_time = time.time()
     print(f"Function took {function_end_time - function_start_time} seconds to run")
 
+#***HELPERS***
 
-#Helper function to calculate the stage of season normalised between 0 and 1
 def calculate_stage_of_season(start_time, season_start_date, season_end_date):
     """
     Helper function to calculate the stage of season normalized between 0 and 1

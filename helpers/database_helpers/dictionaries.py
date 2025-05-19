@@ -1,7 +1,14 @@
 import sqlite3
 
 def dict_to_sqlite(db_path, table_name, data_dicts, batch_size=1000):
-    """Process multiple dictionaries in batches"""
+    """A helper function to insert a list of dictionaries into a specific table
+    
+    Args:
+        db_path (str): The path to the database
+        table_name (str): The name of the table to insert the data into
+        data_dicts (list): A list of dictionaries to insert into the table
+        batch_size (int): The number of dictionaries to insert in each batch
+    """
     if not data_dicts:
         return
     
@@ -32,6 +39,7 @@ def dict_to_sqlite(db_path, table_name, data_dicts, batch_size=1000):
     conn.close()
 
 def combine_stats(match_id, home_stats, away_stats):
+    """A helper function to combine two dictionaries, prefix the data by either home_ or away_ and add match_id as the first key"""
     # Ensure match_id is first
     combined = {'match_id': match_id}
     

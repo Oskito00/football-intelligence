@@ -1,14 +1,10 @@
-import time
 import numpy as np
 import pandas as pd
 import xgboost as xgb
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
-import seaborn as sns
-import matplotlib.pyplot as plt
 from sklearn.preprocessing import OrdinalEncoder
 from imblearn.over_sampling import SMOTE
-from helpers.machine_learning.load_data import analyze_feature_importance, prepare_data
-from xgboost import XGBClassifier
+from helpers.machine_learning.load_data import prepare_data
 
 def xgboost_model(remove_draws=False, training_data_filter=None, test_year=None, test_competition_id=None):
 

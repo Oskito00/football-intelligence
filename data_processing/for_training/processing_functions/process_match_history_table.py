@@ -1,5 +1,4 @@
 import sqlite3
-from datetime import datetime
 
 from helpers.database_helpers.get_and_set_functions import get_all_matches
 

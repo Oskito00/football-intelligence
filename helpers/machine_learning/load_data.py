@@ -1,9 +1,8 @@
 import pandas as pd
 import numpy as np
-from sklearn.compose import ColumnTransformer, make_column_transformer
+from sklearn.compose import make_column_transformer
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import OneHotEncoder, LabelEncoder
-import xgboost as xgb
+from sklearn.preprocessing import OneHotEncoder
 
 def load_csv_data(file_path):
     """Load CSV data into a pandas DataFrame.
@@ -165,7 +164,7 @@ def analyze_feature_importance(model, X, top_n=20):
     importance_df['Percentage'] = importance_df['Gain'] / importance_df['Gain'].sum() * 100
     
     # Display all features
-    print(f"\n===== ALL FEATURES BY IMPORTANCE =====")
+    print("\n===== ALL FEATURES BY IMPORTANCE =====")
     pd.set_option('display.max_rows', None)  # Ensure all rows are displayed
     print(importance_df)
     pd.reset_option('display.max_rows')  # Reset to default setting

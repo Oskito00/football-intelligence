@@ -1,5 +1,4 @@
 import sqlite3
-from pathlib import Path
 
 def drop_all_tables(cursor):
     """Drop all existing tables from the database"""
@@ -25,6 +24,3 @@ def clean_database(db_file):
     conn.commit()
     conn.close()
     print(f"\nDatabase {db_file} has been cleaned.")
-
-if __name__ == "__main__":
-    clean_database('football_data.db')

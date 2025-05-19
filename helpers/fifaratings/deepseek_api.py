@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 from openai import OpenAI
-from typing import Optional, List, Dict
+from typing import Optional
 
 class DeepSeekAPI:
     def __init__(self, base_url: str = "https://api.deepseek.com"):
