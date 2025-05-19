@@ -20,9 +20,10 @@ def xgboost_model(remove_draws=False, training_data_filter=None, test_year=None,
         X_train, y_train, X_test, y_test = prepare_data(remove_draws, training_data_filter, test_year, test_competition_id)
         print(X_test.head())
         print(y_test.head())
+        X_train, metadata_train = prepare_data_for_inference(X_train)
         X_test, metadata_test = prepare_data_for_inference(X_test)
     else:
-        X_train, y_train, X_dev, y_dev, X_test, y_test = prepare_data()
+        X_train, y_train, X_dev, y_dev, X_test, y_test = prepare_data(remove_draws, training_data_filter)
         X_train, metadata_train = prepare_data_for_inference(X_train)
         X_dev, metadata_dev = prepare_data_for_inference(X_dev)
         X_test, metadata_test = prepare_data_for_inference(X_test)
@@ -100,7 +101,7 @@ def xgboost_model(remove_draws=False, training_data_filter=None, test_year=None,
         results.to_csv(f"machine_learning/predictions/XGBOOST/predictions/predictions_{test_competition_id}_{test_year}.csv", index=False)
         #print accuracy and confusion matrix
         print(f"Accuracy: {accuracy_score(y_test_encoded, predictions)}")
-        print(f"Confusion Matrix: {confusion_matrix(y_test_encoded, predictions)}")
+        print(f"Confusion Matrix:\n {confusion_matrix(y_test_encoded, predictions)}")
         return results
     
     else:
@@ -137,7 +138,7 @@ def xgboost_model(remove_draws=False, training_data_filter=None, test_year=None,
         print(classification_report(y_train_labels, y_train_pred_labels))
     
         cm_dev = confusion_matrix(y_dev_labels, y_dev_pred_labels, labels=encoder.categories_[0])
-        print("\nDev Confusion Matrix:")
+        print("\nDev Confusion Matrix:\n")
         print(pd.DataFrame(cm_dev, 
                       index=encoder.categories_[0], 
                       columns=encoder.categories_[0]))
@@ -169,4 +170,4 @@ def prepare_data_for_inference(df):
     return X, metadata
 
 if __name__ == "__main__":
-    xgboost_model(remove_draws=False)
+    xgboost_model(remove_draws=False, training_data_filter=[61,140,39,78,2,3], test_year=2021, test_competition_id=39)

@@ -250,6 +250,10 @@ def create_team_match_history_table(conn):
             team_id      TEXT,
             match_id     TEXT,
             start_time   DATETIME,
+            competition_season_name TEXT,
+            competition_id TEXT,
+            competition_name TEXT,
+            competition_country TEXT,
             goals_scored INT,
             goals_conceded INT,
             result       VARCHAR(4),  -- 'win', 'loss', 'draw'

@@ -7,6 +7,7 @@ def get_last_n_matches_for_team(conn, team_id, start_time, n=50):
         SELECT json_group_array(
             json_object(
                 'match_id', match_id,
+                'start_time', start_time,
                 'goals_scored', goals_scored,
                 'goals_conceded', goals_conceded,
                 'result', result,
@@ -17,7 +18,7 @@ def get_last_n_matches_for_team(conn, team_id, start_time, n=50):
             )
         )
         FROM (
-            SELECT match_id, result, goals_scored, goals_conceded, is_home, is_intraleague_match, is_domestic_cup_match, is_continental_cup_match
+            SELECT match_id, start_time, result, goals_scored, goals_conceded, is_home, is_intraleague_match, is_domestic_cup_match, is_continental_cup_match
             FROM TeamMatchHistory
             WHERE team_id = ?
             AND start_time < ?

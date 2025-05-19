@@ -10,6 +10,7 @@ def dict_to_sqlite(db_path, table_name, data_dicts, batch_size=1000):
     
     # Create table using first dict's keys
     first = data_dicts[0]
+
     columns = ', '.join(f'"{k}" TEXT' for k in first.keys())
     cursor.execute(f'CREATE TABLE IF NOT EXISTS {table_name} ({columns})')
     

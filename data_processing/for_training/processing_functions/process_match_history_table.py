@@ -17,7 +17,7 @@ def process_matches_to_history(matches, batch_size=1000):
         if processed_count % 1000 == 0:
             print(f"Processing match {processed_count}/{len(rest)}")
             
-        match_id, start_time, competition_id, competition_name, competition_country, home_team_id, home_team_name, away_team_id, away_team_name, \
+        match_id, start_time, competition_season_name, competition_id, competition_name, competition_country, home_team_id, home_team_name, away_team_id, away_team_name, \
         home_score, away_score, home_main_comp_id, home_main_comp_country, \
         away_main_comp_id, away_main_comp_country = match
 
@@ -30,11 +30,17 @@ def process_matches_to_history(matches, batch_size=1000):
         continental_comps = ['Champions League', 'Europa League', 'Conference League']
         is_continental_cup_match = competition_name in continental_comps
 
+
+
         # Home team entry
         team_data_batch.append((
             home_team_id,
             match_id,
             start_time,
+            competition_season_name,
+            competition_id,
+            competition_name,
+            competition_country,
             home_score,
             away_score,
             'win' if home_score > away_score else 'loss' if home_score < away_score else 'draw',
@@ -49,6 +55,10 @@ def process_matches_to_history(matches, batch_size=1000):
             away_team_id,
             match_id,
             start_time,
+            competition_season_name,
+            competition_id,
+            competition_name,
+            competition_country,
             away_score,
             home_score,
             'win' if away_score > home_score else 'loss' if away_score < home_score else 'draw',
@@ -64,9 +74,9 @@ def process_matches_to_history(matches, batch_size=1000):
         if len(team_data_batch) >= batch_size:
             cursor.executemany("""
                 INSERT OR IGNORE INTO TeamMatchHistory 
-                (team_id, match_id, start_time, goals_scored, goals_conceded, 
+                (team_id, match_id, start_time, competition_season_name, competition_id, competition_name, competition_country, goals_scored, goals_conceded, 
                 result, is_home, is_intraleague_match, is_domestic_cup_match, is_continental_cup_match)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, team_data_batch)
             conn.commit()
             team_data_batch = []  # Clear the batch
@@ -75,9 +85,9 @@ def process_matches_to_history(matches, batch_size=1000):
     if team_data_batch:
         cursor.executemany("""
             INSERT OR IGNORE INTO TeamMatchHistory 
-            (team_id, match_id, start_time, goals_scored, goals_conceded, 
+            (team_id, match_id, start_time, competition_season_name, competition_id, competition_name, competition_country, goals_scored, goals_conceded, 
             result, is_home, is_intraleague_match, is_domestic_cup_match, is_continental_cup_match)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? )
         """, team_data_batch)
         conn.commit()
     
