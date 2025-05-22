@@ -298,6 +298,55 @@ def create_match_info_table(conn):
     )
     ''')
 
+#LEAGUE STANDINGS
+def create_league_standings_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS league_standings (
+            team_id TEXT,
+            competition_season_id TEXT,
+            matches_played INTEGER,
+            wins INTEGER,
+            draws INTEGER,
+            losses INTEGER,
+            goals_for INTEGER,
+            goals_against INTEGER,
+            goal_difference INTEGER,
+            points INTEGER,
+            PRIMARY KEY (team_id, competition_season_id)
+        )
+    """)
+    conn.commit()
+    cursor.close()
+
+def create_league_standings_history_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS league_standings_history (
+            match_id TEXT,
+            home_standing INTEGER,
+            home_matches_played INTEGER,
+            home_wins INTEGER,
+            home_draws INTEGER,
+            home_losses INTEGER,
+            home_goals_for INTEGER,
+            home_goals_against INTEGER,
+            home_goal_difference INTEGER,
+            home_points INTEGER,
+            away_standing INTEGER,
+            away_matches_played INTEGER,
+            away_wins INTEGER,
+            away_draws INTEGER,
+            away_losses INTEGER,
+            away_goals_for INTEGER,
+            away_goals_against INTEGER,
+            away_goal_difference INTEGER,
+            away_points INTEGER,
+        )
+    """)
+    conn.commit()
+    cursor.close()
+
 if __name__ == "__main__":
     conn = sqlite3.connect("api_football.db")
     create_team_match_history_table(conn)

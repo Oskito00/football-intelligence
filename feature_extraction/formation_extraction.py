@@ -1,6 +1,6 @@
 import json
 import sqlite3
-from helpers.database_helpers.get_and_set_functions import bulk_insert_formations, get_all_formations
+from helpers.database_helpers.get_and_set_functions import bulk_insert_formations, get_from_matches
 
 def formation_extraction(matches):
     """Extracts the formation for each match
@@ -33,5 +33,5 @@ def formation_extraction(matches):
 
 if __name__ == "__main__":
     conn = sqlite3.connect('api_football.db')
-    formations = get_all_formations(conn)
+    formations = get_from_matches(conn, select_str='SELECT', columns=['match_id', 'home_team_formation', 'away_team_formation'], where_clause='home_team_formation IS NOT NULL AND away_team_formation IS NOT NULL AND home_score IS NOT NULL AND away_score IS NOT NULL AND is_processed = 0')
     formation_extraction(formations)

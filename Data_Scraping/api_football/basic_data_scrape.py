@@ -79,7 +79,7 @@ for country in dict_of_scrapable_leagues:
                     if home_score and away_score:
                         result = 'Draw' if home_score == away_score else 'Home Win' if home_score > away_score else 'Away Win';
                     else:
-                        result = None;
+                        result = None
                     
                     
                     match_obj = {

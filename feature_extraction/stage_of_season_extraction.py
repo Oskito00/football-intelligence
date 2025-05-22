@@ -1,6 +1,6 @@
 import sqlite3
 from helpers.database_helpers.dictionaries import dict_to_sqlite
-from helpers.database_helpers.get_and_set_functions import get_all_stage_of_season
+from helpers.database_helpers.get_and_set_functions import get_from_matches
 from datetime import datetime
 import time
 
@@ -94,5 +94,5 @@ def get_season_phase(season_progress):
 
 if __name__ == "__main__":
     conn = sqlite3.connect('api_football.db')
-    matches = get_all_stage_of_season(conn)
+    matches = get_from_matches(conn, select_str='SELECT', columns=['match_id', 'start_time', 'season_start_date', 'season_end_date'], where_clause='home_score IS NOT NULL AND away_score IS NOT NULL AND is_processed = 0')
     extract_stage_of_season(matches)

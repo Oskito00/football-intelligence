@@ -1,6 +1,6 @@
 import sqlite3
 from helpers.database_helpers.create_tables import create_match_info_table
-from helpers.database_helpers.get_and_set_functions import get_all_matches
+from helpers.database_helpers.get_and_set_functions import get_from_matches
 
 def process_competition_history(db_path, batch_size=10000):
     """
@@ -14,7 +14,8 @@ def process_competition_history(db_path, batch_size=10000):
     
     create_match_info_table(conn)
     
-    matches = get_all_matches(conn)
+    matches = get_from_matches(conn, select_str='SELECT DISTINCT', columns=['match_id', 'start_time', 'competition_season_name', 'competition_id', 'competition_name', 'competition_country', 'home_team_id', 'home_team_name', 'away_team_id', 'away_team_name', 
+               'home_score', 'away_score', 'home_team_domestic_league_id', 'home_team_domestic_country', 'away_team_domestic_league_id', 'away_team_domestic_country'], where_clause='home_score IS NOT NULL AND away_score IS NOT NULL AND is_processed = 0', order_by='datetime(start_time)')
     rest = matches[5000:] #first 5000 matches are used to establish k_draw_parameter and eta_home advantage in elo_extraction
     print(f"Found {len(matches)} unprocessed matches")
     

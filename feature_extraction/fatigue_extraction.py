@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 import sqlite3
 from helpers.database_helpers.dictionaries import dict_to_sqlite
-from helpers.database_helpers.get_and_set_functions import get_all_matches_for_fatigue
+from helpers.database_helpers.get_and_set_functions import get_from_matches
 from helpers.form.form import get_last_n_matches_for_team
 
 
@@ -114,6 +114,6 @@ def calculate_match_history_features(match_history, current_match_start_time):
 
 if __name__ == "__main__":
     conn = sqlite3.connect('api_football.db')
-    matches = get_all_matches_for_fatigue(conn)
+    matches = get_from_matches(conn, select_str='SELECT', columns=['match_id', 'start_time', 'home_team_id', 'away_team_id'], where_clause='home_score IS NOT NULL AND away_score IS NOT NULL AND is_processed = 0')
     extract_fatigue_features(conn,matches)
     pass
