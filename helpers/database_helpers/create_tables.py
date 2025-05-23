@@ -341,7 +341,7 @@ def create_league_standings_history_table(conn):
             away_goals_for INTEGER,
             away_goals_against INTEGER,
             away_goal_difference INTEGER,
-            away_points INTEGER,
+            away_points INTEGER
         )
     """)
     conn.commit()

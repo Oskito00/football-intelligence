@@ -22,7 +22,7 @@ def get_from_matches(conn, select_str, columns, where_clause=None, order_by=None
     cursor.execute(f'{select_str} {columns_str} FROM matches {where_clause_str} {order_by_str} {limit_str}')
     return cursor.fetchall()
 
-def get_from_standings(conn, select_str, columns, where_clause=None, order_by=None, limit=None):
+def get_from_standings(conn, select_str, columns, where_clause=None, order_by=None, limit=None, where_clause_args=None):
     """A dynamic function that gets data from the standings table.
     
     Args:
@@ -40,7 +40,7 @@ def get_from_standings(conn, select_str, columns, where_clause=None, order_by=No
     order_by_str = f'ORDER BY {order_by}' if order_by else ''
     limit_str = f'LIMIT {limit}' if limit else ''
 
-    cursor.execute(f'{select_str} {columns_str} FROM league_standings {where_clause_str} {order_by_str} {limit_str}')
+    cursor.execute(f'{select_str} {columns_str} FROM league_standings {where_clause_str} {order_by_str} {limit_str}', where_clause_args) if where_clause_args else cursor.execute(f'{select_str} {columns_str} FROM league_standings {where_clause_str} {order_by_str} {limit_str}')
     return cursor.fetchall()
 
 def bulk_insert_formations(formations: List[Dict], db_path: str = 'api_football.db'):
