@@ -19,6 +19,9 @@ def xgboost_model(remove_draws=False, training_data_filter=None, test_year=None,
         X_train, metadata_train = prepare_data_for_inference(X_train)
         X_test, metadata_test = prepare_data_for_inference(X_test)
     else:
+        # This is one instance of a k-fold cross validation.
+        # We need to perform the following steps for each fold
+        # For 1 to k, prepare the data 
         X_train, y_train, X_dev, y_dev, X_test, y_test = prepare_data(remove_draws, training_data_filter)
         X_train, metadata_train = prepare_data_for_inference(X_train)
         X_dev, metadata_dev = prepare_data_for_inference(X_dev)

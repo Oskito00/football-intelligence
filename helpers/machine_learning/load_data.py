@@ -23,7 +23,7 @@ def load_csv_data(file_path):
         print(f"Error loading {file_path}: {str(e)}")
         return None
 
-def prepare_data(k_folds=1, remove_draws=False, training_data_filter=None, test_year=None, test_competition_id=None):
+def prepare_data(k_fold=10, remove_draws=False, training_data_filter=None, test_year=None, test_competition_id=None):
     # Load all data
     df = load_csv_data('data/api_football/processed/elo_features.csv')
     # form_df = load_csv_data('data/api_football/processed/form_features.csv')
