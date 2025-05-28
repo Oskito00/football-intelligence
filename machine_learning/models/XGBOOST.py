@@ -166,4 +166,6 @@ def prepare_data_for_inference(df):
     return X, metadata
 
 if __name__ == "__main__":
-    xgboost_model(remove_draws=False, training_data_filter=[61,140,39,78,2,3], test_year=2021, test_competition_id=39)
+    #Need to perform cross validation to ensure the accuracies are stable
+    #Evaluate the model on different sets of dev data
+    xgboost_model(remove_draws=False, training_data_filter=[61,140,39,3])

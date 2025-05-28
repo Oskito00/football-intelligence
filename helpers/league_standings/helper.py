@@ -1,5 +1,6 @@
 def find_team_standing(team_id, league_info):
     """Helper to find team by ID assuming team_id is at index 0"""
+    print(league_info)
     return next((i+1 for i, team_data in enumerate(league_info) if team_data[0] == str(team_id)),None)
 
 def save_to_standings_history(conn, standings_history):

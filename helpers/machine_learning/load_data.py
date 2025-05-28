@@ -23,7 +23,7 @@ def load_csv_data(file_path):
         print(f"Error loading {file_path}: {str(e)}")
         return None
 
-def prepare_data(remove_draws=False, training_data_filter=None, test_year=None, test_competition_id=None):
+def prepare_data(k_folds=1, remove_draws=False, training_data_filter=None, test_year=None, test_competition_id=None):
     # Load all data
     df = load_csv_data('data/api_football/processed/elo_features.csv')
     # form_df = load_csv_data('data/api_football/processed/form_features.csv')
@@ -31,6 +31,7 @@ def prepare_data(remove_draws=False, training_data_filter=None, test_year=None, 
     formation_df = load_csv_data('data/api_football/processed/formation_features.csv')
     stage_of_season_df = load_csv_data('data/api_football/processed/stage_of_season_features.csv')
     stage_of_season_df.drop(columns=['start_time','season_start_date','season_end_date'], inplace=True)
+    league_standings_df = load_csv_data('data/api_football/processed/league_standings_features.csv')
 
     # Merge data
     merged = df.merge(
@@ -45,7 +46,11 @@ def prepare_data(remove_draws=False, training_data_filter=None, test_year=None, 
         stage_of_season_df,
         on='match_id',
         how='inner'
-    )
+    ).merge(
+        league_standings_df,
+        on='match_id',
+        how='inner'
+    ) # All of these actually reduce the accuracy of the model
     print("Length of merged data:", len(merged))
 
     # Create result column
@@ -67,7 +72,6 @@ def prepare_data(remove_draws=False, training_data_filter=None, test_year=None, 
         verbose_feature_names_out=False
     )
 
-    print("1111")
 
     # Fit on ALL data to learn all possible formation categories
     merged = preprocessor.fit_transform(merged)
@@ -75,7 +79,6 @@ def prepare_data(remove_draws=False, training_data_filter=None, test_year=None, 
     #convert to dataframe
     merged = pd.DataFrame(merged, columns=preprocessor.get_feature_names_out())
 
-    print("2222")
     
     # 2. Now split into train/test
     if training_data_filter:
@@ -133,7 +136,6 @@ def prepare_data(remove_draws=False, training_data_filter=None, test_year=None, 
         X_dev['stage_of_season_category'] = X_dev['stage_of_season_category'].astype('category')
         X_test['stage_of_season_category'] = X_test['stage_of_season_category'].astype('category')
     
-    print("3333")
     print("Columns right before processing:", X_train.columns)
 
     return X_train, y_train, X_dev, y_dev, X_test, y_test
