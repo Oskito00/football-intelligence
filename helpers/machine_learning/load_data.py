@@ -38,18 +38,18 @@ def prepare_data(remove_draws=False, training_data_filter=None, test_year=None, 
         match_info_df,
         on='match_id',
         how='inner'
-    # ).merge(
-    #     formation_df[['match_id', 'home_team_formation', 'away_team_formation']],
-    #     on='match_id',
-    #     how='inner'
-    # ).merge(
-    #     stage_of_season_df,
-    #     on='match_id',
-    #     how='inner'
-    # ).merge(
-    #     league_standings_df,
-    #     on='match_id',
-    #     how='inner'
+    ).merge(
+        formation_df[['match_id', 'home_team_formation', 'away_team_formation']],
+        on='match_id',
+        how='inner'
+    ).merge(
+        stage_of_season_df,
+        on='match_id',
+        how='inner'
+    ).merge(
+        league_standings_df,
+        on='match_id',
+        how='inner'
     )
     print("Length of merged data:", len(merged))
 
@@ -65,18 +65,18 @@ def prepare_data(remove_draws=False, training_data_filter=None, test_year=None, 
     if remove_draws:
         merged = merged[merged['result'] != 'draw']
 
-    # # # Prepare formation features    
-    # preprocessor = make_column_transformer(
-    #     (OneHotEncoder(handle_unknown='ignore'), ['home_team_formation', 'away_team_formation']),
-    #     remainder='passthrough',
-    #     verbose_feature_names_out=False
-    # )
+    # Prepare formation features    
+    preprocessor = make_column_transformer(
+        (OneHotEncoder(handle_unknown='ignore'), ['home_team_formation', 'away_team_formation']),
+        remainder='passthrough',
+        verbose_feature_names_out=False
+    )
 
     # # # Fit on ALL data to learn all possible formation categories
-    # merged = preprocessor.fit_transform(merged)
+    merged = preprocessor.fit_transform(merged)
 
     # # # convert to dataframe
-    # merged = pd.DataFrame(merged, columns=preprocessor.get_feature_names_out())
+    merged = pd.DataFrame(merged, columns=preprocessor.get_feature_names_out())
 
     
     # 2. Now split into train/test
