@@ -18,28 +18,29 @@ def extract_league_standings(conn, matches):
     BATCH_SIZE = 3000
     match_count = 0
 
-    for match in rest:
+    for match in rest: 
         match_id, start_time, competition_season_id, round_info, home_team_id, away_team_id, home_score, away_score = match
 
         if round_info.startswith('Regular Season'):
             league_info = get_from_standings(conn, select_str='SELECT', columns=['team_id','matches_played', 'wins', 'draws', 'losses', 'goals_for', 'goals_against', 'goal_difference', 'points'], where_clause='competition_season_id = ?', where_clause_args=[competition_season_id])
             match_count += 1
+            print("Processing match", match_count)
+
             if len(league_info) == 0:
                 home_team_stats = [-1] + [0] * 8
                 away_team_stats = [-1] + [0] * 8
+
             else:
                 league_info.sort(key=lambda x: (-x[8], -x[7], -x[6], -x[5]))
 
                 home_team_standing = find_team_standing(home_team_id, league_info)
                 away_team_standing = find_team_standing(away_team_id, league_info)
-                home_team_stats = league_info[home_team_standing] if home_team_standing else [0] * 8
-                away_team_stats = league_info[away_team_standing] if away_team_standing else [0] * 8
 
-                #combine standings with info
-                home_team_stats = [home_team_standing] + home_team_stats
-                away_team_stats = [away_team_standing] + away_team_stats
+                home_team_stats = [home_team_standing] + list(league_info[home_team_standing-1][1:]) if home_team_standing else [-1] + [0] * 8
+                away_team_stats = [away_team_standing] + list(league_info[away_team_standing-1][1:]) if away_team_standing else [-1] + [0] * 8
             
-            standings_history.append([match_id] + home_team_stats + away_team_stats)
+            standings = [match_id] + home_team_stats + away_team_stats
+            standings_history.append(standings)
 
 
             if len(standings_history) >= BATCH_SIZE:
