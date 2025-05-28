@@ -23,7 +23,7 @@ def load_csv_data(file_path):
         print(f"Error loading {file_path}: {str(e)}")
         return None
 
-def prepare_data(k_fold=10, remove_draws=False, training_data_filter=None, test_year=None, test_competition_id=None):
+def prepare_data(remove_draws=False, training_data_filter=None, test_year=None, test_competition_id=None):
     # Load all data
     df = load_csv_data('data/api_football/processed/elo_features.csv')
     # form_df = load_csv_data('data/api_football/processed/form_features.csv')
@@ -38,19 +38,19 @@ def prepare_data(k_fold=10, remove_draws=False, training_data_filter=None, test_
         match_info_df,
         on='match_id',
         how='inner'
-    ).merge(
-        formation_df[['match_id', 'home_team_formation', 'away_team_formation']],
-        on='match_id',
-        how='inner'
-    ).merge(
-        stage_of_season_df,
-        on='match_id',
-        how='inner'
-    ).merge(
-        league_standings_df,
-        on='match_id',
-        how='inner'
-    ) # All of these actually reduce the accuracy of the model
+    # ).merge(
+    #     formation_df[['match_id', 'home_team_formation', 'away_team_formation']],
+    #     on='match_id',
+    #     how='inner'
+    # ).merge(
+    #     stage_of_season_df,
+    #     on='match_id',
+    #     how='inner'
+    # ).merge(
+    #     league_standings_df,
+    #     on='match_id',
+    #     how='inner'
+    )
     print("Length of merged data:", len(merged))
 
     # Create result column
@@ -65,19 +65,18 @@ def prepare_data(k_fold=10, remove_draws=False, training_data_filter=None, test_
     if remove_draws:
         merged = merged[merged['result'] != 'draw']
 
-    # Prepare formation features    
-    preprocessor = make_column_transformer(
-        (OneHotEncoder(handle_unknown='ignore'), ['home_team_formation', 'away_team_formation']),
-        remainder='passthrough',
-        verbose_feature_names_out=False
-    )
+    # # # Prepare formation features    
+    # preprocessor = make_column_transformer(
+    #     (OneHotEncoder(handle_unknown='ignore'), ['home_team_formation', 'away_team_formation']),
+    #     remainder='passthrough',
+    #     verbose_feature_names_out=False
+    # )
 
+    # # # Fit on ALL data to learn all possible formation categories
+    # merged = preprocessor.fit_transform(merged)
 
-    # Fit on ALL data to learn all possible formation categories
-    merged = preprocessor.fit_transform(merged)
-
-    #convert to dataframe
-    merged = pd.DataFrame(merged, columns=preprocessor.get_feature_names_out())
+    # # # convert to dataframe
+    # merged = pd.DataFrame(merged, columns=preprocessor.get_feature_names_out())
 
     
     # 2. Now split into train/test
@@ -121,24 +120,16 @@ def prepare_data(k_fold=10, remove_draws=False, training_data_filter=None, test_
     
     y = merged['result']
 
-    #split into training, test and dev data
-    X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.2, random_state=20)
-    X_dev, X_test, y_dev, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=20)
+    X = X.apply(pd.to_numeric, errors='ignore')
 
-    # 4. Convert to numeric
-    X_train = X_train.apply(pd.to_numeric, errors='ignore')
-    X_dev = X_dev.apply(pd.to_numeric, errors='ignore')
-    X_test = X_test.apply(pd.to_numeric, errors='ignore')
     
     # Ensure categorical columns remain categorical right before returning
-    if 'stage_of_season_category' in X_train.columns:
-        X_train['stage_of_season_category'] = X_train['stage_of_season_category'].astype('category')
-        X_dev['stage_of_season_category'] = X_dev['stage_of_season_category'].astype('category')
-        X_test['stage_of_season_category'] = X_test['stage_of_season_category'].astype('category')
-    
-    print("Columns right before processing:", X_train.columns)
+    if 'stage_of_season_category' in X.columns:
+        X['stage_of_season_category'] = X['stage_of_season_category'].astype('category')
 
-    return X_train, y_train, X_dev, y_dev, X_test, y_test
+    print("Columns right before processing:", X.columns)
+
+    return X, y
 
 def analyze_feature_importance(model, X, top_n=20):
     """
