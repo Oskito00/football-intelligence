@@ -85,36 +85,37 @@ def prepare_data(remove_draws=False, training_data_filter=None, test_year=None, 
         print("Length of data before filtering:", len(merged))
         merged = merged[merged['competition_id'].astype('category').isin(training_data_filter)]
         print("Length of filtered data by competitions:", len(merged))
-        if test_competition_id and test_year:
-            training_data = merged[merged['competition_id'].astype('category') != test_competition_id]
-            print("Length of training data:", len(training_data))
-            test_data = merged[merged['competition_id'].astype('category') == test_competition_id]
-            print("Length of test data:", len(test_data))
+    
+    if test_competition_id and test_year:
+        training_data = merged[merged['competition_id'].astype('category') != test_competition_id]
+        print("Length of training data:", len(training_data))
+        test_data = merged[merged['competition_id'].astype('category') == test_competition_id]
+        print("Length of test data:", len(test_data))
 
-            #filter every year before test_year
-            training_data = training_data[training_data['competition_season_name'] < test_year]
-            test_data = test_data[test_data['competition_season_name'] == test_year]
-            print("Length of training data after filtering by year:", len(training_data))
-            print("Length of test data after filtering by year:", len(test_data))
+        #filter every year before test_year
+        training_data = training_data[training_data['competition_season_name'] < test_year]
+        test_data = test_data[test_data['competition_season_name'] == test_year]
+        print("Length of training data after filtering by year:", len(training_data))
+        print("Length of test data after filtering by year:", len(test_data))
 
-            X_train = training_data.drop(columns=['result'])
+        X_train = training_data.drop(columns=['result'])
 
-            y_train = training_data['result']
+        y_train = training_data['result']
 
-            X_test = test_data.drop(columns=['result'])
+        X_test = test_data.drop(columns=['result'])
 
-            y_test = test_data['result']
+        y_test = test_data['result']
         
-            # 4. Convert to numeric
-            X_train = X_train.apply(pd.to_numeric, errors='ignore')
-            X_test = X_test.apply(pd.to_numeric, errors='ignore')
+        # 4. Convert to numeric
+        X_train = X_train.apply(pd.to_numeric, errors='ignore')
+        X_test = X_test.apply(pd.to_numeric, errors='ignore')
         
-            # Ensure categorical columns remain categorical right before returning
-            if 'stage_of_season_category' in X_train.columns:
-                X_train['stage_of_season_category'] = X_train['stage_of_season_category'].astype('category')
-                X_test['stage_of_season_category'] = X_test['stage_of_season_category'].astype('category')
+        # Ensure categorical columns remain categorical right before returning
+        if 'stage_of_season_category' in X_train.columns:
+            X_train['stage_of_season_category'] = X_train['stage_of_season_category'].astype('category')
+            X_test['stage_of_season_category'] = X_test['stage_of_season_category'].astype('category')
         
-            return X_train, y_train, X_test, y_test
+        return X_train, y_train, X_test, y_test
     
     X = merged.drop(columns=['result'])
     

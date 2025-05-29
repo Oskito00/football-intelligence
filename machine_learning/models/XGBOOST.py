@@ -105,4 +105,4 @@ def prepare_data_for_inference(df):
 if __name__ == "__main__":
     #Need to perform cross validation to ensure the accuracies are stable
     #Evaluate the model on different sets of dev data
-    xgboost_model(remove_draws=False, num_folds=10, training_data_filter=[61,140,39,78])
+    xgboost_model(remove_draws=False, num_folds=10, training_data_filter=None, test_year=2021, test_competition_id=61)
