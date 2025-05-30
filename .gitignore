@@ -13,3 +13,4 @@ Data/APIfootball/raw/
 api_football.db
 api_football.db-journal
 requirements.txt
+config.py

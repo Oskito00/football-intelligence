@@ -2,7 +2,7 @@ import json
 import sqlite3
 
 # Load JSON data
-with open('data/api_football/raw/basic_match_data2.json') as f:
+with open('data/api_football/raw/basic_match_data.json') as f:
     matches = json.load(f)
 
 # Connect to SQLite DB
@@ -46,7 +46,7 @@ cursor.execute('''
 
 # Insert data only if match_id doesn't exist
 insert_query = '''
-INSERT OR IGNORE INTO matches (
+INSERT INTO matches (
     match_id, start_time, clean_date, competition_id,
     competition_name, competition_country, competition_season_name,
     competition_season_id, season_start_date, season_end_date,
@@ -56,11 +56,35 @@ INSERT OR IGNORE INTO matches (
     away_team_id, away_team_name, match_status,
     home_score, away_score, result, is_processed
 ) VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (match_id) DO UPDATE SET
+    start_time = excluded.start_time,
+    clean_date = excluded.clean_date,
+    competition_id = excluded.competition_id,
+    competition_name = excluded.competition_name,
+    competition_country = excluded.competition_country,
+    competition_season_name = excluded.competition_season_name,
+    competition_season_id = excluded.competition_season_id,
+    season_start_date = excluded.season_start_date,
+    season_end_date = excluded.season_end_date,
+    round_info = excluded.round_info,
+    home_team_id = excluded.home_team_id,
+    home_team_name = excluded.home_team_name,
+    home_team_domestic_league_id = excluded.home_team_domestic_league_id,
+    away_team_domestic_league_id = excluded.away_team_domestic_league_id,
+    home_team_domestic_country = excluded.home_team_domestic_country,
+    away_team_domestic_country = excluded.away_team_domestic_country,
+    away_team_id = excluded.away_team_id,
+    away_team_name = excluded.away_team_name,
+    match_status = excluded.match_status,
+    home_score = excluded.home_score,
+    away_score = excluded.away_score,
+    result = excluded.result,
+    is_processed = excluded.is_processed
 '''
 
 # For tracking statistics
-inserted_count = 0
-skipped_count = 0
+new_matches_count = 0
+updated_matches_count = 0
 
 for match in matches:
     cursor.execute(insert_query, (
@@ -91,14 +115,15 @@ for match in matches:
     ))
     
     # Check if a row was actually inserted
-    if cursor.rowcount > 0:
-        inserted_count += 1
+
+    if cursor.lastrowid == match['match_id']:
+        new_matches_count += 1
     else:
-        skipped_count += 1
+        updated_matches_count += 1
 
 # Print summary
-print(f"Inserted {inserted_count} new matches")
-print(f"Skipped {skipped_count} existing matches")
+print(f"Inserted {new_matches_count} new matches")
+print(f"Updated {updated_matches_count} existing matches")
 
 # Commit and close
 conn.commit()

@@ -1,111 +1,116 @@
+
+
 from collections import defaultdict
+import psycopg2
 import requests
 import json
 import os
-from dotenv import load_dotenv
+from config import get_config
+from helpers.formatting.time import datetime_string_converter
 
-# Load .env variables
-load_dotenv()
+base_url = "https://v3.football.api-sports.io/"
 
-
-
-# Storage structures
-scraped_data = []
-
-# Load dict of leagues to scrape
-with open('data/api_football/league_dict.json', 'r') as file:
-    dict_of_scrapable_leagues = json.load(file)
-
-# API setup
-url = "https://v3.football.api-sports.io/"
-api_key = os.getenv('API_FOOTBALL_KEY')
-payload = {}
 headers = {
-    'x-rapidapi-key': api_key,
+    'x-rapidapi-key': os.getenv('API_FOOTBALL_KEY'),
     'x-rapidapi-host': 'v3.football.api-sports.io'
 }
+payload = {}
 
-##### Fetch data ########################################################################
-# for country in dict_of_scrapable_leagues:
-for country in dict_of_scrapable_leagues:
-    print(f"Uploading {country}...")
-    competition_list = dict_of_scrapable_leagues[country]
+config = get_config()
 
-    for competition in competition_list:
-        print(f"---- {competition['name']}")
-        competition_id = competition['id']
-        years = competition['years']
+conn = psycopg2.connect(
+    host=config.DB_HOST,
+    database=config.DB_NAME,
+    user=config.DB_USER,
+    password=config.DB_PASSWORD
+)
 
-        for year in years:
+select_query = "SELECT id, years FROM leagues"
+
+scraped_data = []
+
+with conn.cursor() as cursor:
+    cursor.execute(select_query)
+    leagues = cursor.fetchall()
+
+    for league in leagues[:1]:
+        print(f"---- {league[0]}")
+        competition_id = league[0]
+        years = league[1]
+
+        for year in years[:1]:
             print(f"-------- {year}")
             try:
                 # Get fixtures info
-                fixtures_response = requests.get(url + f"fixtures?league={competition_id}&season={year}", headers=headers, data=payload)
+                fixtures_response = requests.get(base_url + f"fixtures?league={competition_id}&season={year}", headers=headers, data=payload)
                 if fixtures_response.status_code != 200:
                     print(f"Failed to fetch fixtures for {competition_id} in {year}")
                     continue
                 json_fixtures_response = fixtures_response.json()
 
                 # Get season info
-                season_info_response = requests.get(url + f"leagues?id={competition_id}&season={year}", headers=headers, data=payload)
+                season_info_response = requests.get(base_url + f"leagues?id={competition_id}&season={year}", headers=headers, data=payload)
                 if season_info_response.status_code != 200:
                     print(f"Failed to fetch league info for {competition_id} in {year}")
                     continue
                 json_season_info_response = season_info_response.json()
 
-                # Extract season start and end dates
-                season_start_date = json_season_info_response['response'][0]['seasons'][0]['start']
-                season_end_date = json_season_info_response['response'][0]['seasons'][0]['end']
-                
-                for content in json_fixtures_response['response']:
-                    match_id = content['fixture']['id']
-                    start_time = content['fixture']['date']
-                    clean_date = datetime_string_converter(start_time)
-                    competition_name = competition['name']
-                    round_info = content['league']['round']
-                    match_status = content['fixture']['status']['short']
-                    home_team_name = content['teams']['home']['name']
-                    home_team_id = content['teams']['home']['id']
-                    away_team_name = content['teams']['away']['name']
-                    away_team_id = content['teams']['away']['id']
-                    home_score = content['score']['fulltime']['home']
-                    away_score = content['score']['fulltime']['away']
+                season_info = json_season_info_response['response']
+                season_fixtures = json_fixtures_response['response']
 
+                result = None
+                print(season_info)
+
+                print("11111")
+                season_start_date = season_info[0]['seasons'][0]['start']
+                season_end_date = season_info[0]['seasons'][0]['end']
+                print("Start DATE = True" if season_start_date else "False")
+                print("End DATE = True" if season_end_date else "False")
+
+                for content in season_fixtures:
+                    print(content)
+
+                    home_score = content['score']['fulltime'].get('home')
+                    away_score = content['score']['fulltime'].get('away')
+
+                    print("Home Score = True" if home_score else "False")
+                    print("Away Score = True" if away_score else "False")
+
+                    #Extract result
                     if home_score and away_score:
                         result = 'Draw' if home_score == away_score else 'Home Win' if home_score > away_score else 'Away Win';
                     else:
                         result = None
                     
-                    
-                    match_obj = {
-                        'match_id': match_id,
-                        'start_time': start_time,
-                        'clean_date': clean_date,
-                        'competition_id': competition_id,
-                        'competition_name': competition_name,
-                        'competition_country': country,
-                        'competition_season_name': year,
+                    print("Result = True" if result else "False")
+
+                    match_data = {
+                        'match_id': content['fixture']['id'],
+                        'start_time': content['fixture']['date'],
+                        'clean_date': datetime_string_converter(content['fixture']['date']),
+                        'competition_name': season_info[0]['league']['name'],
+                        'competition_country': season_info[0]['country'],
+                        'competition_season_name': season_info[0]['season'],
                         'competition_season_id': f"{competition_id}_{year}",
                         'season_start_date': season_start_date,
                         'season_end_date': season_end_date,
-                        'round_info': round_info,
-                        'home_team_id': home_team_id,
-                        'home_team_name': home_team_name,
+                        'round_info': content['league']['round'],
+                        'home_team_id': content['teams']['home']['id'],
+                        'home_team_name': content['teams']['home']['name'],
                         'home_team_domestic_league_id': None,
                         'away_team_domestic_league_id': None,
                         'home_team_domestic_country': None,
                         'away_team_domestic_country': None,
-                        'away_team_id': away_team_id,
-                        'away_team_name': away_team_name,
-                        'match_status': match_status,
+                        'away_team_id': content['teams']['away']['id'],
+                        'away_team_name': content['teams']['away']['name'],
+                        'match_status': content['fixture']['status']['short'],
                         'home_score': home_score,
                         'away_score': away_score,
                         'result': result,
                         'is_processed': 0
                     }
-
-                    
-                    scraped_data.append(match_obj)
+                    print("Match Data = True" if match_data else "False")
+                    scraped_data.append(match_data)
 
             except Exception as e:
                 print("------ PROCESSING FAILED -----")
@@ -117,6 +122,8 @@ for country in dict_of_scrapable_leagues:
 
 ########### Assign domestic leagues to matches #################################################
 
+
+print("Getting to here")
 domestic_league_dict = defaultdict(lambda: {
     'seasons': defaultdict(lambda: defaultdict(int)),
     'countries': defaultdict(int)
@@ -165,7 +172,7 @@ for i, match in enumerate(scraped_data):
 
 
 ######### Save to JSON file ###################################################################
-output_path = 'data/api_football/raw/basic_match_data.json'
+output_path = 'data/api_football/raw/basic_match_data3.json'
 with open(output_path, 'w') as file:
     json.dump(scraped_data, file, indent=4)
     print(f"Data saved to {output_path}")
