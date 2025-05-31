@@ -1,6 +1,6 @@
 import time
 import sqlite3
-from helpers.database_helpers.dictionaries import combine_stats, dict_to_sqlite
+from helpers.database_helpers.dict_to_sqlite import combine_stats, dict_to_sqlite
 from helpers.form.form import calculate_form_stats_for_multiple_ns, enrich_matches_data_with_elo_ratings, get_last_n_matches_for_team, get_elo_ratings_for_multiple_matches
 from helpers.database_helpers.get_and_set_functions import get_from_matches
 

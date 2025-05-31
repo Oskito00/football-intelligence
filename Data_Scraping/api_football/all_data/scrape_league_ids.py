@@ -3,7 +3,7 @@ import requests
 import psycopg2
 
 from config import get_config
-from helpers.database_helpers.postgresl import upsert_records
+from helpers.database_helpers.postgresql import upsert_records
 
 config = get_config()
 
@@ -44,7 +44,7 @@ def get_all_leagues_on_api():
         print(league_data['years'])
         rows.append(league_data)
 
-    upsert_records(conn, 'leagues', rows, ['id'])
+    upsert_records(conn, 'leagues', rows, ['id'], batch_size=1000)
 
     conn.close()
 

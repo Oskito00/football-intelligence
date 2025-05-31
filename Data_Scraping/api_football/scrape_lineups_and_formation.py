@@ -4,7 +4,8 @@ import time
 import requests
 from requests.exceptions import HTTPError
 
-from helpers.data_scraping.scrape_formation import get_fixture_lineups
+from data_scraping.scrapers.formation import get_fixture_lineups
+
 
 
 def process_lineup_data(api_response):

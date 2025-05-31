@@ -1,7 +1,7 @@
 
 
 import sqlite3
-from data_processing.for_training.processing_functions.calculate_elos import calculate_elos
+from helpers.data_processing.processing_functions.elo import calculate_elos
 from helpers.database_helpers.get_and_set_functions import get_from_matches
 
 def process_data(conn):

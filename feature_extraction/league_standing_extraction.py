@@ -4,7 +4,7 @@ import sqlite3
 
 from helpers.database_helpers.create_tables import create_league_standings_table, create_league_standings_history_table
 from helpers.database_helpers.get_and_set_functions import get_from_matches, get_from_standings
-from helpers.league_standings.helper import find_team_standing, save_to_standings_history, upsert_into_standings
+from helpers.league_standings.league_standings import find_team_standing, save_to_standings_history, upsert_into_standings
 
 
 def extract_league_standings(conn, matches):

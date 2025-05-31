@@ -1,5 +1,5 @@
 import sqlite3
-from helpers.database_helpers.dictionaries import dict_to_sqlite
+from helpers.database_helpers.dict_to_sqlite import dict_to_sqlite
 from helpers.database_helpers.get_and_set_functions import get_from_matches
 from datetime import datetime
 import time

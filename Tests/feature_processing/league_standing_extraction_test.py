@@ -1,5 +1,5 @@
 from helpers.database_helpers.get_and_set_functions import get_from_matches
-from helpers.league_standings.helper import find_new_stats, find_team_standing
+from helpers.league_standings.league_standings import find_new_stats, find_team_standing
 
 def test_find_new_stats():
     """Unit test for find_new_stats function"""
@@ -25,7 +25,7 @@ def test_league_standing_extraction_full_process(conn):
     print("Started running test...")
     matches = get_from_matches(conn, select_str='SELECT DISTINCT', columns=['match_id', 'start_time','competition_season_id', 'round_info', 'home_team_id', 'away_team_id', 'home_score', 'away_score'], where_clause='home_score IS NOT NULL AND away_score IS NOT NULL AND is_processed = 0', order_by='datetime(start_time)')
     # extract_league_standings(conn, matches) # Uncomment this if running the full process for the first time
-    
+
     print(f"Got {len(matches)} matches")
     # extract_league_standings(conn, matches)
 

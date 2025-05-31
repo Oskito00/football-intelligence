@@ -1,7 +1,7 @@
 import math
 import sqlite3
 from helpers.database_helpers.create_tables import create_elo_tables
-from helpers.elo.elo_helpers import calculate_elo_ratings, get_club_elo, get_counts, get_entity_elo, get_league_elo, get_nation_elo, save_elo_history, update_club_elo, update_counter_table, update_entity_elo, update_league_elo, update_nation_elo
+from helpers.elo.elo_helpers import calculate_elo_ratings, get_counts, get_entity_elo, save_elo_history, update_counter_table, update_entity_elo
 
 def calculate_elos(conn, matches):
     """Main function to calculate ELO ratings for both teams before a match and update their ratings based on the result of the match in question

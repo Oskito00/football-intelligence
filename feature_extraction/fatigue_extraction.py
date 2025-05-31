@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta
 import sqlite3
-from helpers.database_helpers.dictionaries import dict_to_sqlite
+from helpers.database_helpers.dict_to_sqlite import dict_to_sqlite
 from helpers.database_helpers.get_and_set_functions import get_from_matches
 from helpers.form.form import get_last_n_matches_for_team
 
