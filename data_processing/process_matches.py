@@ -1,10 +1,15 @@
+from helpers.data_processing.processing_functions.match_history import process_matches_to_history
+from helpers.database_helpers.create_tables import create_tables
 from helpers.database_helpers.get_and_set_functions import get_from_matches
 from config import get_config
 import psycopg2
 
 
-def process_matches(matches):
-    for match in matches:
+def process_matches(conn, matches):
+
+    create_tables(conn)
+
+    process_matches_to_history(conn, matches, batch_size=1000)
         #call processing/extracting functions on individual matches
         #TeamMatchHistory
         #ELO
@@ -28,4 +33,4 @@ if __name__ == "__main__":
         password=config.DB_PASSWORD
     )
     matches = get_from_matches(conn, select_str='SELECT', columns=['match_id', 'start_time', 'clean_date','competition_name', 'competition_id', 'competition_country', 'competition_season_name', 'competition_season_id', 'season_start_date', 'season_end_date', 'round_info', 'home_team_id', 'home_team_name', 'home_team_domestic_league_id','away_team_domestic_league_id', 'home_team_domestic_country', 'away_team_domestic_country', 'away_team_id', 'away_team_name', 'match_status', 'home_score', 'away_score', 'result'], where_clause='home_score IS NOT NULL AND away_score IS NOT NULL AND is_processed = false', order_by='start_time')
-    print(len(matches))    
+    process_matches(conn, matches)

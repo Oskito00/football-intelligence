@@ -1,13 +1,13 @@
 #This file contains all the code to create the necessary tables in the database
-import sqlite3
 
-def create_elo_tables(conn):
-    """Creates all ELO tables"""
+def create_tables(conn):
+    """Creates tables of use to processing functions"""
+    create_team_match_history_table(conn)
+    create_counter_table(conn)
     create_elo_history_table(conn)
     create_club_elo_rating_table(conn)
     create_league_elo_table(conn)
     create_nation_elo_table(conn)
-    create_counter_table(conn)
 
 def create_elo_history_table(conn):
     cursor = conn.cursor()
@@ -346,7 +346,3 @@ def create_league_standings_history_table(conn):
     """)
     conn.commit()
     cursor.close()
-
-if __name__ == "__main__":
-    conn = sqlite3.connect("api_football.db")
-    create_team_match_history_table(conn)

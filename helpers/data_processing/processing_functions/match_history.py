@@ -1,20 +1,21 @@
-import sqlite3
+from datetime import time
 
-from helpers.database_helpers.get_and_set_functions import get_from_matches
 
-def process_matches_to_history(matches, batch_size=1000):
-    conn = sqlite3.connect('api_football.db')
+def process_matches_to_history(conn,matches, batch_size=1000):
+    """Saves matches into an easier to query table.
+    Mostly used for form analysis, easier to query "last N matches for team" X
+
+
+    
+    """
     cursor = conn.cursor()
-
-    print("Number of matches: ", len(matches))
-    rest = matches[5000:]  # Processing matches after first 1000
     
     team_data_batch = []
     processed_count = 0
     
-    for match in rest:
+    for match in matches:
         if processed_count % 1000 == 0:
-            print(f"Processing match {processed_count}/{len(rest)}")
+            print(f"MATCH HISTORY: Processing match {processed_count}/{len(matches)}")
             
         match_id, start_time, competition_season_name, competition_id, competition_name, competition_country, home_team_id, home_team_name, away_team_id, away_team_name, \
         home_score, away_score, home_main_comp_id, home_main_comp_country, \
@@ -28,8 +29,6 @@ def process_matches_to_history(matches, batch_size=1000):
         # NOTE: For different datasets the competitions might be named differently. Please change to your naming convention
         continental_comps = ['Champions League', 'Europa League', 'Conference League']
         is_continental_cup_match = competition_name in continental_comps
-
-
 
         # Home team entry
         team_data_batch.append((
@@ -92,9 +91,5 @@ def process_matches_to_history(matches, batch_size=1000):
     
     print(f"Processed {processed_count} matches ({processed_count*2} team history records)")
     conn.close()
-
-if __name__ == "__main__":
-    # Usage
-    conn = sqlite3.connect('api_football.db')
-    process_matches_to_history(get_from_matches(conn, select_str='SELECT DISTINCT', columns=['match_id', 'start_time', 'competition_season_name', 'competition_id', 'competition_name', 'competition_country', 'home_team_id', 'home_team_name', 'away_team_id', 'away_team_name', 
-               'home_score', 'away_score', 'home_team_domestic_league_id', 'home_team_domestic_country', 'away_team_domestic_league_id', 'away_team_domestic_country'], where_clause='home_score IS NOT NULL AND away_score IS NOT NULL AND is_processed = 0', order_by='datetime(start_time)'))
+    print("WAITING 5 SECONDS BEFORE STARTING NEXT PROCESSING FUNCTION")
+    time.sleep(5)
