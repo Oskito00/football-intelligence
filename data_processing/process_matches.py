@@ -3,6 +3,22 @@ from config import get_config
 import psycopg2
 
 
+def process_matches(matches):
+    for match in matches:
+        #call processing/extracting functions on individual matches
+        #TeamMatchHistory
+        #ELO
+        #Fatigue
+        #league_standing
+        #match_info
+        #stage_of_season
+
+        
+
+        #Formation (if it has it)
+
+
+
 if __name__ == "__main__":
     config = get_config()
     conn = psycopg2.connect(
