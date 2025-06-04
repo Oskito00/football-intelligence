@@ -1,23 +1,27 @@
-import sqlite3
+from zoneinfo import ZoneInfo
 from helpers.database_helpers.dict_to_sqlite import dict_to_sqlite
 from helpers.database_helpers.get_and_set_functions import get_from_matches
-from datetime import datetime
-import time
+from datetime import datetime, time
 
-def extract_stage_of_season(matches):
-    function_start_time = time.time()
-    rest = matches[5000:] #first 5000 matches are used to establish k_draw_parameter and eta_home advantage in elo_extraction
+
+def extract_stage_of_season(conn):
 
     batch=[]
-    BATCH_SIZE = 3000
-    
-    for match in rest:
+    BATCH_SIZE = 10000
+
+    matches = get_from_matches(conn, select_str='SELECT', columns=['match_id', 'start_time', 'season_start_date', 'season_end_date'], where_clause='home_score IS NOT NULL AND away_score IS NOT NULL AND is_processed = false')
+
+    match_count = 0
+    for match in matches:
         match_id, start_time, season_start_date, season_end_date = match
+        if match_count % 10000 == 0:
+            print(f"Processing match {match_count} out of {len(matches)}")
+        match_count += 1
         
         stage_of_season = calculate_stage_of_season(start_time, season_start_date, season_end_date)
         stage_of_season_category = get_season_phase(stage_of_season)
         dict = {
-            'match_id': match_id,
+            'match_id': int(match_id),
             'start_time': start_time,
             'season_start_date': season_start_date,
             'season_end_date': season_end_date,
@@ -28,14 +32,11 @@ def extract_stage_of_season(matches):
         batch.append(dict)
 
         if len(batch) == BATCH_SIZE:
-            dict_to_sqlite('api_football.db', 'stage_of_season_history', batch)
+            dict_to_sqlite(conn, 'stage_of_season_history', batch)
             batch = []
 
     if batch:
-        dict_to_sqlite('api_football.db', 'stage_of_season_history', batch)
-
-    function_end_time = time.time()
-    print(f"Function took {function_end_time - function_start_time} seconds to run")
+        dict_to_sqlite(conn, 'stage_of_season_history', batch)
 
 #***HELPERS***
 
@@ -59,6 +60,9 @@ def calculate_stage_of_season(start_time, season_start_date, season_end_date):
         season_start_date = datetime.fromisoformat(season_start_date + 'T00:00:00+00:00')
     if isinstance(season_end_date, str):
         season_end_date = datetime.fromisoformat(season_end_date + 'T00:00:00+00:00')
+
+    season_start_date = datetime.combine(season_start_date, time.min, tzinfo=ZoneInfo("UTC"))
+    season_end_date = datetime.combine(season_end_date, time.min, tzinfo=ZoneInfo("UTC"))
     
     # Calculate days from season start
     days_from_season_start = (start_time - season_start_date).total_seconds() / (24 * 3600)
@@ -91,8 +95,3 @@ def get_season_phase(season_progress):
         return 'Mid-Late Season (70-90%)'
     else:
         return 'Late Season (90-100%)'
-
-if __name__ == "__main__":
-    conn = sqlite3.connect('api_football.db')
-    matches = get_from_matches(conn, select_str='SELECT', columns=['match_id', 'start_time', 'season_start_date', 'season_end_date'], where_clause='home_score IS NOT NULL AND away_score IS NOT NULL AND is_processed = 0')
-    extract_stage_of_season(matches)

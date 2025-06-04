@@ -1,7 +1,6 @@
 def find_team_standing(team_id, league_info):
     """Helper to find team by ID assuming team_id is at index 0"""
-    print(league_info)
-    return next((i+1 for i, team_data in enumerate(league_info) if team_data[0] == str(team_id)),None)
+    return next((i+1 for i, team_data in enumerate(league_info) if team_data[0] == team_id),None)
 
 def save_to_standings_history(conn, standings_history):
     """Function to save a list of dictionaries to the league_standings_history table
@@ -12,7 +11,7 @@ def save_to_standings_history(conn, standings_history):
     """
 
     cursor = conn.cursor()
-    cursor.executemany("INSERT INTO league_standings_history (match_id, home_standing, home_matches_played, home_wins, home_draws, home_losses, home_goals_for, home_goals_against, home_goal_difference, home_points, away_standing, away_matches_played, away_wins, away_draws, away_losses, away_goals_for, away_goals_against, away_goal_difference, away_points) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", standings_history)
+    cursor.executemany("INSERT INTO league_standings_history (match_id, home_standing, home_matches_played, home_wins, home_draws, home_losses, home_goals_for, home_goals_against, home_goal_difference, home_points, away_standing, away_matches_played, away_wins, away_draws, away_losses, away_goals_for, away_goals_against, away_goal_difference, away_points) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", standings_history)
     conn.commit()
     cursor.close()
 
@@ -28,6 +27,7 @@ def upsert_into_standings(conn, home_team_id, away_team_id, home_team_stats, awa
         away_score (int): The away team's score.
     """
 
+
     home_team_stats, away_team_stats = find_new_stats(home_team_stats, away_team_stats, home_score, away_score)
     team_data = [[home_team_id, competition_season_id] + home_team_stats, [away_team_id, competition_season_id] + away_team_stats]
 
@@ -35,7 +35,7 @@ def upsert_into_standings(conn, home_team_id, away_team_id, home_team_stats, awa
     INSERT INTO league_standings (
         team_id, competition_season_id, matches_played, wins, draws, losses, 
         goals_for, goals_against, goal_difference, points
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ON CONFLICT(team_id, competition_season_id) DO UPDATE SET
         matches_played = excluded.matches_played,
         wins = excluded.wins,
@@ -48,7 +48,8 @@ def upsert_into_standings(conn, home_team_id, away_team_id, home_team_stats, awa
     """
 
     with conn:  # Auto-commits transaction
-        conn.executemany(query, team_data)
+        cursor = conn.cursor()
+        cursor.executemany(query, team_data)
 
 def find_new_stats(home_team_stats, away_team_stats, home_score, away_score):
     """Helper to find the teams new stats after analysing a match.

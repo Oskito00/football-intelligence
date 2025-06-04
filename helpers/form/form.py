@@ -3,32 +3,32 @@ import json
 def get_last_n_matches_for_team(conn, team_id, start_time, n=50):
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT json_group_array(
-            json_object(
-                'match_id', match_id,
-                'start_time', start_time,
-                'goals_scored', goals_scored,
-                'goals_conceded', goals_conceded,
-                'result', result,
-                'is_home', is_home,
-                'is_intraleague_match', is_intraleague_match,
-                'is_domestic_cup_match', is_domestic_cup_match,
-                'is_continental_cup_match', is_continental_cup_match
-            )
+    SELECT jsonb_agg(
+        jsonb_build_object(
+            'match_id', match_id,
+            'start_time', start_time,
+            'goals_scored', goals_scored,
+            'goals_conceded', goals_conceded,
+            'result', result,
+            'is_home', is_home,
+            'is_intraleague_match', is_intraleague_match,
+            'is_domestic_cup_match', is_domestic_cup_match,
+            'is_continental_cup_match', is_continental_cup_match
         )
-        FROM (
-            SELECT match_id, start_time, result, goals_scored, goals_conceded, is_home, is_intraleague_match, is_domestic_cup_match, is_continental_cup_match
-            FROM TeamMatchHistory
-            WHERE team_id = ?
-            AND start_time < ?
-            ORDER BY start_time DESC
-            LIMIT ?
-        )
-    """, (team_id, start_time, n))
+    )
+    FROM (
+        SELECT match_id, start_time, result, goals_scored, goals_conceded, is_home, is_intraleague_match, is_domestic_cup_match, is_continental_cup_match
+        FROM teammatchhistory
+        WHERE team_id = %s
+          AND start_time < %s
+        ORDER BY start_time DESC
+        LIMIT %s
+    ) AS recent_matches
+""", (team_id, start_time, n))
     
     result = cursor.fetchone()
     if result and result[0]:
-        return json.loads(result[0])
+        return result[0]
     return []
 
 def calculate_elo_based_stats(previous_matches):

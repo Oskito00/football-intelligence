@@ -8,14 +8,18 @@ def create_tables(conn):
     create_club_elo_rating_table(conn)
     create_league_elo_table(conn)
     create_nation_elo_table(conn)
+    create_match_info_table(conn)
+    create_league_standings_table(conn)
+    create_league_standings_history_table(conn)
+
 
 def create_elo_history_table(conn):
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS elo_history (
-            match_id TEXT,
-            home_team_id TEXT,
-            away_team_id TEXT,
+            match_id INTEGER,
+            home_team_id INTEGER,
+            away_team_id INTEGER,
             k_draw_parameter REAL,
             eta_home_advantage REAL,
             
@@ -143,7 +147,7 @@ def create_club_elo_rating_table(conn):
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS club_elo_ratings (
-            team_id TEXT,
+            team_id INTEGER,
             team_name TEXT,
             elo_home_matches_K5 INTEGER,
             elo_home_matches_K10 INTEGER,
@@ -190,7 +194,7 @@ def create_league_elo_table(conn):
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS league_elo_ratings (
-            league_id TEXT,
+            league_id INTEGER,
             league_domestic_elo_K5 INTEGER,
             league_domestic_elo_K10 INTEGER,
             league_domestic_elo_K20 INTEGER,
@@ -230,9 +234,9 @@ def create_team_main_competition_table(conn):
     cursor = conn.cursor()
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS team_main_competition (
-        team_id TEXT PRIMARY KEY,
+        team_id INTEGER PRIMARY KEY,
         team_name TEXT,
-        main_competition_id TEXT,
+        main_competition_id INTEGER,
         main_competition_name TEXT,
         main_competition_country TEXT,
         match_count INTEGER
@@ -244,10 +248,10 @@ def create_team_main_competition_table(conn):
 def create_team_match_history_table(conn):
     cursor = conn.cursor()
     cursor.execute("""
-        CREATE TABLE TeamMatchHistory (
-            team_id      TEXT,
-            match_id     TEXT,
-            start_time   DATETIME,
+        CREATE TABLE IF NOT EXISTS TeamMatchHistory (
+            team_id      INTEGER,
+            match_id     INTEGER,
+            start_time   TIMESTAMP,
             competition_season_name TEXT,
             competition_id TEXT,
             competition_name TEXT,
@@ -271,9 +275,9 @@ def create_counter_table(conn):
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS counter_table (
             competition_id TEXT,
-            home_wins INTEGER,
-            draw_wins INTEGER,
-            away_wins INTEGER,
+            home_wins FLOAT,
+            draw_wins FLOAT,
+            away_wins FLOAT,
             count INTEGER,
             last_updated TEXT,
             PRIMARY KEY (competition_id)
@@ -284,12 +288,13 @@ def create_counter_table(conn):
 
 #MATCH INFO
 def create_match_info_table(conn):
-    conn.execute('''
+    cursor = conn.cursor()
+    cursor.execute('''
     CREATE TABLE IF NOT EXISTS match_info_history (
         match_id INTEGER,
-        start_time DATETIME,
+        start_time TIMESTAMP,
         competition_season_name TEXT,
-        competition_id INTEGER,
+        competition_id TEXT,
         competition_name TEXT,
         competition_country TEXT,
         home_team_name TEXT,
@@ -297,13 +302,15 @@ def create_match_info_table(conn):
         PRIMARY KEY (match_id, competition_id)
     )
     ''')
+    conn.commit()
+    cursor.close()
 
 #LEAGUE STANDINGS
 def create_league_standings_table(conn):
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS league_standings (
-            team_id TEXT,
+            team_id INTEGER,
             competition_season_id TEXT,
             matches_played INTEGER,
             wins INTEGER,
@@ -323,7 +330,7 @@ def create_league_standings_history_table(conn):
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS league_standings_history (
-            match_id TEXT,
+            match_id INTEGER,
             home_standing INTEGER,
             home_matches_played INTEGER,
             home_wins INTEGER,

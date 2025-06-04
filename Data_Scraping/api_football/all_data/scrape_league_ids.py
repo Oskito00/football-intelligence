@@ -39,6 +39,7 @@ def get_all_leagues_on_api():
             'logo': league['league']['logo'],
             'country': json.dumps(league['country']),
             'years': ([season['year'] for season in league['seasons']]),
+            'current_season': next((season['year'] for season in league['seasons'] if season['current']), None),
             'seasons': json.dumps(league['seasons'])
         }
         print(league_data['years'])

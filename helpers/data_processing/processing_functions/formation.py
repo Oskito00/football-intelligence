@@ -1,8 +1,7 @@
 import json
-import sqlite3
 from helpers.database_helpers.get_and_set_functions import bulk_insert_formations, get_from_matches
 
-def formation_extraction(matches):
+def formation_extraction(conn):
     """Extracts the formation for each match
     
     Args:
@@ -12,8 +11,14 @@ def formation_extraction(matches):
         formations (list): The list of formations.
         Saves the formations to formation_history table.
     """
+    matches = get_from_matches(conn, select_str='SELECT', columns=['match_id', 'home_team_formation', 'away_team_formation'], where_clause='home_team_formation IS NOT NULL AND away_team_formation IS NOT NULL AND home_score IS NOT NULL AND away_score IS NOT NULL AND is_processed = false')
+
     formations = []
+    match_count = 0
     for match in matches:
+        if match_count % 1000 == 0:
+            print(f"Processing match {match_count} out of {len(matches)}")
+        match_count += 1
         try:
             match_id, home_formation_str, away_formation_str = match
 
@@ -27,11 +32,8 @@ def formation_extraction(matches):
             print(f"Skipping match {match_id}: {str(e)}")
             continue
     
-    bulk_insert_formations(formations)
+    bulk_insert_formations(formations, conn)
             
     return formations
 
-if __name__ == "__main__":
-    conn = sqlite3.connect('api_football.db')
-    formations = get_from_matches(conn, select_str='SELECT', columns=['match_id', 'home_team_formation', 'away_team_formation'], where_clause='home_team_formation IS NOT NULL AND away_team_formation IS NOT NULL AND home_score IS NOT NULL AND away_score IS NOT NULL AND is_processed = 0')
-    formation_extraction(formations)
+

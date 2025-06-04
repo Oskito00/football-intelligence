@@ -14,7 +14,7 @@ with psycopg2.connect(
     password=config.DB_PASSWORD
 ) as conn:
     with conn.cursor() as cursor:
-        cursor.execute("SELECT id, years FROM leagues")
+        cursor.execute("SELECT id, years, current_season FROM leagues")
         leagues = cursor.fetchall()
 
     scraped_data = scrape_matches_from_api(leagues, latest_only=True)

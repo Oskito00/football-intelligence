@@ -1,4 +1,7 @@
 import pandas as pd
+from helpers.database_helpers.get_and_set_functions import load_from_postgres
+from sqlalchemy import create_engine
+from config import get_config
 import numpy as np
 from sklearn.compose import make_column_transformer
 from sklearn.model_selection import train_test_split
@@ -25,21 +28,30 @@ def load_csv_data(file_path):
 
 def prepare_data(remove_draws=False, training_data_filter=None, test_year=None, test_competition_id=None):
     # Load all data
-    df = load_csv_data('data/api_football/processed/elo_features.csv')
-    # form_df = load_csv_data('data/api_football/processed/form_features.csv')
-    match_info_df = load_csv_data('data/api_football/processed/match_info_features.csv')
-    formation_df = load_csv_data('data/api_football/processed/formation_features.csv')
-    stage_of_season_df = load_csv_data('data/api_football/processed/stage_of_season_features.csv')
+
+    config = get_config()
+
+    # Set up SQLAlchemy engine
+    engine = create_engine(
+    f"postgresql://{config.DB_USER}:{config.DB_PASSWORD}@{config.DB_HOST}/{config.DB_NAME}"
+    )
+
+    df = load_from_postgres(engine, 'elo_history', '*')
+    match_info_df = load_from_postgres(engine, 'match_info_history', '*')
+    stage_of_season_df = load_from_postgres(engine, 'stage_of_season_history', '*')
     stage_of_season_df.drop(columns=['start_time','season_start_date','season_end_date'], inplace=True)
-    league_standings_df = load_csv_data('data/api_football/processed/league_standings_features.csv')
+    league_standings_df = load_from_postgres(engine, 'league_standings_history', '*')
+
+    #TODO: Fatigue needs to be looked at (why is it missing so many matches? Says no past data available)
+    # fatigue_df = load_from_postgres(engine, 'fatigue_history', '*')
+
+    #TODO: When I have formations, I can use this
+    # formation_df = load_from_postgres(engine, 'formation_history', '*')
+
 
     # Merge data
     merged = df.merge(
         match_info_df,
-        on='match_id',
-        how='inner'
-    ).merge(
-        formation_df[['match_id', 'home_team_formation', 'away_team_formation']],
         on='match_id',
         how='inner'
     ).merge(
@@ -53,30 +65,29 @@ def prepare_data(remove_draws=False, training_data_filter=None, test_year=None, 
     )
     print("Length of merged data:", len(merged))
 
-    # Create result column
     merged['result'] = np.where(
         merged['home_team_score'] > merged['away_team_score'], 'home_win',
         np.where(merged['home_team_score'] < merged['away_team_score'], 'away_win', 'draw')
     )
 
-    # Only convert competition_id to categorical (XGBoost can handle this)
-    merged['competition_id'] = merged['competition_id'].astype('category')
+    merged['competition_id'] = merged['competition_id'].astype('category') #XGBoost can handle this
     
     if remove_draws:
         merged = merged[merged['result'] != 'draw']
 
-    # Prepare formation features    
-    preprocessor = make_column_transformer(
-        (OneHotEncoder(handle_unknown='ignore'), ['home_team_formation', 'away_team_formation']),
-        remainder='passthrough',
-        verbose_feature_names_out=False
-    )
+    #TODO: When I have formations, I can use this
+    # preprocessor = make_column_transformer(
+    #     (OneHotEncoder(handle_unknown='ignore'), ['home_team_formation', 'away_team_formation']),
+    #     remainder='passthrough',
+    #     verbose_feature_names_out=False
+    # )
 
+    #TODO: When I have formations, I can use this
     # # # Fit on ALL data to learn all possible formation categories
-    merged = preprocessor.fit_transform(merged)
+    # merged = preprocessor.fit_transform(merged)
 
-    # # # convert to dataframe
-    merged = pd.DataFrame(merged, columns=preprocessor.get_feature_names_out())
+    #TODO: When I have formations, I can use this
+    # merged = pd.DataFrame(merged, columns=preprocessor.get_feature_names_out())
 
     
     # 2. Now split into train/test

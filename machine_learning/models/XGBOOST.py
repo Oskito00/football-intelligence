@@ -1,20 +1,18 @@
+from tqdm import tqdm
+import joblib
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import KFold, cross_val_score, train_test_split
+from sklearn.model_selection import cross_val_score, train_test_split
 import xgboost as xgb
-from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
+from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.preprocessing import OrdinalEncoder
-from imblearn.over_sampling import SMOTE
 from helpers.machine_learning.load_data import prepare_data
 
 def xgboost_model(num_folds=10, remove_draws=False, training_data_filter=None, test_year=None, test_competition_id=None):
-
     y_test = None
     
     if test_competition_id and test_year:
         X_train, y_train, X_test, y_test = prepare_data(remove_draws, training_data_filter, test_year, test_competition_id)
-        print(X_test.head())
-        print(y_test.head())
         X_train, X_metadata_train = prepare_data_for_inference(X_train)
         X_test, X_metadata_test = prepare_data_for_inference(X_test)
     else:
@@ -54,13 +52,22 @@ def xgboost_model(num_folds=10, remove_draws=False, training_data_filter=None, t
         print(f"  Fold {i}: {result * 100:.2f}%")
     print(f'Mean Accuracy: {cross_val_results.mean()* 100:.2f}%')
 
-    # Pass weights during training
+    print("Training model...")
+
+     # Modified training code with progress bar
+    # Train the model without tqdm
     xgb_classifier.fit(
     X_train, y_train_encoded,
     sample_weight=sample_weights,
     eval_set=[(X_test, y_test_encoded)],
-    verbose=True
-)
+    verbose=False  # You can set this to True or a number if you want minimal progress info
+    )
+
+    # Save the trained model
+    model_path = "machine_learning/saved_model_params/XGBOOST/xgboost_model_match_outcome.joblib"
+    xgb_classifier.save_model(model_path)
+    print(f"Model saved to {model_path}")
+
     
     if test_competition_id and test_year and X_metadata_test is not None:
         #save predictions
@@ -91,7 +98,7 @@ def xgboost_model(num_folds=10, remove_draws=False, training_data_filter=None, t
         print(f"Accuracy: {accuracy_score(y_test_encoded, predictions)}")
         print(f"Confusion Matrix:\n {confusion_matrix(y_test_encoded, predictions)}")
         return results
-
+    
 def prepare_data_for_inference(df):
     # Store metadata columns you want to keep
     metadata = df[['match_id', 'start_time', 'home_team_name', 'away_team_name', 'competition_name', 'competition_season_name', 'competition_country', 'home_team_score', 'away_team_score']]
@@ -103,6 +110,5 @@ def prepare_data_for_inference(df):
     return X, metadata
 
 if __name__ == "__main__":
-    #Need to perform cross validation to ensure the accuracies are stable
-    #Evaluate the model on different sets of dev data
-    xgboost_model(remove_draws=False, num_folds=10, training_data_filter=None, test_year=2021, test_competition_id=61)
+    xgboost_model(remove_draws=False, num_folds=10)
+    # xgboost_model(remove_draws=False, num_folds=10, training_data_filter=None, test_year=2021, test_competition_id=61)

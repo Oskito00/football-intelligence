@@ -1,15 +1,16 @@
 from datetime import time
+import time
+import psycopg2
+from helpers.database_helpers.get_and_set_functions import get_from_matches
 
-
-def process_matches_to_history(conn,matches, batch_size=1000):
+def process_matches_to_history(conn, batch_size=1000):
     """Saves matches into an easier to query table.
-    Mostly used for form analysis, easier to query "last N matches for team" X
-
-
-    
-    """
+    Mostly used for form analysis, easier to query "last N matches for team" X    
+    """   
+    matches = get_from_matches(conn, select_str='SELECT DISTINCT', columns=['match_id', 'start_time', 'competition_season_name', 'competition_id', 'competition_name', 'competition_country', 'home_team_id', 'home_team_name', 'away_team_id', 'away_team_name', 
+               'home_score', 'away_score', 'home_team_domestic_league_id', 'home_team_domestic_country', 'away_team_domestic_league_id', 'away_team_domestic_country'], where_clause='home_score IS NOT NULL AND away_score IS NOT NULL AND is_processed = false', order_by='start_time')
     cursor = conn.cursor()
-    
+
     team_data_batch = []
     processed_count = 0
     
@@ -43,9 +44,9 @@ def process_matches_to_history(conn,matches, batch_size=1000):
             away_score,
             'win' if home_score > away_score else 'loss' if home_score < away_score else 'draw',
             1,  # is_home=True,
-            is_domestic_league_match,
-            is_domestic_cup_match,
-            is_continental_cup_match
+            int(is_domestic_league_match),
+            int(is_domestic_cup_match),
+            int(is_continental_cup_match)
         ))
             
         # Away team entry
@@ -61,20 +62,20 @@ def process_matches_to_history(conn,matches, batch_size=1000):
             home_score,
             'win' if away_score > home_score else 'loss' if away_score < home_score else 'draw',
             0,  # is_home=False
-            is_domestic_league_match,
-            is_domestic_cup_match,
-            is_continental_cup_match
+            int(is_domestic_league_match),
+            int(is_domestic_cup_match),
+            int(is_continental_cup_match)
         ))
         
         processed_count += 1
-        
         # Insert in batches
         if len(team_data_batch) >= batch_size:
             cursor.executemany("""
-                INSERT OR IGNORE INTO TeamMatchHistory 
+                INSERT INTO TeamMatchHistory 
                 (team_id, match_id, start_time, competition_season_name, competition_id, competition_name, competition_country, goals_scored, goals_conceded, 
                 result, is_home, is_intraleague_match, is_domestic_cup_match, is_continental_cup_match)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT DO NOTHING
             """, team_data_batch)
             conn.commit()
             team_data_batch = []  # Clear the batch
@@ -82,10 +83,11 @@ def process_matches_to_history(conn,matches, batch_size=1000):
     # Insert any remaining records
     if team_data_batch:
         cursor.executemany("""
-            INSERT OR IGNORE INTO TeamMatchHistory 
+            INSERT INTO TeamMatchHistory 
             (team_id, match_id, start_time, competition_season_name, competition_id, competition_name, competition_country, goals_scored, goals_conceded, 
             result, is_home, is_intraleague_match, is_domestic_cup_match, is_continental_cup_match)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT DO NOTHING
         """, team_data_batch)
         conn.commit()
     
