@@ -2,6 +2,9 @@ from helpers.database_helpers.get_and_set_functions import get_from_matches, get
 from helpers.league_standings.league_standings import find_team_standing, save_to_standings_history, upsert_into_standings
 
 
+#TODO: Change this to make use of a context manager
+# Save standings in memory and then insert into the database in batches
+
 def extract_league_standings(conn):
     print("**********Running League Standings Extraction**********")
 

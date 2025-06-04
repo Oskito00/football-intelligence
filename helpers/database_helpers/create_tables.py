@@ -9,9 +9,24 @@ def create_tables(conn):
     create_league_elo_table(conn)
     create_nation_elo_table(conn)
     create_match_info_table(conn)
+    create_stage_of_season_table(conn)
     create_league_standings_table(conn)
     create_league_standings_history_table(conn)
 
+def create_stage_of_season_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS stage_of_season_history (
+            match_id INTEGER,
+            start_time TIMESTAMP,
+            season_start_date TIMESTAMP,
+            season_end_date TIMESTAMP,
+            stage_of_season REAL,
+            stage_of_season_category TEXT
+        )
+    """)
+    conn.commit()
+    cursor.close()
 
 def create_elo_history_table(conn):
     cursor = conn.cursor()
