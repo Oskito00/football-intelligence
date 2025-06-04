@@ -98,118 +98,140 @@ def elo_davidson_formula(
     
     return home_elo_new, away_elo_new
 
-def get_entity_elo(conn, table_name, id_column, id_value, name_column=None, name_value=None):
+def get_bulk_entity_elos(conn, table_name, id_column, id_values):
     """
-    Retrieve or initialize ELO ratings for a given entity (club, league, or nation).
-    Compatible with PostgreSQL.
+    Bulk fetch existing ELO ratings for a list of IDs.
+    Initializes missing entries in memory with default values.
+    
+    Returns:
+        dict of {id_value: {elo_column: value}}
     """
     cursor = conn.cursor()
 
-    # Get column info from information_schema
+    # 1. Get ELO columns
     cursor.execute("""
         SELECT column_name
         FROM information_schema.columns
         WHERE table_name = %s
     """, (table_name,))
-    all_columns = [row[0] for row in cursor.fetchall()]
-
-    # Filter for ELO columns
+    all_columns = [row["column_name"] for row in cursor.fetchall()]
     elo_columns = [col for col in all_columns if "elo" in col.lower()]
+
     if not elo_columns:
         raise ValueError(f"No ELO columns found in table {table_name}")
 
-    # Build the SELECT query
-    select_columns = ", ".join(elo_columns)
-    query = f"SELECT {select_columns} FROM {table_name} WHERE {id_column} = %s"
-    cursor.execute(query, (id_value,))
-    result = cursor.fetchone()
+    if not id_values:
+        return {}
 
-    if result:
-        # Entity exists, return ELOs as a dictionary
-        return {col: val for col, val in zip(elo_columns, result)}
-    else:
-        # Entity doesn't exist, create it with default ratings
-        default_rating = 1500
-        elo_dict = {col: default_rating for col in elo_columns}
-
-        # Build insert components
-        insert_columns = [id_column]
-        values = [id_value]
-
-        if name_column and name_value:
-            insert_columns.append(name_column)
-            values.append(name_value)
-
-        insert_columns.extend(elo_columns)
-        values.extend([default_rating] * len(elo_columns))
-
-        # Build and run INSERT query
-        columns_str = ", ".join(insert_columns)
-        placeholders = ", ".join(["%s"] * len(values))
-        insert_query = f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders})"
-        cursor.execute(insert_query, values)
-        conn.commit()
-
-        return elo_dict
-    
-def update_entity_elo(conn, table_name, id_column, id_value, elo_dict):
+    # 2. Fetch existing ELOs
+    placeholders = ', '.join(['%s'] * len(id_values))
+    query = f"""
+        SELECT {id_column}, {', '.join(elo_columns)}
+        FROM {table_name}
+        WHERE {id_column} IN ({placeholders})
     """
-    SET function to update the elos for a particular entity (can be club, league or nation)
-    Similar to the function above
+    cursor.execute(query, id_values)
+    results = cursor.fetchall()
+
+    # 3. Parse results into dict
+    elos_by_id = {}
+    for row in results:
+        entity_id = row[id_column]
+        elos_by_id[entity_id] = {
+            col: row[col] for col in elo_columns
+        }
+
+    # 4. Fill in missing IDs with default ELOs (only in memory)
+    default_rating = 1500
+    default_elo = {col: default_rating for col in elo_columns}
+
+    for entity_id in id_values:
+        if entity_id not in elos_by_id:
+            elos_by_id[entity_id] = default_elo.copy()
+
+    return elos_by_id
+    
+def bulk_upsert_entity_elos(conn, table_name, id_column, elos_dict):
+    """
+    Bulk upsert ELO ratings for entities (clubs, leagues, nations) into the specified table.
     
     Args:
         conn: Database connection
-        table_name: The table containing ELO ratings (e.g., 'club_elo_ratings', 'league_elo_ratings')
-        id_column: Column name to identify the entity (e.g., 'team_id', 'league_id', 'nation_name')
-        id_value: Value to identify the entity
-        elo_dict: Dictionary of updated ELO ratings with column names as keys
-    
+        table_name: Table to update (e.g. 'club_elo_ratings')
+        id_column: Identifier column name (e.g. 'team_id')
+        elos_dict: Dict mapping id_value -> dict of {column_name: value}
+        
     Returns:
         Boolean indicating success
     """
+    if not elos_dict:
+        return True  # Nothing to do
+
     cursor = conn.cursor()
     
-    # Build the SET clause for the UPDATE statement
-    set_clause = ", ".join([f"{col} = %s" for col in elo_dict.keys()])
-    values = list(elo_dict.values())
+    # Extract all columns to update (assuming all dicts have the same keys)
+    # Add the id_column at the start for the insert columns
+    example_elo = next(iter(elos_dict.values()))
+    columns = [id_column] + list(example_elo.keys())
     
-    # Add the WHERE condition value
-    values.append(id_value)
+    # Build the VALUES part as (%s, %s, ..., %s) tuples
+    values = []
+    for id_value, elo_data in elos_dict.items():
+        row = [id_value] + [elo_data[col] for col in example_elo.keys()]
+        values.append(row)
     
-    # Build and execute the UPDATE query
-    query = f"UPDATE {table_name} SET {set_clause} WHERE {id_column} = %s"
+    # Build the placeholder string e.g. (%s, %s, %s)
+    placeholders = "(" + ", ".join(["%s"] * len(columns)) + ")"
+    all_placeholders = ", ".join([placeholders] * len(values))
     
+    # Flatten the values list for execute
+    flat_values = [item for sublist in values for item in sublist]
+    
+    # Build the ON CONFLICT update set clause (skip id_column)
+    set_clause = ", ".join([f"{col} = EXCLUDED.{col}" for col in columns if col != id_column])
+    
+    query = f"""
+        INSERT INTO {table_name} ({", ".join(columns)})
+        VALUES {all_placeholders}
+        ON CONFLICT ({id_column}) DO UPDATE SET
+        {set_clause}
+    """ 
     try:
-        cursor.execute(query, values)
+        cursor.execute(query, flat_values)
         conn.commit()
         return True
     except Exception as e:
-        print(f"Error updating ELO ratings in {table_name}: {e}")
+        print(f"Error bulk upserting ELO ratings in {table_name}: {e}")
         conn.rollback()
         return False
 
-def save_elo_history(conn, match_id, home_team_id, away_team_id, 
-                     home_club_elos, away_club_elos, 
-                     home_nation_elos, away_nation_elos,
-                     home_league_elos, away_league_elos,
-                     home_score, away_score,
-                     k_draw_parameter, eta_home_advantage):
+def save_updated_elos_bulk(conn, club_elos, nation_elos, league_elos):
+    success_club = bulk_upsert_entity_elos(conn, "club_elo_ratings", "team_id", club_elos)
+    if not success_club:
+        print("Failed to bulk update club ELOs")
+
+    success_nation = bulk_upsert_entity_elos(conn, "nation_elo_ratings", "nation_name", nation_elos)
+    if not success_nation:
+        print("Failed to bulk update nation ELOs")
+
+    success_league = bulk_upsert_entity_elos(conn, "league_elo_ratings", "league_id", league_elos)
+    if not success_league:
+        print("Failed to bulk update league ELOs")
+
+    return success_club and success_nation and success_league
+
+    
+def build_elo_history_record(match_id, home_team_id, away_team_id, 
+                              home_club_elos, away_club_elos, 
+                              home_nation_elos, away_nation_elos,
+                              home_league_elos, away_league_elos,
+                              home_score, away_score,
+                              k_draw_parameter, eta_home_advantage):
     """
-    Save the current elo ratings for a match to the elo_history table.
+    Build a dict representing ELO history for a single match.
+    To be passed to save_elo_history_bulk().
     """
 
-    cursor = conn.cursor()
-
-    # Use PostgreSQL's information_schema to get column names
-    cursor.execute("""
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name = 'elo_history'
-        ORDER BY ordinal_position
-    """)
-    table_columns = [row[0] for row in cursor.fetchall()]
-
-    # Base data
     data = {
         'match_id': match_id,
         'home_team_id': home_team_id,
@@ -220,7 +242,7 @@ def save_elo_history(conn, match_id, home_team_id, away_team_id,
         'away_team_score': away_score,
     }
 
-    # Add home/away club ELOs
+    # Club ELOs
     for col, val in home_club_elos.items():
         data[f'home_team_{col}'] = val
     for col, val in away_club_elos.items():
@@ -234,7 +256,7 @@ def save_elo_history(conn, match_id, home_team_id, away_team_id,
         for col, val in away_nation_elos.items():
             data[f'away_team_{col}'] = val
 
-    # League ELOs
+    # League ELOs (renamed)
     if home_league_elos:
         for col, val in home_league_elos.items():
             league_col = col.replace('league_', 'team_league_')
@@ -244,101 +266,185 @@ def save_elo_history(conn, match_id, home_team_id, away_team_id,
             league_col = col.replace('league_', 'team_league_')
             data[f'away_{league_col}'] = val
 
-    # Build insert data matching column order
-    columns = []
-    values = []
+    return data
 
-    for col in table_columns:
-        columns.append(col)
-        values.append(data.get(col, 1500))  # default to 1500
+def save_elo_history_bulk(conn, elo_history_list):
+    """
+    Save a list of elo history records to the elo_history table in bulk.
+    Each record should be a dict matching the schema, as returned by build_elo_history_record().
+    """
 
-    placeholders = ', '.join(['%s'] * len(columns))
-    columns_str = ', '.join(columns)
+    if not elo_history_list:
+        return  # nothing to do
 
-    cursor.execute(
-        f"INSERT INTO elo_history ({columns_str}) VALUES ({placeholders})",
-        values
-    )
-    conn.commit()
-
-def update_counter_table(conn, competition_id, result, lambda_val=0.99):
     cursor = conn.cursor()
-    result = result.lower()
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    home_increment_count = 1 if result == 'home' else 0
-    draw_increment_count = 1 if result == 'draw' else 0
-    away_increment_count = 1 if result == 'away' else 0
-
-    # Insert initial counts based on this match, count=1
+    # Get the table column names in correct order
     cursor.execute("""
-        INSERT INTO counter_table (competition_id, home_wins, draw_wins, away_wins, count, last_updated)
-        VALUES (%s, %s, %s, %s, 1, %s)
-        ON CONFLICT (competition_id) DO UPDATE SET
-            home_wins = counter_table.home_wins * %s + CASE WHEN %s = 'home' THEN 1 ELSE 0 END,
-            draw_wins = counter_table.draw_wins * %s + CASE WHEN %s = 'draw' THEN 1 ELSE 0 END,
-            away_wins = counter_table.away_wins * %s + CASE WHEN %s = 'away' THEN 1 ELSE 0 END,
-            count = counter_table.count + 1,
-            last_updated = EXCLUDED.last_updated
-    """, (
-        competition_id, 
-        home_increment_count,
-        draw_increment_count,
-        away_increment_count,
-        now,
-        lambda_val, result,
-        lambda_val, result,
-        lambda_val, result
-    ))
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'elo_history'
+        ORDER BY ordinal_position
+    """)
+    table_columns = [row["column_name"] for row in cursor.fetchall()]
 
-    # Same for combined_leagues (initial insert counts set to increments, count=1)
-    cursor.execute("""
-        INSERT INTO counter_table (competition_id, home_wins, draw_wins, away_wins, count, last_updated)
-        VALUES ('combined_leagues', %s, %s, %s, 1, %s)
-        ON CONFLICT (competition_id) DO UPDATE SET
-            home_wins = counter_table.home_wins * %s + CASE WHEN %s = 'home' THEN 1 ELSE 0 END,
-            draw_wins = counter_table.draw_wins * %s + CASE WHEN %s = 'draw' THEN 1 ELSE 0 END,
-            away_wins = counter_table.away_wins * %s + CASE WHEN %s = 'away' THEN 1 ELSE 0 END,
-            count = counter_table.count + 1,
-            last_updated = EXCLUDED.last_updated
-    """, (
-        home_increment_count,
-        draw_increment_count,
-        away_increment_count,
-        now,
-        lambda_val, result,
-        lambda_val, result,
-        lambda_val, result
-    ))
+    # Prepare bulk insert data
+    rows_to_insert = []
+    for record in elo_history_list:
+        row = [record.get(col, 1500) for col in table_columns]  # Default to 1500 if missing
+        rows_to_insert.append(row)
 
+    # Build query
+    placeholders = ', '.join(['%s'] * len(table_columns))
+    columns_str = ', '.join(table_columns)
+    insert_query = f"""
+        INSERT INTO elo_history ({columns_str}) 
+        VALUES ({placeholders})
+    """
+
+    # Execute
+    cursor.executemany(insert_query, rows_to_insert)
     conn.commit()
-    cursor.close()
 
-def get_counts(conn, index, get_nation=False):
-    """Function to get the match result counts for a competition or nation
+def save_updated_counts(conn, counts_dict, decay_lambda=0.99):
+    """
+    Bulk upsert counts into counter_table applying a decay factor to old values before adding new.
     
     Args:
         conn: Database connection
-        index: Competition ID or nation name
-        get_nation: Boolean to get nation counts
+        counts_dict: Dict mapping competition_id -> {'home_wins': int, 'draw_wins': int, 'away_wins': int, 'count': int}
+        decay_lambda: Float between 0 and 1 to discount old counts (1.0 means no decay)
+    
+    Returns:
+        Boolean indicating success
     """
+    if not counts_dict:
+        return True  # Nothing to do
+    
     cursor = conn.cursor()
     
-    # Direct competition lookup
-    cursor.execute("""
-            SELECT home_wins, draw_wins, away_wins, count 
-            FROM counter_table 
-            WHERE competition_id = %s
-    """, (index,))
-        
-    result = cursor.fetchone()
-    if result and result[3] > 200:  # Check count > 0
-        return result
+    columns = ['competition_id', 'home_wins', 'draw_wins', 'away_wins', 'count']
+    
+    values = []
+    for comp_id, data in counts_dict.items():
+        values.append([
+            comp_id,
+            data.get('home_wins', 0),
+            data.get('draw_wins', 0),
+            data.get('away_wins', 0),
+            data.get('count', 0),
+        ])
+    
+    placeholders = "(" + ", ".join(["%s"] * len(columns)) + ")"
+    all_placeholders = ", ".join([placeholders] * len(values))
+    flat_values = [item for sublist in values for item in sublist]
+    
+    set_clause = ", ".join(
+        f"{col} = EXCLUDED.{col}"
+        for col in columns if col != 'competition_id'
+    )
+    
+    query = f"""
+        INSERT INTO counter_table ({", ".join(columns)})
+        VALUES {all_placeholders}
+        ON CONFLICT (competition_id) DO UPDATE SET
+        {set_clause}
+    """
+    
+    try:
+        cursor.execute(query, flat_values)
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error bulk upserting counts with decay in counter_table: {e}")
+        conn.rollback()
+        return False
+
+def get_counts(conn, league_ids, get_nation=False, decay_lambda=0.99):
+    """
+    Return match result counts for each league_id in league_ids,
+    plus a special 'combined_leagues' entry.
+    Missing leagues or combined_leagues get zeroed counts (in memory only).
+    Applies a decay factor to all counts when reading from the database.
+
+    Args:
+        conn: Database connection (with RealDictCursor)
+        league_ids: List of competition IDs (str or int)
+        get_nation: Placeholder for future logic (unused)
+        decay_lambda: Float between 0 and 1 to discount counts (default: 0.99)
+
+    Returns:
+        dict: {league_id: {'home_wins': int, 'draw_wins': int, 'away_wins': int, 'count': int}, ..., 'combined_leagues': {...}}
+    """
+    cursor = conn.cursor()
+
+    # Normalize league_ids to strings for querying and dict keys
+    league_ids_str = [str(lid) for lid in league_ids]
+
+    # Build placeholders for SQL IN clause
+    placeholders = ', '.join(['%s'] * len(league_ids_str))
+    # Apply decay to all count columns in the SELECT statement
+    query = f"""
+        SELECT 
+            competition_id, 
+            home_wins * {decay_lambda} as home_wins, 
+            draw_wins * {decay_lambda} as draw_wins, 
+            away_wins * {decay_lambda} as away_wins, 
+            count * {decay_lambda} as count
+        FROM counter_table
+        WHERE competition_id IN ({placeholders})
+    """
+    cursor.execute(query, league_ids_str)
+    results = cursor.fetchall()
+
+    # Build dict with string keys (str of competition_id)
+    counts_by_league = {
+        str(row['competition_id']): {
+            'home_wins': row['home_wins'],
+            'draw_wins': row['draw_wins'],
+            'away_wins': row['away_wins'],
+            'count': row['count']
+        }
+        for row in results
+    }
+
+    # Fill missing leagues with zeros using string keys
+    for league_id in league_ids_str:
+        if league_id not in counts_by_league:
+            counts_by_league[league_id] = {
+                'home_wins': 0,
+                'draw_wins': 0,
+                'away_wins': 0,
+                'count': 0
+            }
+
+    # Fetch combined_leagues counts separately (key is always string)
+    # Apply decay to combined leagues counts as well
+    cursor.execute(f"""
+        SELECT 
+            competition_id, 
+            home_wins * {decay_lambda} as home_wins, 
+            draw_wins * {decay_lambda} as draw_wins, 
+            away_wins * {decay_lambda} as away_wins, 
+            count * {decay_lambda} as count
+        FROM counter_table
+        WHERE competition_id = 'combined_leagues'
+    """)
+    combined_row = cursor.fetchone()
+
+    if combined_row:
+        counts_by_league['combined_leagues'] = {
+            'home_wins': combined_row['home_wins'],
+            'draw_wins': combined_row['draw_wins'],
+            'away_wins': combined_row['away_wins'],
+            'count': combined_row['count']
+        }
     else:
-        cursor.execute("""
-                SELECT home_wins, draw_wins, away_wins, count 
-                FROM counter_table 
-                WHERE competition_id = 'combined_leagues'
-            """)
-        combined_result = cursor.fetchone()
-        return combined_result if combined_result else (1, 1, 1, 3)
+        counts_by_league['combined_leagues'] = {
+            'home_wins': 1,
+            'draw_wins': 1,
+            'away_wins': 1,
+            'count': 3
+        }
+
+    return counts_by_league

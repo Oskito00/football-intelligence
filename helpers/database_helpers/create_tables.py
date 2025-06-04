@@ -147,7 +147,7 @@ def create_club_elo_rating_table(conn):
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS club_elo_ratings (
-            team_id INTEGER,
+            team_id INTEGER PRIMARY KEY,
             team_name TEXT,
             elo_home_matches_K5 INTEGER,
             elo_home_matches_K10 INTEGER,
@@ -194,7 +194,7 @@ def create_league_elo_table(conn):
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS league_elo_ratings (
-            league_id INTEGER,
+            league_id INTEGER PRIMARY KEY,
             league_domestic_elo_K5 INTEGER,
             league_domestic_elo_K10 INTEGER,
             league_domestic_elo_K20 INTEGER,
@@ -216,7 +216,7 @@ def create_nation_elo_table(conn):
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS nation_elo_ratings (
-            nation_name TEXT,
+            nation_name TEXT PRIMARY KEY,
             nation_elo_K5 INTEGER,
             nation_elo_K10 INTEGER,
             nation_elo_K20 INTEGER,
