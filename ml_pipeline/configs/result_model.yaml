@@ -1,0 +1,99 @@
+# Configuration for Football Result Prediction Model
+
+model:
+  name: "result_model"
+  type: "classification"
+  algorithm: "xgboost"  # xgboost, random_forest, logistic_regression, neural_network
+  
+  # Model hyperparameters
+  hyperparameters:
+    n_estimators: 100
+    max_depth: 6
+    learning_rate: 0.1
+    subsample: 0.8
+    colsample_bytree: 0.8
+    random_state: 42
+
+# Data configuration
+data:
+  feature_loader: "load_result_features"  # Name of feature loader class
+  target_column: "result"  # home_win, away_win, draw
+  match_id_column: "match_id"
+  
+  # Tables to use for features
+  feature_tables:
+    - "elo_history"
+    - "fatigue_history"
+    - "stage_of_season_history"
+    - "formation_history"
+    - "match_info_history"
+  
+  # Filters
+  filters:
+    min_date: "2020-01-01"
+    max_date: null
+    leagues: null  # null means all leagues
+    
+  # Train/test split
+  test_size: 0.2
+  validation_size: 0.1
+  random_state: 42
+  stratify: true
+
+# Preprocessing configuration
+preprocessing:
+  scale_features: true
+  handle_missing: true
+  drop_missing_threshold: 0.5  # Drop columns with >50% missing values
+  
+  # Feature engineering
+  feature_engineering:
+    create_elo_differences: true
+    create_form_features: true
+    create_interaction_features: false
+
+# Training configuration
+training:
+  cross_validation:
+    enabled: true
+    folds: 5
+    scoring: "accuracy"
+  
+  early_stopping:
+    enabled: true
+    patience: 10
+    metric: "accuracy"
+  
+  class_weights: "balanced"  # Handle class imbalance
+
+# Evaluation configuration
+evaluation:
+  metrics:
+    - "accuracy"
+    - "precision"
+    - "recall"
+    - "f1"
+    - "roc_auc"
+  
+  # Additional evaluation settings
+  confusion_matrix: true
+  feature_importance: true
+  learning_curves: true
+
+# Output configuration
+output:
+  save_model: true
+  save_predictions: true
+  save_feature_importance: true
+  save_evaluation_report: true
+  
+  # Updated paths
+  model_dir: "ml_pipeline/saved_models"
+  predictions_dir: "data/predictions"  # Keep data at root
+  reports_dir: "ml_pipeline/reports"
+
+# Logging configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "ml_pipeline/logs/result_model.log" 

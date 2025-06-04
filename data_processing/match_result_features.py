@@ -25,11 +25,11 @@ def process_matches(conn):
         batch = matches[i:i+BATCH_SIZE]
         print(f"Processing batch {i//BATCH_SIZE + 1} of {len(matches)//BATCH_SIZE}")
 
-        with FormationManager(conn, batch) as formation_manager:
+        with EloManager(conn, batch) as elo_manager, MatchInfoManager(conn, batch) as match_info_manager, StageOfSeasonManager(conn, batch) as stage_of_season_manager, FormationManager(conn, batch) as formation_manager:
             for match in batch:
-                # elo_manager.process_match(match)
-                # match_info_manager.process_match(match)
-                # stage_of_season_manager.process_match(match)
+                elo_manager.process_match(match)
+                match_info_manager.process_match(match)
+                stage_of_season_manager.process_match(match)
                 formation_manager.process_match(match)
 
 
