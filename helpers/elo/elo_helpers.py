@@ -98,13 +98,13 @@ def elo_davidson_formula(
     
     return home_elo_new, away_elo_new
 
-def get_bulk_entity_elos(conn, table_name, id_column, id_values):
+def get_bulk_entity_elos(conn, table_name, id_column, id_values, team_name_map=False):
     """
     Bulk fetch existing ELO ratings for a list of IDs.
     Initializes missing entries in memory with default values.
-    
+
     Returns:
-        dict of {id_value: {elo_column: value}}
+        dict of {id_value: {elo_column: value, 'team_name': name (optional)}}
     """
     cursor = conn.cursor()
 
@@ -125,10 +125,10 @@ def get_bulk_entity_elos(conn, table_name, id_column, id_values):
 
     # 2. Fetch existing ELOs
     placeholders = ', '.join(['%s'] * len(id_values))
-    query = f"""
+    query = f"""    
         SELECT {id_column}, {', '.join(elo_columns)}
         FROM {table_name}
-        WHERE {id_column} IN ({placeholders})
+        WHERE {id_column} IN ({placeholders})  -- assuming first column is the unique identifier
     """
     cursor.execute(query, id_values)
     results = cursor.fetchall()
@@ -137,18 +137,17 @@ def get_bulk_entity_elos(conn, table_name, id_column, id_values):
     elos_by_id = {}
     for row in results:
         entity_id = row[id_column]
-        elos_by_id[entity_id] = {
-            col: row[col] for col in elo_columns
-        }
+        elos_by_id[entity_id] = {col: row[col] for col in elo_columns}
 
-    # 4. Fill in missing IDs with default ELOs (only in memory)
+    # 4. Fill in missing IDs with default ELOs and optionally team names
     default_rating = 1500
     default_elo = {col: default_rating for col in elo_columns}
 
-    for entity_id in id_values:
+    for i, entity_id in enumerate(id_values):
         if entity_id not in elos_by_id:
             elos_by_id[entity_id] = default_elo.copy()
-
+        if team_name_map:
+            elos_by_id[entity_id]["team_name"] = team_name_map[entity_id]
     return elos_by_id
     
 def bulk_upsert_entity_elos(conn, table_name, id_column, elos_dict):
@@ -221,7 +220,7 @@ def save_updated_elos_bulk(conn, club_elos, nation_elos, league_elos):
     return success_club and success_nation and success_league
 
     
-def build_elo_history_record(match_id, home_team_id, away_team_id, 
+def build_elo_history_record(match_id, home_team_id, away_team_id, home_team_name, away_team_name,
                               home_club_elos, away_club_elos, 
                               home_nation_elos, away_nation_elos,
                               home_league_elos, away_league_elos,
@@ -236,6 +235,8 @@ def build_elo_history_record(match_id, home_team_id, away_team_id,
         'match_id': match_id,
         'home_team_id': home_team_id,
         'away_team_id': away_team_id,
+        'home_team_name': home_team_name,
+        'away_team_name': away_team_name,
         'k_draw_parameter': k_draw_parameter,
         'eta_home_advantage': eta_home_advantage,
         'home_team_score': home_score,

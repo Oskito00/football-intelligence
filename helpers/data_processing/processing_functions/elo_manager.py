@@ -1,7 +1,7 @@
 import math
 import psycopg2
 from helpers.elo.elo_helpers import build_elo_history_record, calculate_elo_ratings, get_bulk_entity_elos, get_counts, save_elo_history_bulk, save_updated_counts, save_updated_elos_bulk
-from helpers.parsing_helpers.list import extract_competition_ids, extract_league_ids, extract_nation_names, extract_team_ids
+from helpers.parsing_helpers.list import extract_competition_ids, extract_league_ids, extract_nation_names, extract_team_id_name_map, extract_team_ids
 
 
 class EloManager:
@@ -10,12 +10,13 @@ class EloManager:
         self.matches = matches
 
     def __enter__(self):
+        self.team_id_name_map = extract_team_id_name_map(self.matches)
         self.team_ids = extract_team_ids(self.matches)
         self.nation_names = extract_nation_names(self.matches)
         self.league_ids = extract_league_ids(self.matches)
         self.competition_ids = extract_competition_ids(self.matches)
 
-        self.club_elos = get_bulk_entity_elos(self.conn, 'club_elo_ratings', 'team_id', self.team_ids)
+        self.club_elos = get_bulk_entity_elos(self.conn, 'club_elo_ratings', 'team_id', self.team_ids, self.team_id_name_map)
         self.nation_elos = get_bulk_entity_elos(self.conn, 'nation_elo_ratings', 'nation_name', self.nation_names)
         self.league_elos = get_bulk_entity_elos(self.conn, 'league_elo_ratings', 'league_id', self.league_ids)
 
@@ -83,12 +84,13 @@ class EloManager:
 
         # Save current elo history
         record = build_elo_history_record(
-            match_id, home_team_id, away_team_id, 
+            match_id, home_team_id, away_team_id, home_team_name, away_team_name,
             home_club_elos, away_club_elos, 
             home_nation_elos, away_nation_elos,
             home_league_elos, away_league_elos,
             home_score, away_score,
             k_draw_parameter, eta_home_advantage)
+        
         self.elo_history.append(record)
 
         # Define k values for ELO calculations
@@ -191,6 +193,9 @@ class EloManager:
         
         competition_id_str = str(competition_id)
 
+        self.counts['combined_leagues'][result] += 1
+        self.counts['combined_leagues']['count'] += 1
+
         # Ensure the league count dict exists
         if competition_id_str in self.counts:
             self.counts[competition_id_str][result] += 1
@@ -205,6 +210,7 @@ class EloManager:
         self.nation_elos[away_team_domestic_country] = updated_away_nation
         self.league_elos[home_team_domestic_league_id] = updated_home_league
         self.league_elos[away_team_domestic_league_id] = updated_away_league
+
 
 
     def __exit__(self, exc_type, exc_val, exc_tb):

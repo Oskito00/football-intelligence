@@ -44,6 +44,12 @@ def train_result_model(conn, config: Dict[str, Any],
         logger.info("Loading training data")
         where_clause = _build_where_clause(config['data'].get('filters', {}))
         features, targets = feature_loader.load_data(where_clause=where_clause, limit=limit)
+        print("*********************")
+        print("Features:")
+        print(features.head())
+        print("Targets:")
+        print(targets.head())
+        print("*********************")
         
         logger.info(f"Loaded {len(features)} samples with {len(features.columns)} features")
         
@@ -55,7 +61,11 @@ def train_result_model(conn, config: Dict[str, Any],
         # Clean data
         features, targets = feature_loader.clean_data(features, targets)
         logger.info(f"After cleaning: {len(features)} samples")
-        
+
+        print("Number of features:", len(features.columns))
+        #write the features to a csv file
+        features.to_csv("features.csv", index=False)
+
         # Initialize model
         logger.info("Initializing model")
         model = ResultModel(config)
@@ -150,14 +160,14 @@ def _build_where_clause(filters: Dict[str, Any]) -> Optional[str]:
     conditions = []
     
     if filters.get('min_date'):
-        conditions.append(f"start_time >= '{filters['min_date']}'")
+        conditions.append(f"m.start_time >= '{filters['min_date']}'")
     
     if filters.get('max_date'):
-        conditions.append(f"start_time <= '{filters['max_date']}'")
+        conditions.append(f"m.start_time <= '{filters['max_date']}'")
     
     if filters.get('leagues'):
         league_list = "', '".join(str(l) for l in filters['leagues'])
-        conditions.append(f"competition_id IN ('{league_list}')")
+        conditions.append(f"mih.competition_id IN ('{league_list}')")
     
     return " AND ".join(conditions) if conditions else None
 

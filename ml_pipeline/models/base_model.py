@@ -25,6 +25,11 @@ class BaseModel(ABC):
         
         # Setup logging
         self.logger = logging.getLogger(self.__class__.__name__)
+        
+        # For consistent target encoding
+        self.label_encoder = LabelEncoder()
+        # Set consistent class order
+        self.label_encoder.fit(['away_win', 'draw', 'home_win'])  # Alphabetical order that sklearn uses
     
     @abstractmethod
     def create_model(self) -> Any:
@@ -214,12 +219,22 @@ class BaseModel(ABC):
         Returns:
             Dictionary of evaluation metrics
         """
-        predictions = self.predict(X_test)
+        predictions = self.model.predict(X_test if self.preprocessor is None else 
+                                       pd.DataFrame(self.preprocessor.transform(X_test), 
+                                                  columns=X_test.columns, index=X_test.index))
+        
+        # Convert encoded labels back to original format for evaluation
+        if self.label_encoder is not None:
+            y_test_original = self.label_encoder.inverse_transform(y_test)
+            predictions_original = self.label_encoder.inverse_transform(predictions)
+        else:
+            y_test_original = y_test
+            predictions_original = predictions
         
         if self._is_classification_task():
-            return self._evaluate_classification(y_test, predictions)
+            return self._evaluate_classification(y_test_original, predictions_original)
         else:
-            return self._evaluate_regression(y_test, predictions)
+            return self._evaluate_regression(y_test_original, predictions_original)
     
     @abstractmethod
     def _train_basic(self, X_train: pd.DataFrame, y_train: pd.Series) -> Dict[str, Any]:

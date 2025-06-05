@@ -39,33 +39,25 @@ class ResultFeatureLoader(BaseFeatureLoader):
     
     def load_features(self, where_clause: Optional[str] = None, limit: Optional[int] = None) -> pd.DataFrame:
         """
-        Load and prepare features for result prediction
-        
-        Args:
-            where_clause: Optional SQL WHERE clause to filter data
-            limit: Optional limit on number of records
-            
-        Returns:
-            DataFrame with features and match_id as index
+        Load the features from all history tables
         """
         self.logger.info(f"Loading result prediction features (variant: {self.config.get('feature_requirements', {}).get('formations', 'unknown')})")
         
         # Build query dynamically based on required features
         query_parts = self._build_dynamic_query()
         
+        # Start from elo_history, join only feature tables
         base_query = f"""
             SELECT 
-                m.match_id,
+                eh.match_id,
                 {query_parts['select_fields']}
-            FROM matches m
+            FROM elo_history eh
             {query_parts['joins']}
-            WHERE m.home_score IS NOT NULL 
-            AND m.away_score IS NOT NULL
         """
         
-        # Add additional filters
+        # Add additional filters if provided
         if where_clause:
-            base_query += f" AND {where_clause}"
+            base_query += f" WHERE {where_clause}"
         
         # Add limit
         if limit:
@@ -92,110 +84,102 @@ class ResultFeatureLoader(BaseFeatureLoader):
         select_fields = []
         joins = []
         
-        # Always include comprehensive ELO features
-        if 'elo_history' in self.feature_tables:
-            select_fields.extend([
-                "-- CORE ELO FEATURES (Club ELOs - all K values)",
-                "eh.home_team_elo_K5, eh.away_team_elo_K5",
-                "eh.home_team_elo_K10, eh.away_team_elo_K10",
-                "eh.home_team_elo_K20, eh.away_team_elo_K20", 
-                "eh.home_team_elo_K30, eh.away_team_elo_K30",
-                "eh.home_team_elo_K40, eh.away_team_elo_K40",
-                "eh.home_team_elo_K80, eh.away_team_elo_K80",
-                "",
-                "-- HOME/AWAY SPECIFIC ELO RATINGS",
-                "eh.home_team_elo_home_matches_K5, eh.away_team_elo_home_matches_K5",
-                "eh.home_team_elo_home_matches_K10, eh.away_team_elo_home_matches_K10",
-                "eh.home_team_elo_home_matches_K20, eh.away_team_elo_home_matches_K20",
-                "eh.home_team_elo_home_matches_K30, eh.away_team_elo_home_matches_K30",
-                "eh.home_team_elo_home_matches_K40, eh.away_team_elo_home_matches_K40",
-                "eh.home_team_elo_home_matches_K80, eh.away_team_elo_home_matches_K80",
-                "",
-                "eh.home_team_elo_away_matches_K5, eh.away_team_elo_away_matches_K5",
-                "eh.home_team_elo_away_matches_K10, eh.away_team_elo_away_matches_K10",
-                "eh.home_team_elo_away_matches_K20, eh.away_team_elo_away_matches_K20",
-                "eh.home_team_elo_away_matches_K30, eh.away_team_elo_away_matches_K30",
-                "eh.home_team_elo_away_matches_K40, eh.away_team_elo_away_matches_K40",
-                "eh.home_team_elo_away_matches_K80, eh.away_team_elo_away_matches_K80",
-                "",
-                "-- DOMESTIC COMPETITION ELO RATINGS",
-                "eh.home_team_elo_domestic_K5, eh.away_team_elo_domestic_K5",
-                "eh.home_team_elo_domestic_K10, eh.away_team_elo_domestic_K10",
-                "eh.home_team_elo_domestic_K20, eh.away_team_elo_domestic_K20",
-                "eh.home_team_elo_domestic_K30, eh.away_team_elo_domestic_K30",
-                "eh.home_team_elo_domestic_K40, eh.away_team_elo_domestic_K40",
-                "eh.home_team_elo_domestic_K80, eh.away_team_elo_domestic_K80",
-                "",
-                "-- INTRA-LEAGUE ELO RATINGS",
-                "eh.home_team_elo_intraleague_K5, eh.away_team_elo_intraleague_K5",
-                "eh.home_team_elo_intraleague_K10, eh.away_team_elo_intraleague_K10",
-                "eh.home_team_elo_intraleague_K20, eh.away_team_elo_intraleague_K20",
-                "eh.home_team_elo_intraleague_K30, eh.away_team_elo_intraleague_K30",
-                "eh.home_team_elo_intraleague_K40, eh.away_team_elo_intraleague_K40",
-                "eh.home_team_elo_intraleague_K80, eh.away_team_elo_intraleague_K80",
-                "",
-                "-- INTERNATIONAL ELO RATINGS",
-                "eh.home_team_elo_international_K5, eh.away_team_elo_international_K5",
-                "eh.home_team_elo_international_K10, eh.away_team_elo_international_K10",
-                "eh.home_team_elo_international_K20, eh.away_team_elo_international_K20",
-                "eh.home_team_elo_international_K30, eh.away_team_elo_international_K30",
-                "eh.home_team_elo_international_K40, eh.away_team_elo_international_K40",
-                "eh.home_team_elo_international_K80, eh.away_team_elo_international_K80",
-                "",
-                "-- NATION ELO RATINGS",
-                "eh.home_team_nation_elo_K5, eh.away_team_nation_elo_K5",
-                "eh.home_team_nation_elo_K10, eh.away_team_nation_elo_K10",
-                "eh.home_team_nation_elo_K20, eh.away_team_nation_elo_K20",
-                "eh.home_team_nation_elo_K30, eh.away_team_nation_elo_K30",
-                "eh.home_team_nation_elo_K40, eh.away_team_nation_elo_K40",
-                "eh.home_team_nation_elo_K80, eh.away_team_nation_elo_K80",
-                "",
-                "-- LEAGUE ELO RATINGS",
-                "eh.home_team_league_domestic_elo_K5, eh.away_team_league_domestic_elo_K5",
-                "eh.home_team_league_domestic_elo_K10, eh.away_team_league_domestic_elo_K10",
-                "eh.home_team_league_domestic_elo_K20, eh.away_team_league_domestic_elo_K20",
-                "eh.home_team_league_domestic_elo_K30, eh.away_team_league_domestic_elo_K30",
-                "eh.home_team_league_domestic_elo_K40, eh.away_team_league_domestic_elo_K40",
-                "eh.home_team_league_domestic_elo_K80, eh.away_team_league_domestic_elo_K80",
-                "",
-                "eh.home_team_league_continental_elo_K5, eh.away_team_league_continental_elo_K5",
-                "eh.home_team_league_continental_elo_K10, eh.away_team_league_continental_elo_K10",
-                "eh.home_team_league_continental_elo_K20, eh.away_team_league_continental_elo_K20",
-                "eh.home_team_league_continental_elo_K30, eh.away_team_league_continental_elo_K30",
-                "eh.home_team_league_continental_elo_K40, eh.away_team_league_continental_elo_K40",
-                "eh.home_team_league_continental_elo_K80, eh.away_team_league_continental_elo_K80",
-                "",
-                "-- ELO PARAMETERS",
-                "eh.k_draw_parameter",
-                "eh.eta_home_advantage",
-                "",
-                "-- TEAM IDs",
-                "eh.home_team_id",
-                "eh.away_team_id"
-            ])
-            joins.append("LEFT JOIN elo_history eh ON m.match_id = eh.match_id")
+        # Always include comprehensive ELO features (already in base table elo_history)
+        select_fields.extend([
+            "-- CORE ELO FEATURES (Club ELOs - all K values)",
+            "eh.home_team_elo_K5, eh.away_team_elo_K5",
+            "eh.home_team_elo_K10, eh.away_team_elo_K10",
+            "eh.home_team_elo_K20, eh.away_team_elo_K20", 
+            "eh.home_team_elo_K30, eh.away_team_elo_K30",
+            "eh.home_team_elo_K40, eh.away_team_elo_K40",
+            "eh.home_team_elo_K80, eh.away_team_elo_K80",
+            "",
+            "-- HOME/AWAY SPECIFIC ELO RATINGS",
+            "eh.home_team_elo_home_matches_K5, eh.away_team_elo_home_matches_K5",
+            "eh.home_team_elo_home_matches_K10, eh.away_team_elo_home_matches_K10",
+            "eh.home_team_elo_home_matches_K20, eh.away_team_elo_home_matches_K20",
+            "eh.home_team_elo_home_matches_K30, eh.away_team_elo_home_matches_K30",
+            "eh.home_team_elo_home_matches_K40, eh.away_team_elo_home_matches_K40",
+            "eh.home_team_elo_home_matches_K80, eh.away_team_elo_home_matches_K80",
+            "",
+            "eh.home_team_elo_away_matches_K5, eh.away_team_elo_away_matches_K5",
+            "eh.home_team_elo_away_matches_K10, eh.away_team_elo_away_matches_K10",
+            "eh.home_team_elo_away_matches_K20, eh.away_team_elo_away_matches_K20",
+            "eh.home_team_elo_away_matches_K30, eh.away_team_elo_away_matches_K30",
+            "eh.home_team_elo_away_matches_K40, eh.away_team_elo_away_matches_K40",
+            "eh.home_team_elo_away_matches_K80, eh.away_team_elo_away_matches_K80",
+            "",
+            "-- DOMESTIC COMPETITION ELO RATINGS",
+            "eh.home_team_elo_domestic_K5, eh.away_team_elo_domestic_K5",
+            "eh.home_team_elo_domestic_K10, eh.away_team_elo_domestic_K10",
+            "eh.home_team_elo_domestic_K20, eh.away_team_elo_domestic_K20",
+            "eh.home_team_elo_domestic_K30, eh.away_team_elo_domestic_K30",
+            "eh.home_team_elo_domestic_K40, eh.away_team_elo_domestic_K40",
+            "eh.home_team_elo_domestic_K80, eh.away_team_elo_domestic_K80",
+            "",
+            "-- INTRA-LEAGUE ELO RATINGS",
+            "eh.home_team_elo_intraleague_K5, eh.away_team_elo_intraleague_K5",
+            "eh.home_team_elo_intraleague_K10, eh.away_team_elo_intraleague_K10",
+            "eh.home_team_elo_intraleague_K20, eh.away_team_elo_intraleague_K20",
+            "eh.home_team_elo_intraleague_K30, eh.away_team_elo_intraleague_K30",
+            "eh.home_team_elo_intraleague_K40, eh.away_team_elo_intraleague_K40",
+            "eh.home_team_elo_intraleague_K80, eh.away_team_elo_intraleague_K80",
+            "",
+            "-- INTERNATIONAL ELO RATINGS",
+            "eh.home_team_elo_international_K5, eh.away_team_elo_international_K5",
+            "eh.home_team_elo_international_K10, eh.away_team_elo_international_K10",
+            "eh.home_team_elo_international_K20, eh.away_team_elo_international_K20",
+            "eh.home_team_elo_international_K30, eh.away_team_elo_international_K30",
+            "eh.home_team_elo_international_K40, eh.away_team_elo_international_K40",
+            "eh.home_team_elo_international_K80, eh.away_team_elo_international_K80",
+            "",
+            "-- NATION ELO RATINGS",
+            "eh.home_team_nation_elo_K5, eh.away_team_nation_elo_K5",
+            "eh.home_team_nation_elo_K10, eh.away_team_nation_elo_K10",
+            "eh.home_team_nation_elo_K20, eh.away_team_nation_elo_K20",
+            "eh.home_team_nation_elo_K30, eh.away_team_nation_elo_K30",
+            "eh.home_team_nation_elo_K40, eh.away_team_nation_elo_K40",
+            "eh.home_team_nation_elo_K80, eh.away_team_nation_elo_K80",
+            "",
+            "-- LEAGUE ELO RATINGS",
+            "eh.home_team_league_domestic_elo_K5, eh.away_team_league_domestic_elo_K5",
+            "eh.home_team_league_domestic_elo_K10, eh.away_team_league_domestic_elo_K10",
+            "eh.home_team_league_domestic_elo_K20, eh.away_team_league_domestic_elo_K20",
+            "eh.home_team_league_domestic_elo_K30, eh.away_team_league_domestic_elo_K30",
+            "eh.home_team_league_domestic_elo_K40, eh.away_team_league_domestic_elo_K40",
+            "eh.home_team_league_domestic_elo_K80, eh.away_team_league_domestic_elo_K80",
+            "",
+            "eh.home_team_league_continental_elo_K5, eh.away_team_league_continental_elo_K5",
+            "eh.home_team_league_continental_elo_K10, eh.away_team_league_continental_elo_K10",
+            "eh.home_team_league_continental_elo_K20, eh.away_team_league_continental_elo_K20",
+            "eh.home_team_league_continental_elo_K30, eh.away_team_league_continental_elo_K30",
+            "eh.home_team_league_continental_elo_K40, eh.away_team_league_continental_elo_K40",
+            "eh.home_team_league_continental_elo_K80, eh.away_team_league_continental_elo_K80",
+            "",
+            "",
+            "-- TEAM IDs",
+            "eh.home_team_id",
+            "eh.away_team_id"
+        ])
         
-        # TODO: Add fatigue features when ready
-        # Always include comprehensive fatigue features
-        # if 'fatigue_history' in self.feature_tables:
-        #     select_fields.extend([
-        #         "-- FATIGUE FEATURES",
-        #         "fh.home_team_time_since_last_match",
-        #         "fh.away_team_time_since_last_match",
-        #         # ... all the fatigue fields
-        #     ])
-        #     joins.append("LEFT JOIN fatigue_history fh ON m.match_id = fh.match_id")
-        
-        # Stage of season
+        # Stage of season - INNER JOIN (required)
         if 'stage_of_season_history' in self.feature_tables:
             select_fields.extend([
                 "-- STAGE OF SEASON",
                 "ssh.stage_of_season",
                 "ssh.stage_of_season_category"
             ])
-            joins.append("LEFT JOIN stage_of_season_history ssh ON m.match_id = ssh.match_id")
+            joins.append("INNER JOIN stage_of_season_history ssh ON eh.match_id = ssh.match_id")
         
-        # Conditional formations - only if required
+        # Match info - INNER JOIN (required)
+        if 'match_info_history' in self.feature_tables:
+            select_fields.extend([
+                "-- MATCH INFO",
+                "mih.competition_id"
+            ])
+            joins.append("INNER JOIN match_info_history mih ON eh.match_id = mih.match_id")
+        
+        # Conditional formations - LEFT JOIN (optional)
         if (self.feature_requirements.get('formations', False) and 
             'formation_history' in self.feature_tables):
             select_fields.extend([
@@ -203,17 +187,7 @@ class ResultFeatureLoader(BaseFeatureLoader):
                 "foh.home_team_formation",
                 "foh.away_team_formation"
             ])
-            joins.append("LEFT JOIN formation_history foh ON m.match_id = foh.match_id")
-        
-        # Match info
-        if 'match_info_history' in self.feature_tables:
-            select_fields.extend([
-                "-- MATCH INFO",
-                "mih.competition_id",
-                "mih.competition_name",
-                "mih.competition_country"
-            ])
-            joins.append("LEFT JOIN match_info_history mih ON m.match_id = mih.match_id")
+            joins.append("INNER JOIN formation_history foh ON eh.match_id = foh.match_id")
         
         return {
             'select_fields': ',\n                '.join([field for field in select_fields if field]),
@@ -234,26 +208,24 @@ class ResultFeatureLoader(BaseFeatureLoader):
             query = """
                 SELECT match_id, 
                        CASE 
-                           WHEN home_score > away_score THEN 'home_win'
-                           WHEN home_score < away_score THEN 'away_win'
+                           WHEN home_team_score > away_team_score THEN 'home_win'
+                           WHEN home_team_score < away_team_score THEN 'away_win'
                            ELSE 'draw'
                        END as result
-                FROM matches
-                WHERE home_score IS NOT NULL AND away_score IS NOT NULL
+                FROM elo_history
             """
             params = None
         else:
             placeholders = ', '.join(['%s'] * len(match_ids))
             query = f"""
                 SELECT match_id, 
-                       CASE 
-                           WHEN home_score > away_score THEN 'home_win'
-                           WHEN home_score < away_score THEN 'away_win'
+                       CASE     
+                           WHEN home_team_score > away_team_score THEN 'home_win'
+                           WHEN home_team_score < away_team_score THEN 'away_win'
                            ELSE 'draw'
                        END as result
-                FROM matches
+                FROM elo_history
                 WHERE match_id IN ({placeholders})
-                AND home_score IS NOT NULL AND away_score IS NOT NULL
             """
             params = tuple(match_ids)
         
@@ -279,8 +251,8 @@ class ResultFeatureLoader(BaseFeatureLoader):
         """
         self.logger.info("Engineering features dynamically")
         
-        # Always do ELO differences for all available ELO types
-        self._create_elo_differences(df)
+        # DON'T create ELO differences - old model didn't use them!
+        # self._create_elo_differences(df)  # Remove this line
         
         # TODO: Add when fatigue features ready
         # Always do fatigue differences  
@@ -291,9 +263,29 @@ class ResultFeatureLoader(BaseFeatureLoader):
             'home_team_formation' in df.columns):
             self._create_formation_features(df)
         
-        # Competition encoding
+        # Encode categorical features
+        categorical_columns = []
+        
+        # Competition features
         if 'competition_id' in df.columns:
-            df = pd.get_dummies(df, columns=['competition_id'], prefix='comp')
+            # Convert to category instead of one-hot encoding
+            df['competition_id'] = df['competition_id'].astype('category')
+            categorical_columns = []  # Don't one-hot encode competition_id
+        
+        if 'competition_name' in df.columns:
+            categorical_columns.append('competition_name')
+        
+        if 'competition_country' in df.columns:
+            categorical_columns.append('competition_country')
+        
+        # Stage of season category
+        if 'stage_of_season_category' in df.columns:
+            categorical_columns.append('stage_of_season_category')
+        
+        # One-hot encode all categorical columns
+        if categorical_columns:
+            self.logger.info(f"One-hot encoding categorical features: {categorical_columns}")
+            df = pd.get_dummies(df, columns=categorical_columns, prefix=categorical_columns)
         
         return df
     

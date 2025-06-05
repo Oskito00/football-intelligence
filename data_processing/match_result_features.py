@@ -1,6 +1,7 @@
 from helpers.data_processing.processing_functions.elo_manager import EloManager
 from helpers.data_processing.processing_functions.fatigue_manager import FatigueManager
 from helpers.data_processing.processing_functions.formation_manager import FormationManager
+from helpers.data_processing.processing_functions.match_history import process_matches_to_history
 from helpers.data_processing.processing_functions.match_info_manager import MatchInfoManager
 from helpers.data_processing.processing_functions.stage_of_season_manager import StageOfSeasonManager
 from helpers.database_helpers.clean_tables import drop_tables

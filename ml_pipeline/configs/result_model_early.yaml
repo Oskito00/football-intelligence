@@ -31,13 +31,13 @@ data:
   feature_tables:
     - "elo_history"
     # - "fatigue_history"
-    - "stage_of_season_history"
-    - "match_info_history"
+    # - "stage_of_season_history"
+    # - "match_info_history"
     # Note: formation_history excluded
   
   # Filters
   filters:
-    min_date: "2020-01-01"
+    min_date: null
     max_date: null
     leagues: null  # null means all leagues
     

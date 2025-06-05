@@ -40,7 +40,7 @@ def prepare_data(remove_draws=False, training_data_filter=None, test_year=None, 
     match_info_df = load_from_postgres(engine, 'match_info_history', '*')
     stage_of_season_df = load_from_postgres(engine, 'stage_of_season_history', '*')
     stage_of_season_df.drop(columns=['start_time','season_start_date','season_end_date'], inplace=True)
-    league_standings_df = load_from_postgres(engine, 'league_standings_history', '*')
+    # league_standings_df = load_from_postgres(engine, 'league_standings_history', '*')
 
     #TODO: Fatigue needs to be looked at (why is it missing so many matches? Says no past data available)
     # fatigue_df = load_from_postgres(engine, 'fatigue_history', '*')
@@ -58,10 +58,10 @@ def prepare_data(remove_draws=False, training_data_filter=None, test_year=None, 
         stage_of_season_df,
         on='match_id',
         how='inner'
-    ).merge(
-        league_standings_df,
-        on='match_id',
-        how='inner'
+    # ).merge(
+    #     league_standings_df,
+    #     on='match_id',
+    #     how='inner'
     )
     print("Length of merged data:", len(merged))
 

@@ -35,6 +35,8 @@ def create_elo_history_table(conn):
             match_id INTEGER,
             home_team_id INTEGER,
             away_team_id INTEGER,
+            home_team_name TEXT,
+            away_team_name TEXT,
             k_draw_parameter REAL,
             eta_home_advantage REAL,
             

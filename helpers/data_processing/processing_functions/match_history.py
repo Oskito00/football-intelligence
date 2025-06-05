@@ -31,6 +31,8 @@ def process_matches_to_history(conn, batch_size=1000):
         continental_comps = ['Champions League', 'Europa League', 'Conference League']
         is_continental_cup_match = competition_name in continental_comps
 
+        print(home_team_id, away_team_id)
+
         # Home team entry
         team_data_batch.append((
             home_team_id,
