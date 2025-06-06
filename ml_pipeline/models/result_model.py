@@ -24,6 +24,8 @@ class ResultModel(BaseModel):
         params = self.get_model_params()
         
         if algorithm == 'xgboost':
+            # Enable categorical support for XGBoost
+            params['enable_categorical'] = True
             return xgb.XGBClassifier(**params)
         elif algorithm == 'random_forest':
             return RandomForestClassifier(**params)

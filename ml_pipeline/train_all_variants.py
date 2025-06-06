@@ -80,7 +80,7 @@ def main():
     
     # Summary
     print(f"\n{'='*60}")
-    print(f"📊 Training Summary")
+    print("📊 Training Summary")
     print(f"{'='*60}")
     print(f"✅ Successful: {success_count}/{total_count}")
     

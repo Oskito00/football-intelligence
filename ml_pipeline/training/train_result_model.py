@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import cross_val_score, StratifiedKFold
 
+from helpers.parsing_helpers.pandas import convert_to_native_types
 from ml_pipeline.models.result_model import ResultModel
 from ml_pipeline.features.load_result_features import ResultFeatureLoader
 from ml_pipeline.utils.io import model_io
@@ -44,12 +45,6 @@ def train_result_model(conn, config: Dict[str, Any],
         logger.info("Loading training data")
         where_clause = _build_where_clause(config['data'].get('filters', {}))
         features, targets = feature_loader.load_data(where_clause=where_clause, limit=limit)
-        print("*********************")
-        print("Features:")
-        print(features.head())
-        print("Targets:")
-        print(targets.head())
-        print("*********************")
         
         logger.info(f"Loaded {len(features)} samples with {len(features.columns)} features")
         
@@ -62,10 +57,6 @@ def train_result_model(conn, config: Dict[str, Any],
         features, targets = feature_loader.clean_data(features, targets)
         logger.info(f"After cleaning: {len(features)} samples")
 
-        print("Number of features:", len(features.columns))
-        #write the features to a csv file
-        features.to_csv("features.csv", index=False)
-
         # Initialize model
         logger.info("Initializing model")
         model = ResultModel(config)
@@ -77,7 +68,7 @@ def train_result_model(conn, config: Dict[str, Any],
             test_size=data_config.get('test_size', 0.2),
             random_state=data_config.get('random_state', 42)
         )
-        
+    
         # Preprocess features
         logger.info("Preprocessing features")
         X_train_processed, X_test_processed = model.preprocess_features(X_train, X_test)
@@ -89,7 +80,7 @@ def train_result_model(conn, config: Dict[str, Any],
         if cv_config.get('enabled', False):
             logger.info("Running cross-validation")
             cv_scores = _run_cross_validation(
-                model, X_train_processed, y_train, cv_config
+                model, X_train, y_train, cv_config
             )
             logger.info(f"CV scores: {cv_scores.mean():.4f} (+/- {cv_scores.std() * 2:.4f})")
         
@@ -99,7 +90,7 @@ def train_result_model(conn, config: Dict[str, Any],
         
         # Evaluate on test set
         logger.info("Evaluating model")
-        evaluation_results = model.evaluate(X_test_processed, y_test)
+        evaluation_results = model.evaluate(X_test, y_test)
         
         # Get feature importance
         feature_importance = model.get_feature_importance()
@@ -114,8 +105,8 @@ def train_result_model(conn, config: Dict[str, Any],
                 'test_samples': len(X_test),
                 'features_count': len(X_train.columns),
                 'feature_names': list(X_train.columns),
-                'evaluation': evaluation_results,
-                'quality_report': quality_report
+                'evaluation': convert_to_native_types(evaluation_results),
+                'quality_report': convert_to_native_types(quality_report)
             }
             
             if feature_importance is not None:
@@ -153,7 +144,6 @@ def train_result_model(conn, config: Dict[str, Any],
             'success': False,
             'error': str(e)
         }
-
 
 def _build_where_clause(filters: Dict[str, Any]) -> Optional[str]:
     """Build SQL WHERE clause from filters configuration"""

@@ -55,7 +55,7 @@ preprocessing:
   
   # Feature engineering - no formation features
   feature_engineering:
-    create_elo_differences: true
+    create_elo_differences: false
     create_fatigue_differences: false
     create_formation_features: false  # Skip formation features
     create_interaction_features: false
