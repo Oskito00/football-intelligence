@@ -1,23 +1,42 @@
-#Create elo_history table
-import sqlite3
+#This file contains all the code to create the necessary tables in the database
 
-#ELO TABLES
-#The following tables are used to store the ELO ratings for each team, league, and nation.
-
-def create_elo_tables(conn):
+def create_tables(conn):
+    """Creates tables of use to processing functions"""
+    create_team_match_history_table(conn)
+    create_counter_table(conn)
     create_elo_history_table(conn)
     create_club_elo_rating_table(conn)
     create_league_elo_table(conn)
     create_nation_elo_table(conn)
-    create_counter_table(conn)
+    create_match_info_table(conn)
+    create_stage_of_season_table(conn)
+    create_league_standings_table(conn)
+    create_league_standings_history_table(conn)
+
+def create_stage_of_season_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS stage_of_season_history (
+            match_id INTEGER,
+            start_time TIMESTAMP,
+            season_start_date TIMESTAMP,
+            season_end_date TIMESTAMP,
+            stage_of_season REAL,
+            stage_of_season_category TEXT
+        )
+    """)
+    conn.commit()
+    cursor.close()
 
 def create_elo_history_table(conn):
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS elo_history (
-            match_id TEXT,
-            home_team_id TEXT,
-            away_team_id TEXT,
+            match_id INTEGER,
+            home_team_id INTEGER,
+            away_team_id INTEGER,
+            home_team_name TEXT,
+            away_team_name TEXT,
             k_draw_parameter REAL,
             eta_home_advantage REAL,
             
@@ -145,7 +164,7 @@ def create_club_elo_rating_table(conn):
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS club_elo_ratings (
-            team_id TEXT,
+            team_id INTEGER PRIMARY KEY,
             team_name TEXT,
             elo_home_matches_K5 INTEGER,
             elo_home_matches_K10 INTEGER,
@@ -192,7 +211,7 @@ def create_league_elo_table(conn):
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS league_elo_ratings (
-            league_id TEXT,
+            league_id INTEGER PRIMARY KEY,
             league_domestic_elo_K5 INTEGER,
             league_domestic_elo_K10 INTEGER,
             league_domestic_elo_K20 INTEGER,
@@ -214,7 +233,7 @@ def create_nation_elo_table(conn):
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS nation_elo_ratings (
-            nation_name TEXT,
+            nation_name TEXT PRIMARY KEY,
             nation_elo_K5 INTEGER,
             nation_elo_K10 INTEGER,
             nation_elo_K20 INTEGER,
@@ -226,15 +245,15 @@ def create_nation_elo_table(conn):
     conn.commit()
     cursor.close()
 
-# Table for storing the main competition and country for each team
+#MAIN COMPETITION
 def create_team_main_competition_table(conn):
     """Create a table to store the main competition and country for each team"""
     cursor = conn.cursor()
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS team_main_competition (
-        team_id TEXT PRIMARY KEY,
+        team_id INTEGER PRIMARY KEY,
         team_name TEXT,
-        main_competition_id TEXT,
+        main_competition_id INTEGER,
         main_competition_name TEXT,
         main_competition_country TEXT,
         match_count INTEGER
@@ -242,14 +261,18 @@ def create_team_main_competition_table(conn):
     ''')
     conn.commit()
 
-# Table for storing the form of each team
+#MATCH HISTORY
 def create_team_match_history_table(conn):
     cursor = conn.cursor()
     cursor.execute("""
-        CREATE TABLE TeamMatchHistory (
-            team_id      TEXT,
-            match_id     TEXT,
-            start_time   DATETIME,
+        CREATE TABLE IF NOT EXISTS TeamMatchHistory (
+            team_id      INTEGER,
+            match_id     INTEGER,
+            start_time   TIMESTAMP,
+            competition_season_name TEXT,
+            competition_id TEXT,
+            competition_name TEXT,
+            competition_country TEXT,
             goals_scored INT,
             goals_conceded INT,
             result       VARCHAR(4),  -- 'win', 'loss', 'draw'
@@ -263,14 +286,15 @@ def create_team_match_history_table(conn):
     conn.commit()
     cursor.close()
 
+#COUNTER FOR ALL MATCH RESULTS
 def create_counter_table(conn):
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS counter_table (
             competition_id TEXT,
-            home_wins INTEGER,
-            draw_wins INTEGER,
-            away_wins INTEGER,
+            home_wins FLOAT,
+            draw_wins FLOAT,
+            away_wins FLOAT,
             count INTEGER,
             last_updated TEXT,
             PRIMARY KEY (competition_id)
@@ -279,20 +303,70 @@ def create_counter_table(conn):
     conn.commit()
     cursor.close()
 
-def create_h2h_table(conn):
+#MATCH INFO
+def create_match_info_table(conn):
+    cursor = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS match_info_history (
+        match_id INTEGER,
+        start_time TIMESTAMP,
+        competition_season_name TEXT,
+        competition_id TEXT,
+        competition_name TEXT,
+        competition_country TEXT,
+        home_team_name TEXT,
+        away_team_name TEXT,
+        PRIMARY KEY (match_id, competition_id)
+    )
+    ''')
+    conn.commit()
+    cursor.close()
+
+#LEAGUE STANDINGS
+def create_league_standings_table(conn):
     cursor = conn.cursor()
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS h2h (
-            team1_id INTEGER NOT NULL,
-            team2_id INTEGER NOT NULL,
-            matches JSON NOT NULL DEFAULT '[]',
-            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (team1_id, team2_id),
-            CHECK (team1_id < team2_id)
+        CREATE TABLE IF NOT EXISTS league_standings (
+            team_id INTEGER,
+            competition_season_id TEXT,
+            matches_played INTEGER,
+            wins INTEGER,
+            draws INTEGER,
+            losses INTEGER,
+            goals_for INTEGER,
+            goals_against INTEGER,
+            goal_difference INTEGER,
+            points INTEGER,
+            PRIMARY KEY (team_id, competition_season_id)
         )
     """)
+    conn.commit()
+    cursor.close()
 
-
-if __name__ == "__main__":
-    conn = sqlite3.connect("api_football.db")
-    create_team_match_history_table(conn)
+def create_league_standings_history_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS league_standings_history (
+            match_id INTEGER,
+            home_standing INTEGER,
+            home_matches_played INTEGER,
+            home_wins INTEGER,
+            home_draws INTEGER,
+            home_losses INTEGER,
+            home_goals_for INTEGER,
+            home_goals_against INTEGER,
+            home_goal_difference INTEGER,
+            home_points INTEGER,
+            away_standing INTEGER,
+            away_matches_played INTEGER,
+            away_wins INTEGER,
+            away_draws INTEGER,
+            away_losses INTEGER,
+            away_goals_for INTEGER,
+            away_goals_against INTEGER,
+            away_goal_difference INTEGER,
+            away_points INTEGER
+        )
+    """)
+    conn.commit()
+    cursor.close()
