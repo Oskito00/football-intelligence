@@ -48,6 +48,7 @@ def create_insert_query(match):
         INSERT INTO apifootball_stats ({", ".join(match)})
         VALUES ({", ".join([f'{quotes_adder[i] + match[key] + quotes_adder[i]}' for i, key in enumerate(match)])})
     '''
+
 cursor = conn.cursor()
 for count, match in enumerate(clean_data):
     try:

@@ -110,7 +110,7 @@ for country in dict_of_scrapable_leagues:
                 }
                 
                 # If match is part of the regular season, mark team domestic league
-                if round_info.startswith("Regular Season"):
+                if round_info.startswith("Regular Season"): # or startswith(....) or startswith(....)  ------ identify keywords
                     for team in [home_team_id, away_team_id]:
                         domestic_leagues[team][year] = competition_id
 
