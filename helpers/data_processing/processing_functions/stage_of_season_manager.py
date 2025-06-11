@@ -2,9 +2,10 @@ from zoneinfo import ZoneInfo
 from datetime import datetime, time
 
 class StageOfSeasonManager:
-    def __init__(self, conn, matches):
+    def __init__(self, conn, matches, mode='training'):
         self.conn = conn
         self.matches = matches
+        self.mode = mode  # 'training' or 'inference'
         self.stage_of_season_data = []
 
     def __enter__(self):
@@ -37,18 +38,34 @@ class StageOfSeasonManager:
 
         cursor = self.conn.cursor()
         try:
-            cursor.executemany('''
-                INSERT INTO stage_of_season_history (
-                    match_id,
-                    start_time,
-                    season_start_date,
-                    season_end_date,
-                    stage_of_season,
-                    stage_of_season_category
-                )
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT DO NOTHING
-            ''', self.stage_of_season_data)
+            if self.mode == 'training':
+                # Save to training table
+                cursor.executemany('''
+                    INSERT INTO stage_of_season_history (
+                        match_id,
+                        start_time,
+                        season_start_date,
+                        season_end_date,
+                        stage_of_season,
+                        stage_of_season_category
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT DO NOTHING
+                ''', self.stage_of_season_data)
+            elif self.mode == 'inference':
+                # Save to inference/future table
+                cursor.executemany('''
+                    INSERT INTO stage_of_season_future (
+                        match_id,
+                        start_time,
+                        season_start_date,
+                        season_end_date,
+                        stage_of_season,
+                        stage_of_season_category
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT DO NOTHING
+                ''', self.stage_of_season_data)
             
             self.conn.commit()
             

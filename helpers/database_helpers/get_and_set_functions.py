@@ -3,7 +3,7 @@ from typing import List, Dict
 
 import pandas as pd
 
-def get_from_matches(conn, select_str, columns, where_clause=None, order_by=None, limit=None, where_clause_args=None):
+def get_from_matches(conn, select_str, columns, where_clause=None, from_clause=None, order_by=None, limit=None, where_clause_args=None):
     """A dynamic function that gets data from the matches table.
     
     Args:
@@ -18,10 +18,11 @@ def get_from_matches(conn, select_str, columns, where_clause=None, order_by=None
     columns_str = ', '.join(columns)
     select_str = f'{select_str} ' if select_str else ''
     where_clause_str = f'WHERE {where_clause}' if where_clause else ''
+    from_clause_str = f'FROM {from_clause}' if from_clause else 'FROM matches'
     order_by_str = f'ORDER BY {order_by}' if order_by else ''
     limit_str = f'LIMIT {limit}' if limit else ''
 
-    cursor.execute(f'{select_str} {columns_str} FROM matches {where_clause_str} {order_by_str} {limit_str}')
+    cursor.execute(f'{select_str} {columns_str} {from_clause_str} {where_clause_str} {order_by_str} {limit_str}')
     return cursor.fetchall()
 
 def get_from_standings(conn, select_str, columns, where_clause=None, order_by=None, limit=None, where_clause_args=None):
@@ -81,6 +82,36 @@ def load_from_postgres(
         df.drop(columns=drop_columns, inplace=True, errors='ignore')
 
     return df
+
+def update_processed_status(conn, match_ids, with_formation_flags, mode='training'):
+    """Update processing status for processed matches"""
+    cursor = conn.cursor()
+    try:
+        # Prepare data for bulk update
+        update_data = [
+            (match_id, True, with_formation, mode) 
+            for match_id, with_formation in zip(match_ids, with_formation_flags)
+        ]
+        
+        cursor.executemany('''
+            INSERT INTO processed_info (match_id, is_processed, with_formation, processing_mode)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (match_id) DO UPDATE SET
+                is_processed = EXCLUDED.is_processed,
+                with_formation = EXCLUDED.with_formation,
+                processing_mode = EXCLUDED.processing_mode,
+                processed_at = CURRENT_TIMESTAMP
+        ''', update_data)
+        
+        conn.commit()
+        print(f"Updated processing status for {len(match_ids)} matches")
+        
+    except Exception as e:
+        print(f"Error updating processed status: {str(e)}")
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
 
 def bulk_insert_formations(formations: List[Dict], conn):
     """

@@ -4,7 +4,8 @@ import time
 import requests
 from requests.exceptions import HTTPError
 
-from data_scraping.scrapers.formation import get_fixture_lineups
+from helpers.data_scraping.scrapers.formation import get_fixture_lineups
+
 
 
 

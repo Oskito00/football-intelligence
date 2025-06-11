@@ -220,7 +220,7 @@ def save_updated_elos_bulk(conn, club_elos, nation_elos, league_elos):
     return success_club and success_nation and success_league
 
     
-def build_elo_history_record(match_id, home_team_id, away_team_id, home_team_name, away_team_name,
+def build_elo_history_record(match_id, start_time, home_team_id, away_team_id, home_team_name, away_team_name,
                               home_club_elos, away_club_elos, 
                               home_nation_elos, away_nation_elos,
                               home_league_elos, away_league_elos,
@@ -233,6 +233,7 @@ def build_elo_history_record(match_id, home_team_id, away_team_id, home_team_nam
 
     data = {
         'match_id': match_id,
+        'start_time': start_time,
         'home_team_id': home_team_id,
         'away_team_id': away_team_id,
         'home_team_name': home_team_name,
@@ -300,6 +301,44 @@ def save_elo_history_bulk(conn, elo_history_list):
     columns_str = ', '.join(table_columns)
     insert_query = f"""
         INSERT INTO elo_history ({columns_str}) 
+        VALUES ({placeholders})
+    """
+
+    # Execute
+    cursor.executemany(insert_query, rows_to_insert)
+    conn.commit()
+
+def save_elo_future_bulk(conn, elo_history_list):
+    """
+    Save a list of elo history records to the elo_history table in bulk.
+    Each record should be a dict matching the schema, as returned by build_elo_history_record().
+    """
+
+    if not elo_history_list:
+        return  # nothing to do
+
+    cursor = conn.cursor()
+
+    # Get the table column names in correct order
+    cursor.execute("""
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'elo_future'
+        ORDER BY ordinal_position
+    """)
+    table_columns = [row["column_name"] for row in cursor.fetchall()]
+
+    # Prepare bulk insert data
+    rows_to_insert = []
+    for record in elo_history_list:
+        row = [record.get(col, 1500) for col in table_columns]  # Default to 1500 if missing
+        rows_to_insert.append(row)
+
+    # Build query
+    placeholders = ', '.join(['%s'] * len(table_columns))
+    columns_str = ', '.join(table_columns)
+    insert_query = f"""
+        INSERT INTO elo_future ({columns_str}) 
         VALUES ({placeholders})
     """
 

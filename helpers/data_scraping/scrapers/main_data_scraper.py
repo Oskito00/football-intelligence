@@ -75,7 +75,6 @@ def scrape_matches_from_api(leagues, latest_only=False):
                         'home_score': home_score,
                         'away_score': away_score,
                         'result': result,
-                        'is_processed': False,
                         'all_fixture_data': json.dumps(content),
                         'all_season_info': json.dumps(season_info),
                         'home_team_formation': None,
@@ -83,7 +82,13 @@ def scrape_matches_from_api(leagues, latest_only=False):
                         'home_team_lineup': None,
                         'away_team_lineup': None,
                         'attempted_formation_scrape': False,
-                        'is_current_season': season_info[0]['seasons'][0]['current']
+                        'is_current_season': season_info[0]['seasons'][0]['current'],
+                        'has_odds': season_info[0]['seasons'][0]['coverage']['odds'],
+                        'has_players': season_info[0]['seasons'][0]['coverage']['players'],
+                        'has_lineups': season_info[0]['seasons'][0]['coverage']['fixtures']['lineups'],
+                        'has_events': season_info[0]['seasons'][0]['coverage']['fixtures']['events'],
+                        'has_statistics_players': season_info[0]['seasons'][0]['coverage']['fixtures']['statistics_players'],
+                        'has_statistics_fixtures': season_info[0]['seasons'][0]['coverage']['fixtures']['statistics_fixtures']
                     }
                     scraped_data.append(match_data)
 
@@ -118,45 +123,3 @@ def _assign_domestic_leagues(scraped_data):
             country_counts = domestic_league_dict[team_id]['countries']
             match[f'{side}_team_domestic_league_id'] = max(league_counts, key=league_counts.get)
             match[f'{side}_team_domestic_country'] = max(country_counts, key=country_counts.get)
-
-    
-#TODO: REMOVE THIS LATER
-# def upsert_domestic_info(scraped_data, conn, batch_size=500):
-#     """
-#     Updates domestic league and country fields in the matches table.
-
-#     :param scraped_data: List of match dicts, each containing match_id and domestic league/country fields.
-#     :param conn: psycopg2 connection object
-#     :param batch_size: How many records to process in each printed batch (default 500)
-#     """
-#     update_query = """
-#     UPDATE matches
-#     SET home_team_domestic_league_id = %s,
-#         home_team_domestic_country = %s,
-#         away_team_domestic_league_id = %s,
-#         away_team_domestic_country = %s
-#     WHERE match_id = %s
-#     """
-
-#     values = []
-#     total = len(scraped_data)
-
-#     print(f"Starting upsert of {total} matches...")
-
-#     for i, match in enumerate(scraped_data, start=1):
-#         values.append((
-#             match.get('home_team_domestic_league_id'),
-#             match.get('home_team_domestic_country'),
-#             match.get('away_team_domestic_league_id'),
-#             match.get('away_team_domestic_country'),
-#             match['match_id'],
-#         ))
-
-#         if i % batch_size == 0 or i == total:
-#             with conn.cursor() as cur:
-#                 execute_batch(cur, update_query, values)
-#             conn.commit()
-#             print(f"Upserted {i}/{total} matches...")
-#             values = []  # Clear for next batch
-
-#     print("Upsert complete.")
