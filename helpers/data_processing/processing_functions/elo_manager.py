@@ -1,13 +1,14 @@
 import math
 import psycopg2
-from helpers.elo.elo_helpers import build_elo_history_record, calculate_elo_ratings, get_bulk_entity_elos, get_counts, save_elo_history_bulk, save_updated_counts, save_updated_elos_bulk
+from helpers.elo.elo_helpers import build_elo_history_record, calculate_elo_ratings, get_bulk_entity_elos, get_counts, save_elo_future_bulk, save_elo_history_bulk, save_updated_counts, save_updated_elos_bulk
 from helpers.parsing_helpers.list import extract_competition_ids, extract_league_ids, extract_nation_names, extract_team_id_name_map, extract_team_ids
 
 
 class EloManager:
-    def __init__(self, conn, matches):
+    def __init__(self, conn, matches, mode='training'):
         self.conn = conn
         self.matches = matches
+        self.mode = mode  # 'training' or 'inference'
 
     def __enter__(self):
         self.team_id_name_map = extract_team_id_name_map(self.matches)
@@ -27,10 +28,9 @@ class EloManager:
 
     def process_match(self, match):
         match_id = match['match_id']
+        start_time = match['start_time']
         home_team_id = match['home_team_id']
         away_team_id = match['away_team_id']
-        home_score = match['home_score']
-        away_score = match['away_score']
         home_team_name = match.get('home_team_name', f"Team {home_team_id}")
         away_team_name = match.get('away_team_name', f"Team {away_team_id}")
         competition_id = match.get('competition_id')
@@ -40,6 +40,14 @@ class EloManager:
         away_team_domestic_country = match['away_team_domestic_country']
         home_team_domestic_league_id = match['home_team_domestic_league_id']
         away_team_domestic_league_id = match['away_team_domestic_league_id']
+
+        # For inference mode, we don't have scores
+        if self.mode == 'inference':
+            home_score = None
+            away_score = None
+        else:
+            home_score = match['home_score']
+            away_score = match['away_score']
 
         # Check match type flags
         is_same_nation = home_team_domestic_country == away_team_domestic_country
@@ -84,7 +92,7 @@ class EloManager:
 
         # Save current elo history
         record = build_elo_history_record(
-            match_id, home_team_id, away_team_id, home_team_name, away_team_name,
+            match_id, start_time, home_team_id, away_team_id, home_team_name, away_team_name,
             home_club_elos, away_club_elos, 
             home_nation_elos, away_nation_elos,
             home_league_elos, away_league_elos,
@@ -93,6 +101,11 @@ class EloManager:
         
         self.elo_history.append(record)
 
+        # STOP HERE FOR INFERENCE MODE - Don't update ELOs or counts
+        if self.mode == 'inference':
+            return
+
+        # TRAINING MODE ONLY: Update ELOs and counts based on match results
         # Define k values for ELO calculations
         k_values = [5, 10, 20, 30, 40, 80]
 
@@ -211,12 +224,17 @@ class EloManager:
         self.league_elos[home_team_domestic_league_id] = updated_home_league
         self.league_elos[away_team_domestic_league_id] = updated_away_league
 
-
-
     def __exit__(self, exc_type, exc_val, exc_tb):
-        save_elo_history_bulk(self.conn, self.elo_history)
-        save_updated_elos_bulk(self.conn, self.club_elos, self.nation_elos, self.league_elos)
-        save_updated_counts(self.conn, self.counts)
+        if self.mode == 'training':
+            # Save to regular training tables
+            save_elo_history_bulk(self.conn, self.elo_history)
+            save_updated_elos_bulk(self.conn, self.club_elos, self.nation_elos, self.league_elos)
+            save_updated_counts(self.conn, self.counts)
+        elif self.mode == 'inference':
+            # Save to future/inference tables - you'll need to create these functions
+            save_elo_future_bulk(self.conn, self.elo_history)
+            # Don't save updated ELOs or counts since we didn't update them
+
         if exc_type:
             self.conn.rollback()
         else:

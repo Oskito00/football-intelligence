@@ -1,9 +1,9 @@
 import sqlite3
-from typing import List, Dict
+from typing import Any, List, Dict
 
 import pandas as pd
 
-def get_from_matches(conn, select_str, columns, where_clause=None, order_by=None, limit=None, where_clause_args=None):
+def get_from_matches(conn, select_str, columns, where_clause=None, from_clause=None, order_by=None, limit=None, where_clause_args=None):
     """A dynamic function that gets data from the matches table.
     
     Args:
@@ -18,10 +18,11 @@ def get_from_matches(conn, select_str, columns, where_clause=None, order_by=None
     columns_str = ', '.join(columns)
     select_str = f'{select_str} ' if select_str else ''
     where_clause_str = f'WHERE {where_clause}' if where_clause else ''
+    from_clause_str = f'FROM {from_clause}' if from_clause else 'FROM matches'
     order_by_str = f'ORDER BY {order_by}' if order_by else ''
     limit_str = f'LIMIT {limit}' if limit else ''
 
-    cursor.execute(f'{select_str} {columns_str} FROM matches {where_clause_str} {order_by_str} {limit_str}')
+    cursor.execute(f'{select_str} {columns_str} {from_clause_str} {where_clause_str} {order_by_str} {limit_str}')
     return cursor.fetchall()
 
 def get_from_standings(conn, select_str, columns, where_clause=None, order_by=None, limit=None, where_clause_args=None):
@@ -82,6 +83,36 @@ def load_from_postgres(
 
     return df
 
+def update_processed_status(conn, match_ids, with_formation_flags, mode='training'):
+    """Update processing status for processed matches"""
+    cursor = conn.cursor()
+    try:
+        # Prepare data for bulk update
+        update_data = [
+            (match_id, True, with_formation, mode) 
+            for match_id, with_formation in zip(match_ids, with_formation_flags)
+        ]
+        
+        cursor.executemany('''
+            INSERT INTO processed_info (match_id, is_processed, with_formation, processing_mode)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (match_id) DO UPDATE SET
+                is_processed = EXCLUDED.is_processed,
+                with_formation = EXCLUDED.with_formation,
+                processing_mode = EXCLUDED.processing_mode,
+                processed_at = CURRENT_TIMESTAMP
+        ''', update_data)
+        
+        conn.commit()
+        print(f"Updated processing status for {len(match_ids)} matches")
+        
+    except Exception as e:
+        print(f"Error updating processed status: {str(e)}")
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+
 def bulk_insert_formations(formations: List[Dict], conn):
     """
     Bulk insert formations dictionaries into SQL table.
@@ -125,3 +156,69 @@ def bulk_insert_formations(formations: List[Dict], conn):
     conn.commit()
     
     print(f"Inserted/updated {len(data)} formations")
+
+def bulk_insert_odds(conn, odds_records: List[Dict[str, Any]]) -> int:
+    """Bulk insert odds records using execute_values for better performance"""
+    if not odds_records:
+        return 0
+    
+    cursor = conn.cursor()
+    
+    try:
+        from psycopg2.extras import execute_values
+        
+        # Prepare the data as tuples
+        values = [
+            (
+                record['match_id'],
+                record['bookmaker_id'], 
+                record['bookmaker_name'],
+                record['bet_type_id'],
+                record['bet_type_name'],
+                record['bet_value'],
+                record['odds_value'],
+                record['api_last_updated']
+            )
+            for record in odds_records
+        ]
+        
+        insert_query = """
+        INSERT INTO odds (
+            match_id, bookmaker_id, bookmaker_name, bet_type_id, 
+            bet_type_name, bet_value, odds_value, api_last_updated
+        ) VALUES %s
+        """
+        
+        execute_values(cursor, insert_query, values, page_size=1000)
+        conn.commit()
+        
+        rows_inserted = len(values)
+        cursor.close()
+        return rows_inserted
+        
+    except Exception as e:
+        print(f"Error bulk inserting odds: {str(e)}")
+        conn.rollback()
+        cursor.close()
+        return 0
+
+def get_future_matches_with_odds(conn) -> List[int]:
+    """Get match IDs for future matches that have odds available within next 14 days"""
+    cursor = conn.cursor()
+    
+    query = """
+    SELECT match_id 
+    FROM matches 
+    WHERE has_odds = TRUE 
+    AND home_score IS NULL 
+    AND away_score IS NULL 
+    AND start_time > NOW()
+    AND start_time <= NOW() + INTERVAL '7 days'
+    ORDER BY start_time ASC
+    """
+    
+    cursor.execute(query)
+    match_ids = [row[0] for row in cursor.fetchall()]
+    cursor.close()
+    
+    return match_ids

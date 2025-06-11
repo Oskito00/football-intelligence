@@ -2,9 +2,10 @@ import json
 from helpers.database_helpers.get_and_set_functions import bulk_insert_formations, get_from_matches
 
 class FormationManager:
-    def __init__(self, conn, matches):
+    def __init__(self, conn, matches, mode='training'):
         self.conn = conn
         self.matches = matches
+        self.mode = mode  # 'training' or 'inference'
         self.formation_data = []
 
     def __enter__(self):
@@ -14,6 +15,7 @@ class FormationManager:
         """Process a single match to extract formation data"""
         try:
             match_id = match['match_id']
+            start_time = match['start_time']
             home_formation = match['home_team_formation']
             away_formation = match['away_team_formation']
 
@@ -23,6 +25,7 @@ class FormationManager:
 
             formation_record = (
                 match_id,
+                start_time,
                 home_formation,
                 away_formation
             )
@@ -40,15 +43,30 @@ class FormationManager:
 
         cursor = self.conn.cursor()
         try:
-            query = """
-                INSERT INTO formation_history (
-                    match_id,
-                    home_team_formation,
-                    away_team_formation
-                )
-                VALUES (%s, %s, %s)
-                ON CONFLICT DO NOTHING
-            """
+            if self.mode == 'training':
+                # Save to training table
+                query = """
+                    INSERT INTO formation_history (
+                        match_id,
+                        start_time,
+                        home_team_formation,
+                        away_team_formation
+                    )
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT DO NOTHING
+                """
+            elif self.mode == 'inference':
+                # Save to inference/future table
+                query = """
+                    INSERT INTO formation_future (
+                        match_id,
+                        start_time,
+                        home_team_formation,
+                        away_team_formation
+                    )
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT DO NOTHING
+                """
             
             cursor.executemany(query, self.formation_data)
             

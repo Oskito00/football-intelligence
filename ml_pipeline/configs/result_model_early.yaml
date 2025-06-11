@@ -31,9 +31,8 @@ data:
   feature_tables:
     - "elo_history"
     # - "fatigue_history"
-    # - "stage_of_season_history"
-    # - "match_info_history"
-    # Note: formation_history excluded
+    - "stage_of_season_history"
+    - "match_info_history"
   
   # Filters
   filters:

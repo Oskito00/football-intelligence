@@ -9,15 +9,18 @@ import logging
 import sys
 from pathlib import Path
 import pandas as pd
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+from config import get_config
+from ml_pipeline.inference.infer_result_model import infer_result_model
+from ml_pipeline.utils.config import config_manager
+from helpers.database_helpers.create_tables import create_match_result_predictions_table
+
 
 # Add project root to path
 project_root = Path(__file__).parent
 sys.path.append(str(project_root))
-
-from ml_pipeline.utils.config import config_manager
-from ml_pipeline.utils.io import model_io
-from ml_pipeline.inference.infer_result_model import infer_result_model
-from helpers.database_helpers.database_connection import get_database_connection
 
 
 def setup_logging(config: dict):
@@ -33,6 +36,8 @@ def get_inferrer(model_name: str):
     """Get the appropriate inference function based on model name"""
     inferrers = {
         'result_model': infer_result_model,
+        'result_model_early': infer_result_model,
+        'result_model_late': infer_result_model,
         # Add more models here as needed
         # 'goal_scorer_model': infer_goal_scorer_model,
     }
@@ -50,6 +55,8 @@ def main():
     parser.add_argument('--output', help='Output file path for predictions')
     parser.add_argument('--limit', type=int, help='Limit number of samples for testing')
     parser.add_argument('--where-clause', help='SQL WHERE clause to filter data')
+    parser.add_argument('--mode', choices=['training', 'inference'], default='inference', 
+                        help='Mode: training (use elo_history) or inference (use elo_future)')
     
     args = parser.parse_args()
     
@@ -63,9 +70,17 @@ def main():
         logger = logging.getLogger(__name__)
         logger.info(f"Starting inference for {args.config}")
         
-        # Get database connection
+        # Get database connection using your existing config
         logger.info("Connecting to database")
-        conn = get_database_connection()
+        db_config = get_config()  # This gets your database config
+        
+        conn = psycopg2.connect(
+            host=db_config.DB_HOST,
+            database=db_config.DB_NAME,
+            user=db_config.DB_USER,
+            password=db_config.DB_PASSWORD,
+            cursor_factory=RealDictCursor
+        )
         
         # Get model name from config
         model_name = config['model']['name']
@@ -74,6 +89,9 @@ def main():
         # Get the appropriate inferrer
         inferrer = get_inferrer(model_name)
         
+        # Create the predictions table if it doesn't exist
+        create_match_result_predictions_table(conn)
+        
         # Run inference
         result = inferrer(
             conn, 
@@ -81,7 +99,8 @@ def main():
             model_version=args.model_version,
             limit=args.limit,
             where_clause=args.where_clause,
-            output_path=args.output
+            output_path=args.output,
+            mode=args.mode
         )
         
         if result['success']:
