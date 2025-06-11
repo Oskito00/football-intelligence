@@ -1,5 +1,5 @@
 import sqlite3
-from typing import List, Dict
+from typing import Any, List, Dict
 
 import pandas as pd
 
@@ -156,3 +156,69 @@ def bulk_insert_formations(formations: List[Dict], conn):
     conn.commit()
     
     print(f"Inserted/updated {len(data)} formations")
+
+def bulk_insert_odds(conn, odds_records: List[Dict[str, Any]]) -> int:
+    """Bulk insert odds records using execute_values for better performance"""
+    if not odds_records:
+        return 0
+    
+    cursor = conn.cursor()
+    
+    try:
+        from psycopg2.extras import execute_values
+        
+        # Prepare the data as tuples
+        values = [
+            (
+                record['match_id'],
+                record['bookmaker_id'], 
+                record['bookmaker_name'],
+                record['bet_type_id'],
+                record['bet_type_name'],
+                record['bet_value'],
+                record['odds_value'],
+                record['api_last_updated']
+            )
+            for record in odds_records
+        ]
+        
+        insert_query = """
+        INSERT INTO odds (
+            match_id, bookmaker_id, bookmaker_name, bet_type_id, 
+            bet_type_name, bet_value, odds_value, api_last_updated
+        ) VALUES %s
+        """
+        
+        execute_values(cursor, insert_query, values, page_size=1000)
+        conn.commit()
+        
+        rows_inserted = len(values)
+        cursor.close()
+        return rows_inserted
+        
+    except Exception as e:
+        print(f"Error bulk inserting odds: {str(e)}")
+        conn.rollback()
+        cursor.close()
+        return 0
+
+def get_future_matches_with_odds(conn) -> List[int]:
+    """Get match IDs for future matches that have odds available within next 14 days"""
+    cursor = conn.cursor()
+    
+    query = """
+    SELECT match_id 
+    FROM matches 
+    WHERE has_odds = TRUE 
+    AND home_score IS NULL 
+    AND away_score IS NULL 
+    AND start_time > NOW()
+    AND start_time <= NOW() + INTERVAL '7 days'
+    ORDER BY start_time ASC
+    """
+    
+    cursor.execute(query)
+    match_ids = [row[0] for row in cursor.fetchall()]
+    cursor.close()
+    
+    return match_ids

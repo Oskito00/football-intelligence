@@ -637,3 +637,35 @@ def create_league_standings_future_table(conn):
     """)
     conn.commit()
     cursor.close()
+
+def create_odds_table(conn):
+    """Create the odds table if it doesn't exist"""
+    cursor = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS odds (
+        id SERIAL PRIMARY KEY,
+        match_id INTEGER NOT NULL,
+        bookmaker_id INTEGER NOT NULL,
+        bookmaker_name TEXT NOT NULL,
+        bet_type_id INTEGER NOT NULL,
+        bet_type_name TEXT NOT NULL,
+        bet_value TEXT NOT NULL,
+        odds_value DECIMAL(10,2) NOT NULL,
+        retrieved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        api_last_updated TIMESTAMP
+    )
+    ''')
+    
+    # Create index for faster queries
+    cursor.execute('''
+    CREATE INDEX IF NOT EXISTS idx_odds_match_id 
+    ON odds(match_id)
+    ''')
+    
+    cursor.execute('''
+    CREATE INDEX IF NOT EXISTS idx_odds_retrieved_at 
+    ON odds(retrieved_at)
+    ''')
+    
+    conn.commit()
+    cursor.close()
