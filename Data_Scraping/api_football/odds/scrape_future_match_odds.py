@@ -9,8 +9,8 @@ import threading
 from functools import partial
 
 from config import get_config
-from helpers.database_helpers.create_tables import create_odds_table
-from helpers.database_helpers.get_and_set_functions import get_future_matches_with_odds
+from utils.database_helpers.create_tables import create_odds_table
+from utils.database_helpers.get_and_set_functions import get_future_matches_with_odds
 
 config = get_config()
 

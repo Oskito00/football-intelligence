@@ -3,7 +3,7 @@ import requests
 import psycopg2
 
 from config import get_config
-from helpers.database_helpers.postgresql import upsert_records
+from utils.database_helpers.postgresql import upsert_records
 
 config = get_config()
 

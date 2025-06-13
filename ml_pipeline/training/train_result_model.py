@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import cross_val_score, StratifiedKFold
 
-from helpers.parsing_helpers.pandas import convert_to_native_types
+from utils.parsing_helpers.pandas import convert_to_native_types
 from ml_pipeline.models.result_model import ResultModel
 from ml_pipeline.features.load_result_features import ResultFeatureLoader
 from ml_pipeline.utils.io import model_io

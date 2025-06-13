@@ -1,5 +1,5 @@
-from helpers.database_helpers.get_and_set_functions import get_from_matches
-from helpers.league_standings.league_standings import find_new_stats, find_team_standing
+from utils.database_helpers.get_and_set_functions import get_from_matches
+from data_processing.helpers.league_standings.league_standings import find_new_stats, find_team_standing
 
 def test_find_new_stats():
     """Unit test for find_new_stats function"""

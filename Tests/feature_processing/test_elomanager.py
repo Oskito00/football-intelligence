@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from helpers.data_processing.processing_functions.elo_manager import EloManager  # Adjust import path as needed
+from utils.data_processing.processing_functions.elo_manager import EloManager  # Adjust import path as needed
 
 
 @pytest.fixture
