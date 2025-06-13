@@ -2,7 +2,7 @@ from datetime import datetime
 import logging
 from psycopg2.extras import execute_values
 
-from utils.database_helpers.create_tables import create_match_result_predictions_table
+from utils.database.create_tables import create_match_result_predictions_table
 
 def upsert_records(conn, table_name, records, conflict_keys, batch_size=1000):
     if not records:

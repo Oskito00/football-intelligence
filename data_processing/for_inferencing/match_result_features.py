@@ -1,15 +1,14 @@
-from utils.data_processing.processing_functions.elo_manager import EloManager
-from utils.data_processing.processing_functions.fatigue_manager import FatigueManager
-from utils.data_processing.processing_functions.formation_manager import FormationManager
-from utils.data_processing.processing_functions.match_info_manager import MatchInfoManager
-from utils.data_processing.processing_functions.stage_of_season_manager import StageOfSeasonManager
-from utils.database_helpers.clean_tables import drop_future_tables
-from utils.database_helpers.create_tables import create_future_tables
+from data_processing.helpers.processing_functions.elo_manager import EloManager
+from data_processing.helpers.processing_functions.formation_manager import FormationManager
+from data_processing.helpers.processing_functions.match_info_manager import MatchInfoManager
+from data_processing.helpers.processing_functions.stage_of_season_manager import StageOfSeasonManager
+from utils.database.clean_tables import drop_future_tables
+from utils.database.create_tables import create_future_tables
 from config import get_config
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from utils.database_helpers.get_and_set_functions import get_from_matches, update_processed_status
-from utils.database_helpers.prune_future_features import prune_old_future_features
+from utils.database.get_and_set_functions import get_from_matches, update_processed_status
+from utils.database.prune_future_features import prune_old_future_features
 
 
 def process_future_matches(conn):

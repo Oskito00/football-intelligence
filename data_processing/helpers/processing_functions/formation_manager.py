@@ -1,5 +1,5 @@
 import json
-from utils.database_helpers.get_and_set_functions import bulk_insert_formations, get_from_matches
+from utils.database.get_and_set_functions import bulk_insert_formations, get_from_matches
 
 class FormationManager:
     def __init__(self, conn, matches, mode='training'):
