@@ -7,9 +7,10 @@ model:
   
   # CNN-specific hyperparameters
   hyperparameters:
-    input_shape: [16, 16, 1]
-    num_conv_layers: 3
-    filters: [32, 64, 128]
+    num_existing_features: 20  # Adjust based on your feature count
+    form_sequence_length: 10
+    form_features: 5
+    filters: [32, 64]
     kernel_size: 3
     dense_layers: [256, 128]
     dropout_rate: 0.3

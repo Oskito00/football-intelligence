@@ -1,20 +1,22 @@
 def drop_tables(conn):
     """Drops all processing tables"""
     table_names = [
-        # 'teammatchhistory',
-        # 'counter_table',
-        # 'elo_history',
-        # 'club_elo_ratings',
-        # 'league_elo_ratings',
-        # 'nation_elo_ratings',
-        # 'match_info_history',
-        # 'stage_of_season_history',
+        'teammatchhistory',
+        'counter_table',
+        'elo_history',
+        'club_elo_ratings',
+        'league_elo_ratings',
+        'nation_elo_ratings',
+        'match_info_history',
+        'stage_of_season_history',
+        'form_history',
+        'form_matches_cache',
+        'processed_info'
+
 
         # 'fatigue_history',
-        
         # 'league_standings',
         # 'league_standings_history',
-
         # 'formations',
     ]
     

@@ -40,37 +40,45 @@ class ResultModel(BaseModel):
             raise ValueError(f"Unsupported algorithm: {algorithm}")
     
     def _create_cnn_model(self, params: Dict[str, Any]) -> tf.keras.Model:
-        """Create a CNN model for match prediction"""
-        model = models.Sequential([
-            # Input layer - reshape based on your data structure
-            layers.Input(shape=params.get('input_shape', (None, None, 1))),
-            
-            # Convolutional layers
-            *[layers.Conv2D(
-                filters=params.get('filters', [32, 64, 128])[i],
-                kernel_size=params.get('kernel_size', 3),
-                activation='relu',
-                padding='same'
-            ) for i in range(params.get('num_conv_layers', 3))],
-            
-            # Pooling layer
-            layers.MaxPooling2D(pool_size=(2, 2)),
-            
-            # Flatten layer
-            layers.Flatten(),
-            
-            # Dense layers
-            *[layers.Dense(
-                units=params.get('dense_layers', [256, 128])[i],
-                activation='relu'
-            ) for i in range(len(params.get('dense_layers', [256, 128])))],
-            
-            # Dropout for regularization
-            layers.Dropout(params.get('dropout_rate', 0.3)),
-            
-            # Output layer
-            layers.Dense(3, activation='softmax')  # 3 classes: home win, draw, away win
-        ])
+        """Create a CNN model for match prediction with form data"""
+        # Input for form data (10 matches x 5 features for each team)
+        home_form_input = layers.Input(shape=(10, 5), name='home_form')
+        away_form_input = layers.Input(shape=(10, 5), name='away_form')
+        
+        # Input for existing features
+        existing_features_input = layers.Input(shape=(params.get('num_existing_features', 20),), name='existing_features')
+        
+        # Process home team form
+        home_form = layers.Conv1D(32, kernel_size=3, activation='relu')(home_form_input)
+        home_form = layers.MaxPooling1D(2)(home_form)
+        home_form = layers.Conv1D(64, kernel_size=2, activation='relu')(home_form)
+        home_form = layers.MaxPooling1D(2)(home_form)
+        home_form = layers.Flatten()(home_form)
+        
+        # Process away team form
+        away_form = layers.Conv1D(32, kernel_size=3, activation='relu')(away_form_input)
+        away_form = layers.MaxPooling1D(2)(away_form)
+        away_form = layers.Conv1D(64, kernel_size=2, activation='relu')(away_form)
+        away_form = layers.MaxPooling1D(2)(away_form)
+        away_form = layers.Flatten()(away_form)
+        
+        # Combine all features
+        combined = layers.Concatenate()([existing_features_input, home_form, away_form])
+        
+        # Dense layers
+        x = layers.Dense(256, activation='relu')(combined)
+        x = layers.Dropout(params.get('dropout_rate', 0.3))(x)
+        x = layers.Dense(128, activation='relu')(x)
+        x = layers.Dropout(params.get('dropout_rate', 0.3))(x)
+        
+        # Output layer
+        output = layers.Dense(3, activation='softmax')(x)  # 3 classes: home win, draw, away win
+        
+        # Create model
+        model = models.Model(
+            inputs=[existing_features_input, home_form_input, away_form_input],
+            outputs=output
+        )
         
         # Compile model
         model.compile(
@@ -145,7 +153,10 @@ class ResultModel(BaseModel):
             return {
                 'algorithm': algorithm,
                 'training_samples': len(X_train),
-                'features': X_train_cnn.shape[1:],
+                'features': {
+                    'existing_features': X_train_cnn['existing_features'].shape[1],
+                    'form_features': X_train_cnn['home_form'].shape[1:]
+                },
                 'training_history': history.history
             }
         else:
@@ -156,23 +167,20 @@ class ResultModel(BaseModel):
                 'features': len(X_train.columns)
             }
     
-    def _reshape_for_cnn(self, X: pd.DataFrame) -> np.ndarray:
-        """Reshape data for CNN input"""
-        # This is a placeholder - you'll need to implement the actual reshaping
-        # based on how you want to structure your data for CNN
-        # Example: Convert features into a 2D grid
-        n_samples = len(X)
-        n_features = len(X.columns)
-        grid_size = int(np.ceil(np.sqrt(n_features)))
+    def _reshape_for_cnn(self, X: pd.DataFrame) -> Dict[str, np.ndarray]:
+        """Reshape data for CNN input including form data"""
+        # Extract form data
+        home_form = np.stack(X['home_form'].values)  # Shape: (n_samples, 10, 5)
+        away_form = np.stack(X['away_form'].values)  # Shape: (n_samples, 10, 5)
         
-        # Pad features to make a square grid
-        padded_features = np.zeros((n_samples, grid_size, grid_size, 1))
-        for i, col in enumerate(X.columns):
-            row = i // grid_size
-            col_idx = i % grid_size
-            padded_features[:, row, col_idx, 0] = X[col].values
+        # Extract existing features
+        existing_features = X.drop(['home_form', 'away_form'], axis=1).values
         
-        return padded_features
+        return {
+            'existing_features': existing_features,
+            'home_form': home_form,
+            'away_form': away_form
+        }
     
     def _train_with_validation(self, X_train: pd.DataFrame, y_train: pd.Series,
                               X_val: pd.DataFrame, y_val: pd.Series) -> Dict[str, Any]:

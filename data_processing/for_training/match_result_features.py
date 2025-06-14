@@ -1,4 +1,5 @@
 from data_processing.helpers.processing_functions.elo_manager import EloManager
+from data_processing.helpers.processing_functions.form_manager import FormManager
 from data_processing.helpers.processing_functions.formation_manager import FormationManager
 from data_processing.helpers.processing_functions.match_history import process_matches_to_history
 from data_processing.helpers.processing_functions.match_info_manager import MatchInfoManager
@@ -12,7 +13,7 @@ from utils.database.get_and_set_functions import get_from_matches, update_proces
 
 
 def process_matches(conn):
-    # drop_tables(conn)
+    drop_tables(conn)
     create_tables(conn)
 
     BATCH_SIZE = 1000
@@ -54,18 +55,21 @@ def process_matches(conn):
         batch = matches[i:i+BATCH_SIZE]
         print(f"Processing batch {i//BATCH_SIZE + 1} of {len(matches)//BATCH_SIZE + 1}")
 
-        with (EloManager(conn, batch, mode='training') as elo_manager, 
+        with ( 
               MatchInfoManager(conn, batch, mode='training') as match_info_manager, 
               StageOfSeasonManager(conn, batch, mode='training') as stage_of_season_manager, 
-              FormationManager(conn, batch, mode='training') as formation_manager):
+              FormationManager(conn, batch, mode='training') as formation_manager,
+              EloManager(conn, batch, mode='training') as elo_manager,
+              FormManager(conn, batch, mode='training', elo_manager=elo_manager) as form_manager):
             
             match_ids = []
             with_formation_flags = []
             
             for match in batch:
-                elo_manager.process_match(match)
                 match_info_manager.process_match(match)
                 stage_of_season_manager.process_match(match)
+                form_manager.process_match(match)
+                elo_manager.process_match(match)
                 
                 # Track formation processing
                 has_formation = bool(match.get('home_team_formation') and match.get('away_team_formation'))

@@ -13,6 +13,9 @@ def create_tables(conn):
     create_league_standings_table(conn)
     create_league_standings_history_table(conn)
     create_formation_history_table(conn)
+    create_form_history_table(conn)
+    create_form_matches_cache_table(conn)
+    create_processed_info_table(conn)
 
 def create_match_result_predictions_table(conn):
     cursor = conn.cursor()
@@ -34,6 +37,20 @@ def create_match_result_predictions_table(conn):
     ''')
     conn.commit()
     cursor.close()
+
+def create_processed_info_table(conn):
+    """Creates table to track processing status of matches"""
+    with conn.cursor() as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS processed_info (
+                match_id BIGINT PRIMARY KEY,
+                is_processed BOOLEAN DEFAULT FALSE,
+                with_formation BOOLEAN DEFAULT FALSE,
+                processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                processing_mode VARCHAR(20) DEFAULT 'training',
+                FOREIGN KEY (match_id) REFERENCES matches(match_id)
+            )
+        """)
 
 def create_future_tables(conn):
     """Creates tables of use to processing functions"""
@@ -669,3 +686,47 @@ def create_odds_table(conn):
     
     conn.commit()
     cursor.close()
+
+def create_form_history_table(conn):
+    """Creates table to store form history for each match"""
+    with conn.cursor() as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS form_history (
+                match_id INTEGER PRIMARY KEY,
+                home_team_id INTEGER,
+                away_team_id INTEGER,
+                home_name VARCHAR(255),
+                away_name VARCHAR(255),
+                home_team_form JSONB,
+                away_team_form JSONB
+            )
+        """)
+
+def create_form_matches_cache_table(conn):
+    """Creates table to store processed form match data"""
+    with conn.cursor() as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS form_matches_cache (
+                match_id INTEGER PRIMARY KEY,
+                start_time TIMESTAMP,
+                home_team_id INTEGER,
+                away_team_id INTEGER,
+                home_name VARCHAR(255),
+                away_name VARCHAR(255),
+                home_score INTEGER,
+                away_score INTEGER,
+                home_team_elo INTEGER,
+                away_team_elo INTEGER,
+                home_team_international_elo INTEGER,
+                away_team_international_elo INTEGER
+            )
+        """)
+        # Add indexes for faster queries
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_form_matches_home_team 
+            ON form_matches_cache(home_team_id)
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_form_matches_away_team 
+            ON form_matches_cache(away_team_id)
+        """)
