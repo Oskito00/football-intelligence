@@ -195,10 +195,17 @@ class H2HManager:
         # Calculate H2H features
         h2h_features = self._calculate_h2h_features(h2h_stats, home_id, away_id)
         
-        # Store features
+        # Store features and raw match data
         self.h2h_features.append({
             'match_id': match_id,
-            **h2h_features
+            **h2h_features,
+            # Add raw match data - now including ALL matches
+            'raw_h2h_matches': json.dumps([{
+                'match_id': m['match_id'],
+                'start_time': m['start_time'].isoformat() if isinstance(m['start_time'], datetime) else m['start_time'],
+                'home_score': m['home_score'],
+                'away_score': m['away_score']
+            } for m in h2h_stats['recent_matches']])
         })
         
         # Update H2H stats in cache (only in training mode)
@@ -226,7 +233,7 @@ class H2HManager:
             else:
                 h2h_stats['team2_wins'] += 1
             
-            # Update recent matches
+            # Update recent matches - now keeping ALL matches
             recent_match = {
                 'match_id': match_id,
                 'start_time': match['start_time'],
@@ -234,8 +241,6 @@ class H2HManager:
                 'away_score': away_score
             }
             h2h_stats['recent_matches'].append(recent_match)
-            if len(h2h_stats['recent_matches']) > 10:
-                h2h_stats['recent_matches'].pop(0)
             
             h2h_stats['last_updated'] = datetime.now()
 
@@ -253,7 +258,8 @@ class H2HManager:
                         h2h_avg_total_goals, h2h_avg_goal_diff,
                         h2h_home_goals_avg_last_3, h2h_home_goals_avg_last_5, h2h_home_goals_avg_last_10,
                         h2h_away_goals_avg_last_3, h2h_away_goals_avg_last_5, h2h_away_goals_avg_last_10,
-                        h2h_both_teams_scored_rate, h2h_zero_goal_rate
+                        h2h_both_teams_scored_rate, h2h_zero_goal_rate,
+                        raw_h2h_matches
                     )
                     VALUES (
                         %(match_id)s,
@@ -263,7 +269,8 @@ class H2HManager:
                         %(h2h_avg_total_goals)s, %(h2h_avg_goal_diff)s,
                         %(h2h_home_goals_avg_last_3)s, %(h2h_home_goals_avg_last_5)s, %(h2h_home_goals_avg_last_10)s,
                         %(h2h_away_goals_avg_last_3)s, %(h2h_away_goals_avg_last_5)s, %(h2h_away_goals_avg_last_10)s,
-                        %(h2h_both_teams_scored_rate)s, %(h2h_zero_goal_rate)s
+                        %(h2h_both_teams_scored_rate)s, %(h2h_zero_goal_rate)s,
+                        %(raw_h2h_matches)s
                     )
                     ON CONFLICT (match_id) DO UPDATE
                     SET h2h_draws_last_3 = EXCLUDED.h2h_draws_last_3,
@@ -284,7 +291,8 @@ class H2HManager:
                         h2h_away_goals_avg_last_5 = EXCLUDED.h2h_away_goals_avg_last_5,
                         h2h_away_goals_avg_last_10 = EXCLUDED.h2h_away_goals_avg_last_10,
                         h2h_both_teams_scored_rate = EXCLUDED.h2h_both_teams_scored_rate,
-                        h2h_zero_goal_rate = EXCLUDED.h2h_zero_goal_rate
+                        h2h_zero_goal_rate = EXCLUDED.h2h_zero_goal_rate,
+                        raw_h2h_matches = EXCLUDED.raw_h2h_matches
                 """, self.h2h_features)
         
         # Update H2H stats (only in training mode)

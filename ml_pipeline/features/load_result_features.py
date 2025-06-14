@@ -334,6 +334,10 @@ class ResultFeatureLoader(BaseFeatureLoader):
         """Engineer additional features based on available columns"""
         self.logger.info("Engineering features dynamically")
         
+        # Store metadata columns before processing
+        metadata_columns = ['match_id', 'start_time', 'home_team_name', 'away_team_name']
+        metadata_df = df[metadata_columns].copy() if all(col in df.columns for col in metadata_columns) else None
+        
         # Process draw features
         if 'draw_features' in df.columns:
             # Extract draw features from JSONB
@@ -361,22 +365,19 @@ class ResultFeatureLoader(BaseFeatureLoader):
         
         # Drop columns we don't want to use as features
         columns_to_drop = [
-            'home_team_name',
-            'away_team_name',
             'competition_name',
             'competition_country',
-
         ]
         df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
         
-        # Convert timestamp to numeric features
+        # Convert timestamp to numeric features but keep original
         if 'start_time' in df.columns:
             df['start_time'] = pd.to_datetime(df['start_time'])
             df['hour_of_day'] = df['start_time'].dt.hour
             df['day_of_week'] = df['start_time'].dt.dayofweek
             df['month'] = df['start_time'].dt.month
             df['year'] = df['start_time'].dt.year
-            df = df.drop('start_time', axis=1)
+            # Don't drop start_time anymore
         
         # Handle competition_id as category
         if 'competition_id' in df.columns:
@@ -386,8 +387,9 @@ class ResultFeatureLoader(BaseFeatureLoader):
         if 'stage_of_season' in df.columns:
             df['stage_of_season'] = df['stage_of_season'].astype('category')
 
-        #Final features
-        self.logger.info(f"Final features: {df.columns}")
+        #print all the columns one by one
+        for i in df.columns:
+            self.logger.info(f"{i}: {df[i]}")
         
         return df
     

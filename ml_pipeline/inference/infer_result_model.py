@@ -140,30 +140,23 @@ def infer_result_model(conn, config: Dict[str, Any],
         if hasattr(model, 'predict_proba'):
             prediction_probabilities = model.predict_proba(features_processed)
         
-        # Create results DataFrame starting with match_id and predictions
+        # First, get the metadata from the original features DataFrame
+        metadata_df = features[['match_id', 'start_time', 'home_team_name', 'away_team_name']].copy()
+        
+        # Create results DataFrame with predictions
         results_df = pd.DataFrame({
             'match_id': features_processed.index,
             'predicted_result': predictions
         })
         
-        # Add metadata if available
-        if metadata_df is not None and not metadata_df.empty:
-            logger.info("Joining metadata to results")
-            # Reset index to join properly
-            results_df = results_df.reset_index(drop=True)
-            metadata_df = metadata_df.reset_index()
-            
-            # Merge on match_id
-            results_df = pd.merge(results_df, metadata_df, on='match_id', how='left')
-            logger.info(f"Results after metadata join:\n{results_df.head()}")
-        else:
-            logger.warning("No metadata to join")
+        # Join with metadata BEFORE adding probabilities
+        results_df = pd.merge(results_df, metadata_df, on='match_id', how='left')
         
-        # Add probabilities if available
+        # Add probabilities
         if prediction_probabilities is not None:
             # Reorder to put home team first (more intuitive)
-            class_names = ['away_win', 'draw', 'home_win']  # This is sklearn's internal order
-            display_names = ['home_win', 'draw', 'away_win']  # This is the display order we want
+            class_names = ['away_win', 'draw', 'home_win']  # sklearn's internal order
+            display_names = ['home_win', 'draw', 'away_win']  # our preferred order
             
             # Map sklearn output to our preferred display order
             sklearn_to_display = {
@@ -178,16 +171,20 @@ def infer_result_model(conn, config: Dict[str, Any],
         # Add timestamp
         results_df['prediction_timestamp'] = datetime.now()
         
-        # Reorder columns for better readability
-        base_columns = ['match_id', 'predicted_result']
-        metadata_columns_available = [col for col in ['start_time', 'home_team_name', 'away_team_name'] if col in results_df.columns]
-        # Reorder probability columns to show home first
-        prob_columns = ['prob_home_win', 'prob_draw', 'prob_away_win']
-        prob_columns = [col for col in prob_columns if col in results_df.columns]
-        other_columns = ['prediction_timestamp']
+        # Ensure columns are in the correct order
+        column_order = [
+            'match_id',
+            'predicted_result',
+            'start_time',
+            'home_team_name',
+            'away_team_name',
+            'prob_home_win',
+            'prob_draw',
+            'prob_away_win',
+            'prediction_timestamp'
+        ]
         
-        column_order = base_columns + metadata_columns_available + prob_columns + other_columns
-        results_df = results_df[[col for col in column_order if col in results_df.columns]]
+        results_df = results_df[column_order]
         
         logger.info(f"Final results shape: {results_df.shape}")
         logger.info(f"Final columns: {list(results_df.columns)}")

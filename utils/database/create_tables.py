@@ -263,6 +263,7 @@ def create_elo_history_table(conn):
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS elo_history (
             match_id INTEGER,
+            start_time TIMESTAMP,
             home_team_id INTEGER,
             away_team_id INTEGER,
             home_team_name TEXT,
@@ -778,7 +779,8 @@ def create_h2h_tables(conn):
                 h2h_away_goals_avg_last_5 FLOAT,
                 h2h_away_goals_avg_last_10 FLOAT,
                 h2h_both_teams_scored_rate FLOAT,
-                h2h_zero_goal_rate FLOAT
+                h2h_zero_goal_rate FLOAT,
+                raw_h2h_matches JSONB
             )
         """)
         
