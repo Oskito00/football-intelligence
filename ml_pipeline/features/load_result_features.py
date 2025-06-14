@@ -53,11 +53,10 @@ class ResultFeatureLoader(BaseFeatureLoader):
         base_tables = [
             'matches',
             'elo_history',
-            # 'fatigue_history',
             'stage_of_season_history',
             'match_info_history',
-            'form_history'
-
+            'form_history',
+            'h2h_history'
         ]
         
         # Add formation_history only if formations are required
@@ -123,19 +122,49 @@ class ResultFeatureLoader(BaseFeatureLoader):
         # Get table alias for the base ELO table
         table_alias = 'eh'
         
-        # # Add form history - INNER JOIN with minimum form length check
-        select_fields.extend([
-            "-- FORM HISTORY",
-            "fh.home_team_form::jsonb as home_team_form",  # Explicitly cast to JSONB
-            "fh.away_team_form::jsonb as away_team_form",  # Explicitly cast to JSONB
-            "fh.draw_features::jsonb as draw_features"     # Explicitly cast to JSONB
-        ])
-        joins.append(f"""
-            INNER JOIN {self.form_history_table} fh 
-            ON {table_alias}.match_id = fh.match_id 
-            AND jsonb_array_length(fh.home_team_form) >= 10
-            AND jsonb_array_length(fh.away_team_form) >= 10
-        """)
+        # Add form history - INNER JOIN with minimum form length check (only if in feature_tables)
+        if self.form_history_table in self.feature_tables:
+            select_fields.extend([
+                "-- FORM HISTORY",
+                "fh.home_team_form::jsonb as home_team_form",  # Explicitly cast to JSONB
+                "fh.away_team_form::jsonb as away_team_form",  # Explicitly cast to JSONB
+                "fh.draw_features::jsonb as draw_features"     # Explicitly cast to JSONB
+            ])
+            joins.append(f"""
+                INNER JOIN {self.form_history_table} fh 
+                ON {table_alias}.match_id = fh.match_id 
+                AND jsonb_array_length(fh.home_team_form) >= 10
+                AND jsonb_array_length(fh.away_team_form) >= 10
+            """)
+        
+        # Add H2H features - INNER JOIN (only if in feature_tables)
+        if 'h2h_history' in self.feature_tables:
+            select_fields.extend([
+                "-- H2H FEATURES",
+                "h2h.h2h_draws_last_3",
+                "h2h.h2h_draws_last_5",
+                "h2h.h2h_draws_last_10",
+                "h2h.h2h_home_wins_last_3",
+                "h2h.h2h_home_wins_last_5",
+                "h2h.h2h_home_wins_last_10",
+                "h2h.h2h_away_wins_last_3",
+                "h2h.h2h_away_wins_last_5",
+                "h2h.h2h_away_wins_last_10",
+                "h2h.h2h_avg_total_goals",
+                "h2h.h2h_avg_goal_diff",
+                "h2h.h2h_home_goals_avg_last_3",
+                "h2h.h2h_home_goals_avg_last_5",
+                "h2h.h2h_home_goals_avg_last_10",
+                "h2h.h2h_away_goals_avg_last_3",
+                "h2h.h2h_away_goals_avg_last_5",
+                "h2h.h2h_away_goals_avg_last_10",
+                "h2h.h2h_both_teams_scored_rate",
+                "h2h.h2h_zero_goal_rate"
+            ])
+            joins.append(f"""
+                INNER JOIN h2h_history h2h 
+                ON {table_alias}.match_id = h2h.match_id
+            """)
         
         # Always include comprehensive ELO features (already in base table)
         select_fields.extend([
@@ -305,10 +334,8 @@ class ResultFeatureLoader(BaseFeatureLoader):
         """Engineer additional features based on available columns"""
         self.logger.info("Engineering features dynamically")
         
-        # Add debug logging for column types
         # Process draw features
         if 'draw_features' in df.columns:
-            
             # Extract draw features from JSONB
             draw_feature_names = [
                 'home_draw_rate_3', 'home_draw_rate_5', 'home_draw_rate_10',

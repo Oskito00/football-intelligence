@@ -742,6 +742,8 @@ def create_h2h_tables(conn):
                 team_pair_id SERIAL PRIMARY KEY,
                 team1_id INTEGER,
                 team2_id INTEGER,
+                team1_name TEXT,
+                team2_name TEXT,
                 total_matches INTEGER DEFAULT 0,
                 team1_wins INTEGER DEFAULT 0,
                 team2_wins INTEGER DEFAULT 0,

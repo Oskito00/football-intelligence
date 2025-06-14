@@ -30,10 +30,10 @@ data:
   # Tables to use for features (no formation_history)
   feature_tables:
     - "elo_history"
-    # - "fatigue_history"
     - "stage_of_season_history"
     - "match_info_history"
     - "form_history"
+    - "h2h_history"
   
   # Filters
   filters:

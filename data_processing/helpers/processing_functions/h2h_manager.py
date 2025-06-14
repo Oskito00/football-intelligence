@@ -39,13 +39,14 @@ class H2HManager:
         """Load H2H stats for all team pairs in the batch"""
         query = """
             SELECT 
-                team1_id, team2_id,
-                total_matches, team1_wins, team2_wins, draws,
-                team1_goals, team2_goals,
-                recent_matches,
-                last_updated
-            FROM h2h_stats
-            WHERE (team1_id, team2_id) = ANY(%s)
+                h.team1_id, h.team2_id,
+                h.team1_name, h.team2_name,
+                h.total_matches, h.team1_wins, h.team2_wins, h.draws,
+                h.team1_goals, h.team2_goals,
+                h.recent_matches,
+                h.last_updated
+            FROM h2h_stats h
+            WHERE (h.team1_id, h.team2_id) = ANY(%s)
         """
         
         with self.conn.cursor() as cur:
@@ -62,11 +63,12 @@ class H2HManager:
                 recent_matches = []
             elif isinstance(recent_matches, str):
                 recent_matches = json.loads(recent_matches)
-            # If it's already a list, use it as is
             
             self._h2h_stats_cache[pair_key] = {
                 'team1_id': row['team1_id'],
                 'team2_id': row['team2_id'],
+                'team1_name': row['team1_name'],
+                'team2_name': row['team2_name'],
                 'total_matches': row['total_matches'],
                 'team1_wins': row['team1_wins'],
                 'team2_wins': row['team2_wins'],
@@ -80,9 +82,26 @@ class H2HManager:
         # Initialize cache for pairs not found in database
         for pair in team_pairs:
             if pair not in self._h2h_stats_cache:
+                # Get team names from the matches
+                team1_name = None
+                team2_name = None
+                for match in self.matches:
+                    if match['home_team_id'] == pair[0]:
+                        team1_name = match['home_team_name']
+                    elif match['away_team_id'] == pair[0]:
+                        team1_name = match['away_team_name']
+                    if match['home_team_id'] == pair[1]:
+                        team2_name = match['home_team_name']
+                    elif match['away_team_id'] == pair[1]:
+                        team2_name = match['away_team_name']
+                    if team1_name and team2_name:
+                        break
+                
                 self._h2h_stats_cache[pair] = {
                     'team1_id': pair[0],
                     'team2_id': pair[1],
+                    'team1_name': team1_name or f"Team {pair[0]}",
+                    'team2_name': team2_name or f"Team {pair[1]}",
                     'total_matches': 0,
                     'team1_wins': 0,
                     'team2_wins': 0,
@@ -287,13 +306,15 @@ class H2HManager:
                     stats_dict = {
                         'team1_id': pair[0],
                         'team2_id': pair[1],
+                        'team1_name': data['team1_name'],
+                        'team2_name': data['team2_name'],
                         'total_matches': data['total_matches'],
                         'team1_wins': data['team1_wins'],
                         'team2_wins': data['team2_wins'],
                         'draws': data['draws'],
                         'team1_goals': data['team1_goals'],
                         'team2_goals': data['team2_goals'],
-                        'recent_matches': json.dumps(recent_matches),  # Now safe to serialize
+                        'recent_matches': json.dumps(recent_matches),
                         'last_updated': data['last_updated'].isoformat() if isinstance(data['last_updated'], datetime) else data['last_updated']
                     }
                     stats_to_insert.append(stats_dict)
@@ -301,6 +322,7 @@ class H2HManager:
                 cur.executemany("""
                     INSERT INTO h2h_stats (
                         team1_id, team2_id,
+                        team1_name, team2_name,
                         total_matches, team1_wins, team2_wins, draws,
                         team1_goals, team2_goals,
                         recent_matches,
@@ -308,13 +330,16 @@ class H2HManager:
                     )
                     VALUES (
                         %(team1_id)s, %(team2_id)s,
+                        %(team1_name)s, %(team2_name)s,
                         %(total_matches)s, %(team1_wins)s, %(team2_wins)s, %(draws)s,
                         %(team1_goals)s, %(team2_goals)s,
                         %(recent_matches)s,
                         %(last_updated)s
                     )
                     ON CONFLICT (team1_id, team2_id) DO UPDATE
-                    SET total_matches = EXCLUDED.total_matches,
+                    SET team1_name = EXCLUDED.team1_name,
+                        team2_name = EXCLUDED.team2_name,
+                        total_matches = EXCLUDED.total_matches,
                         team1_wins = EXCLUDED.team1_wins,
                         team2_wins = EXCLUDED.team2_wins,
                         draws = EXCLUDED.draws,
