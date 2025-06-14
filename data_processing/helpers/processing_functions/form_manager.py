@@ -94,6 +94,70 @@ class FormManager:
                     'opponent_international_elo': match['home_team_international_elo']
                 })
 
+    def _calculate_draw_stats(self, form_data: List[Dict[str, Any]], window_size: int) -> Dict[str, float]:
+        """Calculate draw-related statistics for a team's form data"""
+        if len(form_data) < window_size:
+            return {
+                'draw_rate': 0.0,
+                'avg_goal_diff': 0.0
+            }
+        
+        recent_matches = form_data[-window_size:]
+        draws = 0
+        total_goal_diff = 0
+        
+        for match in recent_matches:
+            goals_scored = match['goals_scored']
+            goals_conceded = match['goals_conceded']
+            
+            # Count draws
+            if goals_scored == goals_conceded:
+                draws += 1
+            
+            # Calculate goal difference
+            total_goal_diff += (goals_scored - goals_conceded)
+        
+        return {
+            'draw_rate': draws / window_size,
+            'avg_goal_diff': total_goal_diff / window_size
+        }
+
+    def _calculate_combined_draw_stats(self, home_form: List[Dict[str, Any]], 
+                                     away_form: List[Dict[str, Any]], 
+                                     window_size: int) -> Dict[str, float]:
+        """Calculate combined draw statistics for both teams"""
+        if len(home_form) < window_size or len(away_form) < window_size:
+            return {
+                'both_draw_rate': 0.0,
+                'zero_goals_rate': 0.0
+            }
+        
+        home_recent = home_form[-window_size:]
+        away_recent = away_form[-window_size:]
+        
+        both_draws = 0
+        zero_goals = 0
+        total_matches = min(len(home_recent), len(away_recent))
+        
+        for i in range(total_matches):
+            home_match = home_recent[i]
+            away_match = away_recent[i]
+            
+            # Check if both teams drew in their respective matches
+            if (home_match['goals_scored'] == home_match['goals_conceded'] and 
+                away_match['goals_scored'] == away_match['goals_conceded']):
+                both_draws += 1
+            
+            # Check for 0-0 matches
+            if (home_match['goals_scored'] == 0 and home_match['goals_conceded'] == 0 and
+                away_match['goals_scored'] == 0 and away_match['goals_conceded'] == 0):
+                zero_goals += 1
+        
+        return {
+            'both_draw_rate': both_draws / total_matches,
+            'zero_goals_rate': zero_goals / total_matches
+        }
+
     def process_match(self, match: Dict[str, Any]):
         """Process a single match and update form data"""
         match_id = match['match_id']
@@ -124,7 +188,33 @@ class FormManager:
         home_form = list(self._team_form_cache[home_team_id])
         away_form = list(self._team_form_cache[away_team_id])
         
-        # Create form history record
+        # Calculate draw-related features
+        draw_features = {}
+        
+        # Calculate for both teams
+        for window in [3, 5, 10]:
+            # Home team stats
+            home_stats = self._calculate_draw_stats(home_form, window)
+            draw_features.update({
+                f'home_draw_rate_{window}': home_stats['draw_rate'],
+                f'home_avg_goal_diff_{window}': home_stats['avg_goal_diff']
+            })
+            
+            # Away team stats
+            away_stats = self._calculate_draw_stats(away_form, window)
+            draw_features.update({
+                f'away_draw_rate_{window}': away_stats['draw_rate'],
+                f'away_avg_goal_diff_{window}': away_stats['avg_goal_diff']
+            })
+            
+            # Combined stats
+            combined_stats = self._calculate_combined_draw_stats(home_form, away_form, window)
+            draw_features.update({
+                f'both_draw_rate_{window}': combined_stats['both_draw_rate'],
+                f'zero_goals_rate_{window}': combined_stats['zero_goals_rate']
+            })
+        
+        # Create form history record with new features
         form_record = {
             'match_id': match_id,
             'home_team_id': home_team_id,
@@ -132,7 +222,8 @@ class FormManager:
             'home_name': home_name,
             'away_name': away_name,
             'home_team_form': home_form,
-            'away_team_form': away_form
+            'away_team_form': away_form,
+            'draw_features': draw_features  # Add the new draw features
         }
         self.form_history.append(form_record)
         
@@ -191,16 +282,19 @@ class FormManager:
                     INSERT INTO form_history (
                         match_id, home_team_id, away_team_id, 
                         home_name, away_name,
-                        home_team_form, away_team_form
+                        home_team_form, away_team_form,
+                        draw_features
                     )
                     VALUES (
                         %(match_id)s, %(home_team_id)s, %(away_team_id)s,
                         %(home_name)s, %(away_name)s,
-                        %(home_team_form)s, %(away_team_form)s
+                        %(home_team_form)s, %(away_team_form)s,
+                        %(draw_features)s
                     )
                     ON CONFLICT (match_id) DO UPDATE
                     SET home_team_form = EXCLUDED.home_team_form,
-                        away_team_form = EXCLUDED.away_team_form
+                        away_team_form = EXCLUDED.away_team_form,
+                        draw_features = EXCLUDED.draw_features
                 """, [{
                     'match_id': record['match_id'],
                     'home_team_id': record['home_team_id'],
@@ -208,7 +302,8 @@ class FormManager:
                     'home_name': record['home_name'],
                     'away_name': record['away_name'],
                     'home_team_form': json.dumps(record['home_team_form']),
-                    'away_team_form': json.dumps(record['away_team_form'])
+                    'away_team_form': json.dumps(record['away_team_form']),
+                    'draw_features': json.dumps(record['draw_features'])
                 } for record in self.form_history])
         
         # Batch update form_matches_cache only in training mode

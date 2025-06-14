@@ -1,6 +1,7 @@
 from data_processing.helpers.processing_functions.elo_manager import EloManager
 from data_processing.helpers.processing_functions.form_manager import FormManager
 from data_processing.helpers.processing_functions.formation_manager import FormationManager
+from data_processing.helpers.processing_functions.h2h_manager import H2HManager
 from data_processing.helpers.processing_functions.match_history import process_matches_to_history
 from data_processing.helpers.processing_functions.match_info_manager import MatchInfoManager
 from data_processing.helpers.processing_functions.stage_of_season_manager import StageOfSeasonManager
@@ -49,7 +50,7 @@ def process_matches(conn):
         print("No matches to process")
         return
     
-    process_matches_to_history(conn, batch_size=1000)
+    # process_matches_to_history(conn, batch_size=1000)
 
     for i in range(0, len(matches), BATCH_SIZE):
         batch = matches[i:i+BATCH_SIZE]
@@ -60,7 +61,8 @@ def process_matches(conn):
               StageOfSeasonManager(conn, batch, mode='training') as stage_of_season_manager, 
               FormationManager(conn, batch, mode='training') as formation_manager,
               EloManager(conn, batch, mode='training') as elo_manager,
-              FormManager(conn, batch, mode='training', elo_manager=elo_manager) as form_manager):
+              FormManager(conn, batch, mode='training', elo_manager=elo_manager) as form_manager,
+              H2HManager(conn, batch, mode='training') as h2h_manager):
             
             match_ids = []
             with_formation_flags = []
@@ -70,7 +72,7 @@ def process_matches(conn):
                 stage_of_season_manager.process_match(match)
                 form_manager.process_match(match)
                 elo_manager.process_match(match)
-                
+                h2h_manager.process_match(match)
                 # Track formation processing
                 has_formation = bool(match.get('home_team_formation') and match.get('away_team_formation'))
                 if has_formation:

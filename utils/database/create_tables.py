@@ -16,6 +16,7 @@ def create_tables(conn):
     create_form_history_table(conn)
     create_form_matches_cache_table(conn)
     create_processed_info_table(conn)
+    create_h2h_tables(conn)
 
 def create_match_result_predictions_table(conn):
     cursor = conn.cursor()
@@ -698,7 +699,8 @@ def create_form_history_table(conn):
                 home_name VARCHAR(255),
                 away_name VARCHAR(255),
                 home_team_form JSONB,
-                away_team_form JSONB
+                away_team_form JSONB,
+                draw_features JSONB
             )
         """)
 
@@ -729,4 +731,57 @@ def create_form_matches_cache_table(conn):
         cur.execute("""
             CREATE INDEX IF NOT EXISTS idx_form_matches_away_team 
             ON form_matches_cache(away_team_id)
+        """)
+
+def create_h2h_tables(conn):
+    """Creates tables for H2H stats and history"""
+    with conn.cursor() as cur:
+        # Create h2h_stats table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS h2h_stats (
+                team_pair_id SERIAL PRIMARY KEY,
+                team1_id INTEGER,
+                team2_id INTEGER,
+                total_matches INTEGER DEFAULT 0,
+                team1_wins INTEGER DEFAULT 0,
+                team2_wins INTEGER DEFAULT 0,
+                draws INTEGER DEFAULT 0,
+                team1_goals INTEGER DEFAULT 0,
+                team2_goals INTEGER DEFAULT 0,
+                recent_matches JSONB,  -- Array of last 10 matches with timestamps
+                last_updated TIMESTAMP,
+                UNIQUE(team1_id, team2_id)
+            )
+        """)
+        
+        # Create h2h_history table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS h2h_history (
+                match_id INTEGER PRIMARY KEY,
+                h2h_draws_last_3 FLOAT,
+                h2h_draws_last_5 FLOAT,
+                h2h_draws_last_10 FLOAT,
+                h2h_home_wins_last_3 FLOAT,
+                h2h_home_wins_last_5 FLOAT,
+                h2h_home_wins_last_10 FLOAT,
+                h2h_away_wins_last_3 FLOAT,
+                h2h_away_wins_last_5 FLOAT,
+                h2h_away_wins_last_10 FLOAT,
+                h2h_avg_total_goals FLOAT,
+                h2h_avg_goal_diff FLOAT,
+                h2h_home_goals_avg_last_3 FLOAT,
+                h2h_home_goals_avg_last_5 FLOAT,
+                h2h_home_goals_avg_last_10 FLOAT,
+                h2h_away_goals_avg_last_3 FLOAT,
+                h2h_away_goals_avg_last_5 FLOAT,
+                h2h_away_goals_avg_last_10 FLOAT,
+                h2h_both_teams_scored_rate FLOAT,
+                h2h_zero_goal_rate FLOAT
+            )
+        """)
+        
+        # Add indexes for faster lookups
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_h2h_stats_team_pair 
+            ON h2h_stats(team1_id, team2_id)
         """)

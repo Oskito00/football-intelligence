@@ -33,6 +33,7 @@ data:
     # - "fatigue_history"
     - "stage_of_season_history"
     - "match_info_history"
+    - "form_history"
   
   # Filters
   filters:

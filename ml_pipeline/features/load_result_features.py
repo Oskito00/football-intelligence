@@ -6,6 +6,7 @@ Loads and combines features from multiple tables for match outcome prediction
 from typing import List, Optional, Dict, Any
 import pandas as pd
 import numpy as np
+import json
 
 from ml_pipeline.features.base_feature_loader import BaseFeatureLoader
 
@@ -35,11 +36,13 @@ class ResultFeatureLoader(BaseFeatureLoader):
             self.formation_table = 'formation_future'  # If it exists
             self.stage_table = 'stage_of_season_future'
             self.match_info_table = 'match_info_future'
+            self.form_history_table = 'form_history_future'
         else:  # training mode
             self.elo_table = 'elo_history'
             self.formation_table = 'formation_history'
             self.stage_table = 'stage_of_season_history'
             self.match_info_table = 'match_info_history'
+            self.form_history_table = 'form_history'
         
         self.logger.info(f"Feature loader initialized for {mode} mode using {self.elo_table}")
         
@@ -53,6 +56,7 @@ class ResultFeatureLoader(BaseFeatureLoader):
             # 'fatigue_history',
             'stage_of_season_history',
             'match_info_history',
+            'form_history'
 
         ]
         
@@ -117,7 +121,21 @@ class ResultFeatureLoader(BaseFeatureLoader):
         joins = []
         
         # Get table alias for the base ELO table
-        table_alias = 'eh'  # Keep consistent alias regardless of actual table name
+        table_alias = 'eh'
+        
+        # # Add form history - INNER JOIN with minimum form length check
+        select_fields.extend([
+            "-- FORM HISTORY",
+            "fh.home_team_form::jsonb as home_team_form",  # Explicitly cast to JSONB
+            "fh.away_team_form::jsonb as away_team_form",  # Explicitly cast to JSONB
+            "fh.draw_features::jsonb as draw_features"     # Explicitly cast to JSONB
+        ])
+        joins.append(f"""
+            INNER JOIN {self.form_history_table} fh 
+            ON {table_alias}.match_id = fh.match_id 
+            AND jsonb_array_length(fh.home_team_form) >= 10
+            AND jsonb_array_length(fh.away_team_form) >= 10
+        """)
         
         # Always include comprehensive ELO features (already in base table)
         select_fields.extend([
@@ -284,52 +302,68 @@ class ResultFeatureLoader(BaseFeatureLoader):
         return targets_series
     
     def _engineer_features_dynamic(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Engineer additional features based on available columns
-        
-        Args:
-            df: Raw features DataFrame
-            
-        Returns:
-            DataFrame with engineered features
-        """
+        """Engineer additional features based on available columns"""
         self.logger.info("Engineering features dynamically")
         
-        # TODO: Add when fatigue features ready
-        # self._create_fatigue_differences(df)
+        # Add debug logging for column types
+        # Process draw features
+        if 'draw_features' in df.columns:
+            
+            # Extract draw features from JSONB
+            draw_feature_names = [
+                'home_draw_rate_3', 'home_draw_rate_5', 'home_draw_rate_10',
+                'away_draw_rate_3', 'away_draw_rate_5', 'away_draw_rate_10',
+                'both_draw_rate_3', 'both_draw_rate_5', 'both_draw_rate_10',
+                'zero_goals_rate_3', 'zero_goals_rate_5', 'zero_goals_rate_10',
+                'home_avg_goal_diff_3', 'home_avg_goal_diff_5', 'home_avg_goal_diff_10',
+                'away_avg_goal_diff_3', 'away_avg_goal_diff_5', 'away_avg_goal_diff_10'
+            ]
+            
+            # Convert JSONB to dict and extract features
+            for feature in draw_feature_names:
+                df[feature] = df['draw_features'].apply(
+                    lambda x: float(x.get(feature, 0.0)) if isinstance(x, dict) else 0.0
+                )
+            
+            # Example of draw_features
+            
+            # Drop original draw_features column
+            df = df.drop('draw_features', axis=1)
+
+            df = df.drop(['home_team_form', 'away_team_form'], axis=1)
         
-        # Only do formation features if formations are available and required
-        if (self.feature_requirements.get('formations', False) and 
-            'home_team_formation' in df.columns):
-            self._create_formation_features(df)
+        # Drop columns we don't want to use as features
+        columns_to_drop = [
+            'home_team_name',
+            'away_team_name',
+            'competition_name',
+            'competition_country',
+
+        ]
+        df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
         
-        # Encode categorical features
-        categorical_columns = []
+        # Convert timestamp to numeric features
+        if 'start_time' in df.columns:
+            df['start_time'] = pd.to_datetime(df['start_time'])
+            df['hour_of_day'] = df['start_time'].dt.hour
+            df['day_of_week'] = df['start_time'].dt.dayofweek
+            df['month'] = df['start_time'].dt.month
+            df['year'] = df['start_time'].dt.year
+            df = df.drop('start_time', axis=1)
         
-        # Competition features
+        # Handle competition_id as category
         if 'competition_id' in df.columns:
-            # Convert to category instead of one-hot encoding
             df['competition_id'] = df['competition_id'].astype('category')
-            categorical_columns = []  # Don't one-hot encode competition_id
         
-        if 'competition_name' in df.columns:
-            categorical_columns.append('competition_name')
-        
-        if 'competition_country' in df.columns:
-            categorical_columns.append('competition_country')
-        
-        # Stage of season category
-        if 'stage_of_season_category' in df.columns:
-            categorical_columns.append('stage_of_season_category')
-        
-        # One-hot encode all categorical columns
-        if categorical_columns:
-            self.logger.info(f"One-hot encoding categorical features: {categorical_columns}")
-            df = pd.get_dummies(df, columns=categorical_columns, prefix=categorical_columns)
+        # Handle stage of season as category
+        if 'stage_of_season' in df.columns:
+            df['stage_of_season'] = df['stage_of_season'].astype('category')
+
+        #Final features
+        self.logger.info(f"Final features: {df.columns}")
         
         return df
     
-
     def _create_fatigue_differences(self, df: pd.DataFrame) -> None:
         """Create fatigue differences for all available time windows"""
         # TODO: Implement when fatigue features are ready

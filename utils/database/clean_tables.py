@@ -1,7 +1,7 @@
 def drop_tables(conn):
     """Drops all processing tables"""
     table_names = [
-        'teammatchhistory',
+        # 'teammatchhistory',
         'counter_table',
         'elo_history',
         'club_elo_ratings',
@@ -11,6 +11,8 @@ def drop_tables(conn):
         'stage_of_season_history',
         'form_history',
         'form_matches_cache',
+        'h2h_history',
+        'h2h_stats',
         'processed_info'
 
 
