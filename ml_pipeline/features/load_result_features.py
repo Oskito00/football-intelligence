@@ -103,14 +103,14 @@ class ResultFeatureLoader(BaseFeatureLoader):
         if limit:
             base_query += f" LIMIT {limit}"
         
-        # Execute query
+        # Execute query (this already filters through the INNER JOINs)
         features_df = self.execute_query(base_query)
         
         if features_df.empty:
             self.logger.warning("No features loaded")
             return pd.DataFrame()
         
-        # Store metadata before any processing
+        # Store metadata for ONLY the filtered matches
         self.metadata_df = features_df[['match_id', 'start_time', 'home_team_name', 'away_team_name']].copy()
         
         # Set match_id as index
@@ -185,12 +185,12 @@ class ResultFeatureLoader(BaseFeatureLoader):
             f"{table_alias}.away_team_name",
             "",
             "-- CORE ELO FEATURES (Club ELOs - all K values)",
-            f"{table_alias}.home_team_elo_K5, {table_alias}.away_team_elo_K5",
-            f"{table_alias}.home_team_elo_K10, {table_alias}.away_team_elo_K10",
+            # f"{table_alias}.home_team_elo_K5, {table_alias}.away_team_elo_K5",
+            # f"{table_alias}.home_team_elo_K10, {table_alias}.away_team_elo_K10",
             f"{table_alias}.home_team_elo_K20, {table_alias}.away_team_elo_K20", 
-            f"{table_alias}.home_team_elo_K30, {table_alias}.away_team_elo_K30",
-            f"{table_alias}.home_team_elo_K40, {table_alias}.away_team_elo_K40",
-            f"{table_alias}.home_team_elo_K80, {table_alias}.away_team_elo_K80",
+            # f"{table_alias}.home_team_elo_K30, {table_alias}.away_team_elo_K30",
+            # f"{table_alias}.home_team_elo_K40, {table_alias}.away_team_elo_K40",
+            # f"{table_alias}.home_team_elo_K80, {table_alias}.away_team_elo_K80",
             "",
             "-- HOME/AWAY SPECIFIC ELO RATINGS",
             f"{table_alias}.home_team_elo_home_matches_K5, {table_alias}.away_team_elo_home_matches_K5",

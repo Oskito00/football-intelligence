@@ -50,7 +50,7 @@ def process_matches(conn):
         print("No matches to process")
         return
     
-    # process_matches_to_history(conn, batch_size=1000)
+    process_matches_to_history(conn, batch_size=1000)
 
     for i in range(0, len(matches), BATCH_SIZE):
         batch = matches[i:i+BATCH_SIZE]
@@ -73,7 +73,7 @@ def process_matches(conn):
                 form_manager.process_match(match)
                 elo_manager.process_match(match)
                 h2h_manager.process_match(match)
-                # Track formation processing
+                
                 has_formation = bool(match.get('home_team_formation') and match.get('away_team_formation'))
                 if has_formation:
                     formation_manager.process_match(match)

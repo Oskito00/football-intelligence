@@ -112,35 +112,54 @@ def infer_result_model(conn, config: Dict[str, Any],
         logger.info("Making predictions")
         predictions = model.predict(features_processed)
         
-        # Get prediction probabilities if available
-        prediction_probabilities = None
-        if hasattr(model, 'predict_proba'):
-            prediction_probabilities = model.predict_proba(features_processed)
-        
         # Create results DataFrame with predictions
         results_df = pd.DataFrame({
             'match_id': features_processed.index,
             'predicted_result': predictions
         })
         
-        # Join with metadata
-        results_df = pd.merge(results_df, feature_loader.metadata_df, on='match_id', how='left')
+        # Remove duplicates from results
+        results_df = results_df.drop_duplicates(subset=['match_id'])
+        logger.info(f"Results shape after removing duplicates: {results_df.shape}")
         
-        # Add probabilities
-        if prediction_probabilities is not None:
-            # Reorder to put home team first (more intuitive)
-            class_names = ['away_win', 'draw', 'home_win']  # sklearn's internal order
-            display_names = ['home_win', 'draw', 'away_win']  # our preferred order
+        # Filter and deduplicate metadata
+        filtered_metadata = feature_loader.metadata_df[feature_loader.metadata_df['match_id'].isin(features_processed.index)]
+        filtered_metadata = filtered_metadata.drop_duplicates(subset=['match_id'])
+        logger.info(f"Filtered metadata shape after removing duplicates: {filtered_metadata.shape}")
+        
+        # Join with metadata
+        results_df = pd.merge(
+            results_df,
+            filtered_metadata,
+            on='match_id',
+            how='left',
+            validate='1:1'
+        )
+        
+        # Add prediction probabilities if available
+        if hasattr(model, 'predict_proba'):
+            # Get probabilities for all matches
+            all_probabilities = model.predict_proba(features_processed)
             
-            # Map sklearn output to our preferred display order
-            sklearn_to_display = {
-                'home_win': prediction_probabilities[:, 2],  # sklearn index 2
-                'draw': prediction_probabilities[:, 1],      # sklearn index 1  
-                'away_win': prediction_probabilities[:, 0]   # sklearn index 0
-            }
+            # Create probability DataFrame
+            prob_df = pd.DataFrame({
+                'match_id': features_processed.index,
+                'prob_home_win': all_probabilities[:, 2],  # sklearn index 2 is home_win
+                'prob_draw': all_probabilities[:, 1],      # sklearn index 1 is draw
+                'prob_away_win': all_probabilities[:, 0]   # sklearn index 0 is away_win
+            })
             
-            for class_name in display_names:
-                results_df[f'prob_{class_name}'] = sklearn_to_display[class_name]
+            # Remove duplicates to match results
+            prob_df = prob_df.drop_duplicates(subset=['match_id'])
+            
+            # Merge probabilities with results
+            results_df = pd.merge(
+                results_df,
+                prob_df,
+                on='match_id',
+                how='left',
+                validate='1:1'
+            )
         
         # Add timestamp
         results_df['prediction_timestamp'] = datetime.now()
@@ -193,8 +212,8 @@ def infer_result_model(conn, config: Dict[str, Any],
                 'match_id': row['match_id'],
                 'prediction': row['predicted_result']
             }
-            if prediction_probabilities is not None:
-                sample['confidence'] = max([row[f'prob_{cls}'] for cls in class_names])
+            if hasattr(model, 'predict_proba'):
+                sample['confidence'] = max([row[f'prob_{cls}'] for cls in ['home_win', 'draw', 'away_win']])
             sample_predictions.append(sample)
         
         return {
