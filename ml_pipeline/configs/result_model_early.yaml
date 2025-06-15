@@ -32,8 +32,13 @@ data:
     - "elo_history"
     - "stage_of_season_history"
     - "match_info_history"
+    - "stage_of_season_future"
+    - "match_info_future"
     - "form_history"
     - "h2h_history"
+    - "fatigue_history"
+    - 'form_future'
+    - 'h2h_future'
   
   # Filters
   filters:
@@ -65,12 +70,12 @@ training:
   cross_validation:
     enabled: true
     folds: 5
-    scoring: "accuracy"
+    scoring: "neg_log_loss"
   
   early_stopping:
     enabled: true
     patience: 10
-    metric: "accuracy"
+    metric: "neg_log_loss"
   
   class_weights: "balanced"  # Handle class imbalance
 
@@ -82,6 +87,8 @@ evaluation:
     - "recall"
     - "f1"
     - "roc_auc"
+    - "log_loss"
+    - "neg_log_loss"
   
   # Additional evaluation settings
   confusion_matrix: true

@@ -275,11 +275,14 @@ class FormManager:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Save form history and update team form cache"""
-        # Save form history
+        # Save form history/future based on mode
         if self.form_history:
             with self.conn.cursor() as cur:
-                cur.executemany("""
-                    INSERT INTO form_history (
+                # Choose table based on mode
+                table_name = 'form_future' if self.mode == 'inference' else 'form_history'
+                
+                cur.executemany(f"""
+                    INSERT INTO {table_name} (
                         match_id, home_team_id, away_team_id, 
                         home_name, away_name,
                         home_team_form, away_team_form,

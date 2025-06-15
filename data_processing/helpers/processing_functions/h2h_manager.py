@@ -246,11 +246,14 @@ class H2HManager:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Save H2H features and update H2H stats"""
-        # Save H2H features to h2h_history
+        # Save H2H features to h2h_history or h2h_future based on mode
         if self.h2h_features:
             with self.conn.cursor() as cur:
-                cur.executemany("""
-                    INSERT INTO h2h_history (
+                # Choose table based on mode
+                table_name = 'h2h_future' if self.mode == 'inference' else 'h2h_history'
+                
+                cur.executemany(f"""
+                    INSERT INTO {table_name} (
                         match_id,
                         h2h_draws_last_3, h2h_draws_last_5, h2h_draws_last_10,
                         h2h_home_wins_last_3, h2h_home_wins_last_5, h2h_home_wins_last_10,

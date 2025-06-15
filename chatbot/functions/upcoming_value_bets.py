@@ -19,9 +19,8 @@ sys.path.append(str(project_root))
 def get_upcoming_value_bets(
     days_ahead: int = 7,
     league_query: str = None,
-    kelly_fraction: float = 0.25,
+    kelly_fraction: float = 0.50,
     min_value_threshold: float = 0.05,
-    max_results: int = 10
 ) -> Dict[str, Any]:
     """
     Find the best value betting opportunities in upcoming matches.
@@ -29,9 +28,8 @@ def get_upcoming_value_bets(
     Args:
         days_ahead: Number of days to look ahead (default: 7)
         league_query: Optional league/competition to filter by
-        kelly_fraction: Kelly safety fraction (default: 0.25)
+        kelly_fraction: Kelly safety fraction (default: 0.50)
         min_value_threshold: Minimum expected value (default: 5%)
-        max_results: Maximum number of value bets to return
         
     Returns:
         Dictionary with best value betting opportunities
@@ -66,13 +64,12 @@ def get_upcoming_value_bets(
         upcoming_matches = get_upcoming_matches(
             days_ahead=days_ahead,
             competition_ids=competition_ids,
-            limit=100  # Get more matches to analyze
         )
         
         if not upcoming_matches:
             # Add debug info about why no matches were found
-            print(f"   • No matches found. Checking all upcoming matches without competition filter...")
-            all_matches = get_upcoming_matches(days_ahead=days_ahead, limit=10)
+            print("   • No matches found. Checking all upcoming matches without competition filter...")
+            all_matches = get_upcoming_matches(days_ahead=days_ahead)
             if all_matches:
                 print(f"   • Found {len(all_matches)} total upcoming matches:")
                 for match in all_matches[:3]:
@@ -103,7 +100,7 @@ def get_upcoming_value_bets(
             }
         
         # Step 4: Get top value bets and add match context
-        top_value_bets = value_analysis['all_value_bets'][:max_results]
+        top_value_bets = value_analysis['all_value_bets']
         
         # Enhance with full match information
         match_lookup = {match['match_id']: match for match in upcoming_matches}
@@ -155,7 +152,6 @@ def get_upcoming_value_bets_by_country(
     days_ahead: int = 7,
     kelly_fraction: float = 0.25,
     min_value_threshold: float = 0.05,
-    max_results: int = 10
 ) -> Dict[str, Any]:
     """
     Find value bets in upcoming matches filtered by country.
@@ -201,7 +197,7 @@ def get_upcoming_value_bets_by_country(
             }
         
         # Get top results with match context
-        top_value_bets = value_analysis['all_value_bets'][:max_results]
+        top_value_bets = value_analysis['all_value_bets']
         match_lookup = {match['match_id']: match for match in upcoming_matches}
         
         for bet in top_value_bets:

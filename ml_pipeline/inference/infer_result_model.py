@@ -79,29 +79,6 @@ def infer_result_model(conn, config: Dict[str, Any],
         
         logger.info(f"Loaded {len(features)} samples for inference")
         
-        # Debug: Check if metadata columns exist and have data
-        metadata_columns = ['home_team_name', 'away_team_name', 'start_time']
-        logger.info(f"Available columns: {list(features.columns)}")
-        
-        for col in metadata_columns:
-            if col in features.columns:
-                non_null_count = features[col].notna().sum()
-                logger.info(f"Column '{col}': {non_null_count}/{len(features)} non-null values")
-                if non_null_count > 0:
-                    logger.info(f"Sample values: {features[col].dropna().head(3).tolist()}")
-            else:
-                logger.warning(f"Column '{col}' not found in features")
-        
-        # Extract metadata before model processing
-        metadata_df = None
-        available_metadata = [col for col in metadata_columns if col in features.columns]
-        if available_metadata:
-            metadata_df = features[available_metadata].copy()
-            logger.info(f"Extracted metadata for columns: {available_metadata}")
-            logger.info(f"Metadata sample:\n{metadata_df.head()}")
-        else:
-            logger.warning("No metadata columns found")
-        
         # Ensure features match training schema
         training_features = metadata.get('feature_names', [])
         missing_features = set(training_features) - set(features.columns)
@@ -140,17 +117,14 @@ def infer_result_model(conn, config: Dict[str, Any],
         if hasattr(model, 'predict_proba'):
             prediction_probabilities = model.predict_proba(features_processed)
         
-        # First, get the metadata from the original features DataFrame
-        metadata_df = features[['match_id', 'start_time', 'home_team_name', 'away_team_name']].copy()
-        
         # Create results DataFrame with predictions
         results_df = pd.DataFrame({
             'match_id': features_processed.index,
             'predicted_result': predictions
         })
         
-        # Join with metadata BEFORE adding probabilities
-        results_df = pd.merge(results_df, metadata_df, on='match_id', how='left')
+        # Join with metadata
+        results_df = pd.merge(results_df, feature_loader.metadata_df, on='match_id', how='left')
         
         # Add probabilities
         if prediction_probabilities is not None:

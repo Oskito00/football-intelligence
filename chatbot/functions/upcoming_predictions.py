@@ -8,10 +8,6 @@ import sys
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-# Add project root to path
-project_root = Path(__file__).parent.parent.parent
-sys.path.append(str(project_root))
-
 from chatbot.functions.league_finder import search_leagues
 from chatbot.functions.match_finder import get_upcoming_matches
 from chatbot.functions.match_predictions import get_multiple_match_predictions
@@ -33,7 +29,7 @@ def get_upcoming_predictions(
         Dictionary with match predictions
     """
     try:
-        print(f"🔍 Searching for upcoming match predictions...")
+        print("🔍 Searching for upcoming match predictions...")
         print(f"   • Time window: next {days_ahead} days")
         if league_query:
             print(f"   • League filter: {league_query}")

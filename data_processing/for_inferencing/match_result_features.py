@@ -53,11 +53,11 @@ def process_future_matches(conn):
         batch = matches[i:i+BATCH_SIZE]
         print(f"Processing future matches batch {i//BATCH_SIZE + 1} of {len(matches)//BATCH_SIZE + 1}")
 
-        with (EloManager(conn, batch, mode='inference') as elo_manager, 
-              MatchInfoManager(conn, batch, mode='inference') as match_info_manager, 
+        with (MatchInfoManager(conn, batch, mode='inference') as match_info_manager, 
               StageOfSeasonManager(conn, batch, mode='inference') as stage_of_season_manager, 
               FormationManager(conn, batch, mode='inference') as formation_manager,
-              FormManager(conn, batch, mode='inference') as form_manager,
+              EloManager(conn, batch, mode='inference') as elo_manager,
+              FormManager(conn, batch, mode='inference', elo_manager=elo_manager) as form_manager,
               H2HManager(conn, batch, mode='inference') as h2h_manager):
             
             match_ids = []
@@ -68,8 +68,8 @@ def process_future_matches(conn):
                 match_info_manager.process_match(match)
                 stage_of_season_manager.process_match(match)
                 form_manager.process_match(match)
-                h2h_manager.process_match(match)
                 elo_manager.process_match(match)
+                h2h_manager.process_match(match)
                 
                 has_formation = bool(match.get('home_team_formation') and match.get('away_team_formation'))
                 if has_formation:

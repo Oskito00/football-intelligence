@@ -36,13 +36,15 @@ class ResultFeatureLoader(BaseFeatureLoader):
             self.formation_table = 'formation_future'  # If it exists
             self.stage_table = 'stage_of_season_future'
             self.match_info_table = 'match_info_future'
-            self.form_history_table = 'form_history_future'
+            self.form_history_table = 'form_future'
+            self.h2h_table = 'h2h_future'
         else:  # training mode
             self.elo_table = 'elo_history'
             self.formation_table = 'formation_history'
             self.stage_table = 'stage_of_season_history'
             self.match_info_table = 'match_info_history'
             self.form_history_table = 'form_history'
+            self.h2h_table = 'h2h_history'
         
         self.logger.info(f"Feature loader initialized for {mode} mode using {self.elo_table}")
         
@@ -85,6 +87,9 @@ class ResultFeatureLoader(BaseFeatureLoader):
         base_query = f"""
             SELECT 
                 eh.match_id,
+                eh.start_time,
+                eh.home_team_name,
+                eh.away_team_name,
                 {query_parts['select_fields']}
             FROM {self.elo_table} eh
             {query_parts['joins']}
@@ -105,8 +110,14 @@ class ResultFeatureLoader(BaseFeatureLoader):
             self.logger.warning("No features loaded")
             return pd.DataFrame()
         
+        # Store metadata before any processing
+        self.metadata_df = features_df[['match_id', 'start_time', 'home_team_name', 'away_team_name']].copy()
+        
         # Set match_id as index
         features_df.set_index('match_id', inplace=True)
+        
+        # Drop metadata columns from features
+        features_df = features_df.drop(columns=['start_time', 'home_team_name', 'away_team_name'])
         
         # Engineer additional features based on what's available
         features_df = self._engineer_features_dynamic(features_df)
@@ -122,13 +133,13 @@ class ResultFeatureLoader(BaseFeatureLoader):
         # Get table alias for the base ELO table
         table_alias = 'eh'
         
-        # Add form history - INNER JOIN with minimum form length check (only if in feature_tables)
+        # Add form history - INNER JOIN with minimum form length check
         if self.form_history_table in self.feature_tables:
             select_fields.extend([
                 "-- FORM HISTORY",
-                "fh.home_team_form::jsonb as home_team_form",  # Explicitly cast to JSONB
-                "fh.away_team_form::jsonb as away_team_form",  # Explicitly cast to JSONB
-                "fh.draw_features::jsonb as draw_features"     # Explicitly cast to JSONB
+                "fh.home_team_form::jsonb as home_team_form",
+                "fh.away_team_form::jsonb as away_team_form",
+                "fh.draw_features::jsonb as draw_features"
             ])
             joins.append(f"""
                 INNER JOIN {self.form_history_table} fh 
@@ -137,8 +148,8 @@ class ResultFeatureLoader(BaseFeatureLoader):
                 AND jsonb_array_length(fh.away_team_form) >= 10
             """)
         
-        # Add H2H features - INNER JOIN (only if in feature_tables)
-        if 'h2h_history' in self.feature_tables:
+        # Add H2H features - INNER JOIN
+        if self.h2h_table in self.feature_tables:
             select_fields.extend([
                 "-- H2H FEATURES",
                 "h2h.h2h_draws_last_3",
@@ -162,7 +173,7 @@ class ResultFeatureLoader(BaseFeatureLoader):
                 "h2h.h2h_zero_goal_rate"
             ])
             joins.append(f"""
-                INNER JOIN h2h_history h2h 
+                INNER JOIN {self.h2h_table} h2h 
                 ON {table_alias}.match_id = h2h.match_id
             """)
         
@@ -334,10 +345,6 @@ class ResultFeatureLoader(BaseFeatureLoader):
         """Engineer additional features based on available columns"""
         self.logger.info("Engineering features dynamically")
         
-        # Store metadata columns before processing
-        metadata_columns = ['match_id', 'start_time', 'home_team_name', 'away_team_name']
-        metadata_df = df[metadata_columns].copy() if all(col in df.columns for col in metadata_columns) else None
-        
         # Process draw features
         if 'draw_features' in df.columns:
             # Extract draw features from JSONB
@@ -356,28 +363,16 @@ class ResultFeatureLoader(BaseFeatureLoader):
                     lambda x: float(x.get(feature, 0.0)) if isinstance(x, dict) else 0.0
                 )
             
-            # Example of draw_features
-            
             # Drop original draw_features column
             df = df.drop('draw_features', axis=1)
-
             df = df.drop(['home_team_form', 'away_team_form'], axis=1)
         
         # Drop columns we don't want to use as features
         columns_to_drop = [
             'competition_name',
-            'competition_country',
+            'competition_country'
         ]
         df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
-        
-        # Convert timestamp to numeric features but keep original
-        if 'start_time' in df.columns:
-            df['start_time'] = pd.to_datetime(df['start_time'])
-            df['hour_of_day'] = df['start_time'].dt.hour
-            df['day_of_week'] = df['start_time'].dt.dayofweek
-            df['month'] = df['start_time'].dt.month
-            df['year'] = df['start_time'].dt.year
-            # Don't drop start_time anymore
         
         # Handle competition_id as category
         if 'competition_id' in df.columns:
@@ -386,10 +381,6 @@ class ResultFeatureLoader(BaseFeatureLoader):
         # Handle stage of season as category
         if 'stage_of_season' in df.columns:
             df['stage_of_season'] = df['stage_of_season'].astype('category')
-
-        #print all the columns one by one
-        for i in df.columns:
-            self.logger.info(f"{i}: {df[i]}")
         
         return df
     

@@ -392,7 +392,6 @@ def get_upcoming_matches(
     days_ahead: int = 7,
     competition_ids: List[int] = None,
     country: str = None,
-    limit: int = 50
 ) -> List[Dict[str, Any]]:
     """
     Get upcoming matches with optional filtering.
@@ -407,7 +406,7 @@ def get_upcoming_matches(
         List of upcoming matches
     """
     if not DB_AVAILABLE:
-        return _get_mock_upcoming_matches(days_ahead, limit)
+        return _get_mock_upcoming_matches(days_ahead)
     
     try:
         config = get_config()
@@ -458,10 +457,8 @@ def get_upcoming_matches(
         FROM matches 
         WHERE {' AND '.join(where_conditions)}
         ORDER BY start_time ASC
-        LIMIT %s
         """
         
-        params.append(limit)
         cursor.execute(query, params)
         results = cursor.fetchall()
         
@@ -485,9 +482,9 @@ def get_upcoming_matches(
         
     except Exception as e:
         print(f"Error getting upcoming matches: {str(e)}")
-        return _get_mock_upcoming_matches(days_ahead, limit)
+        return _get_mock_upcoming_matches(days_ahead)
 
-def _get_mock_upcoming_matches(days_ahead: int, limit: int) -> List[Dict[str, Any]]:
+def _get_mock_upcoming_matches(days_ahead: int) -> List[Dict[str, Any]]:
     """Generate mock upcoming matches for testing."""
     from datetime import datetime, timedelta
     
@@ -502,7 +499,7 @@ def _get_mock_upcoming_matches(days_ahead: int, limit: int) -> List[Dict[str, An
         ('PSG', 'Lyon')
     ]
     
-    for i, (home, away) in enumerate(teams[:limit]):
+    for i, (home, away) in enumerate(teams):
         match_time = base_time + timedelta(days=i+1, hours=15)
         mock_matches.append({
             'match_id': 1000000 + i,

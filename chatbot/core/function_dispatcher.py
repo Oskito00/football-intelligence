@@ -157,12 +157,10 @@ class FunctionDispatcher:
         
         days_ahead = parameters.get("days_ahead", 7)
         league_query = parameters.get("league_query")
-        max_results = parameters.get("max_results", 10)
         
         return get_upcoming_value_bets(
             days_ahead=days_ahead,
             league_query=league_query,
-            max_results=max_results
         )
     
     def _handle_upcoming_predictions(self, parsed_query: Dict[str, Any]) -> Dict[str, Any]:

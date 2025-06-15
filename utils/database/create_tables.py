@@ -60,6 +60,53 @@ def create_future_tables(conn):
     create_match_info_future_table(conn)
     create_league_standings_future_table(conn)
     create_formation_future_table(conn)
+    create_h2h_future_table(conn)
+    create_form_future_table(conn)
+
+def create_form_future_table(conn):
+    """Creates table to store processed form match data"""
+    with conn.cursor() as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS form_future (
+                match_id INTEGER PRIMARY KEY,
+                home_team_id INTEGER,
+                away_team_id INTEGER,
+                home_name VARCHAR(255),
+                away_name VARCHAR(255),
+                home_team_form JSONB,
+                away_team_form JSONB,
+                draw_features JSONB
+            )
+        """)
+
+def create_h2h_future_table(conn):
+    """Creates table to store processed H2H match data"""
+    with conn.cursor() as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS h2h_future (
+                match_id INTEGER PRIMARY KEY,
+                h2h_draws_last_3 FLOAT,
+                h2h_draws_last_5 FLOAT,
+                h2h_draws_last_10 FLOAT,
+                h2h_home_wins_last_3 FLOAT,
+                h2h_home_wins_last_5 FLOAT,
+                h2h_home_wins_last_10 FLOAT,
+                h2h_away_wins_last_3 FLOAT,
+                h2h_away_wins_last_5 FLOAT,
+                h2h_away_wins_last_10 FLOAT,
+                h2h_avg_total_goals FLOAT,
+                h2h_avg_goal_diff FLOAT,
+                h2h_home_goals_avg_last_3 FLOAT,
+                h2h_home_goals_avg_last_5 FLOAT,
+                h2h_home_goals_avg_last_10 FLOAT,
+                h2h_away_goals_avg_last_3 FLOAT,
+                h2h_away_goals_avg_last_5 FLOAT,
+                h2h_away_goals_avg_last_10 FLOAT,
+                h2h_both_teams_scored_rate FLOAT,
+                h2h_zero_goal_rate FLOAT,
+                raw_h2h_matches JSONB
+            )
+        """)
 
 def create_stage_of_season_table(conn):
     cursor = conn.cursor()

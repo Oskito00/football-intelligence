@@ -271,7 +271,7 @@ class LLMHandler:
                     
                     # Add additional details if available
                     if prediction.get("prob_home_win"):
-                        response += f"\n\nDetailed probabilities:"
+                        response += "\n\nDetailed probabilities:"
                         response += f"\n• {home_team} win: {prediction['prob_home_win']:.1%}"
                         response += f"\n• Draw: {prediction['prob_draw']:.1%}"
                         response += f"\n• {away_team} win: {prediction['prob_away_win']:.1%}"
@@ -298,7 +298,7 @@ class LLMHandler:
                     response = f"📊 **Betting Analysis for {home_team} vs {away_team}**\n\n"
                     
                     # Show model's predictions first
-                    response += f"🤖 **Model Predictions:**\n"
+                    response += "🤖 **Model Predictions:**\n"
                     response += f"   • {home_team} win: {model_predictions.get('prob_home_win', 0):.1%}\n"
                     response += f"   • Draw: {model_predictions.get('prob_draw', 0):.1%}\n"
                     response += f"   • {away_team} win: {model_predictions.get('prob_away_win', 0):.1%}\n\n"
@@ -316,7 +316,7 @@ class LLMHandler:
                     if value_bets:
                         response += f"💰 **Found {len(value_bets)} Value Bet(s):**\n\n"
                         
-                        for i, bet in enumerate(value_bets[:3], 1):  # Show top 3
+                        for i, bet in enumerate(value_bets, 1):  # Show top 3
                             outcome = bet['outcome']
                             model_prob = bet['model_probability']
                             is_most_probable = outcome == most_probable_outcome
@@ -427,7 +427,7 @@ class LLMHandler:
                 if value_bets:
                     total_bet_pct = sum(bet.get('recommended_bet_percentage', 0) for bet in value_bets)
                     response += f"⚠️ **Total Portfolio Risk:** {total_bet_pct:.1f}% of bankroll\n"
-                    response += f"💡 **Note:** These are independent bets - consider your total risk exposure!"
+                    response += "💡 **Note:** These are independent bets - consider your total risk exposure!"
                     
                 return response
             else:
@@ -449,7 +449,7 @@ class LLMHandler:
                 response += f"📊 **Found {len(predictions)} predictions**\n\n"
                 
                 if predictions:
-                    for i, pred in enumerate(predictions[:10], 1):  # Show top 10
+                    for i, pred in enumerate(predictions, 1):  # Show top 10
                         # Access data directly from pred (not nested)
                         home_team = pred.get("home_team", "Unknown")
                         away_team = pred.get("away_team", "Unknown") 
@@ -482,9 +482,6 @@ class LLMHandler:
                         response += f"   🏆 **Competition:** {competition}\n"
                         response += f"   📅 **Match:** {start_time}\n\n"
                         
-                    if len(predictions) > 10:
-                        response += f"... and {len(predictions) - 10} more predictions available.\n"
-                    
                 else:
                     response += "❌ **No predictions found** for the specified criteria.\n"
                     

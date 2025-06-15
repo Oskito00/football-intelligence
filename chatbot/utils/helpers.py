@@ -171,7 +171,7 @@ def safe_divide(numerator, denominator, default=0):
     except:
         return default
 
-def typewriter_print(text, delay=0.01):
+def typewriter_print(text, delay=0.005):
     """
     Print text with a typewriter effect (character by character).
     

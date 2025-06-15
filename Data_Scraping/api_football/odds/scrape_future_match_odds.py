@@ -9,8 +9,8 @@ import threading
 from functools import partial
 
 from config import get_config
-from utils.database_helpers.create_tables import create_odds_table
-from utils.database_helpers.get_and_set_functions import get_future_matches_with_odds
+from utils.database.create_tables import create_odds_table
+from utils.database.get_and_set_functions import get_future_matches_with_odds
 
 config = get_config()
 
@@ -346,8 +346,8 @@ def scrape_future_match_odds(match_batch_size: int = 5, max_workers_per_match: i
             
             # Small delay between batches to be respectful
             if i + match_batch_size < total_matches:
-                print("⏳ Waiting 2 seconds before next batch...")
-                sleep(2)
+                print("⏳ Waiting 1 seconds before next batch...")
+                sleep(1)
         
         # Final summary
         print("\n🎉 SCRAPING COMPLETED!")
