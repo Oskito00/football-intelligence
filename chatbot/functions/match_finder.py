@@ -392,6 +392,7 @@ def get_upcoming_matches(
     days_ahead: int = 7,
     competition_ids: List[int] = None,
     country: str = None,
+    
 ) -> List[Dict[str, Any]]:
     """
     Get upcoming matches with optional filtering.

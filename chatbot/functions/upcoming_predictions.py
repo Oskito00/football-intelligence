@@ -57,7 +57,6 @@ def get_upcoming_predictions(
         upcoming_matches = get_upcoming_matches(
             days_ahead=days_ahead,
             competition_ids=competition_ids,
-            limit=100  # Get more matches to analyze
         )
         
         if not upcoming_matches:
@@ -157,7 +156,6 @@ def get_upcoming_predictions_by_country(
         upcoming_matches = get_upcoming_matches(
             days_ahead=days_ahead,
             country=country,
-            limit=100
         )
         
         if not upcoming_matches:

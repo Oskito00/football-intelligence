@@ -15,7 +15,7 @@ from chatbot.functions.value_betting import analyze_betting_opportunity
 
 def get_betting_recommendations(
     match_id: int,
-    kelly_fraction: float = 0.25,
+    kelly_fraction: float = 0.5,
     min_value_threshold: float = 0.05
 ) -> Dict[str, Any]:
     """
@@ -23,7 +23,7 @@ def get_betting_recommendations(
     
     Args:
         match_id: Match ID to analyze
-        kelly_fraction: Kelly safety fraction (default: 0.25 = 25% Kelly)
+        kelly_fraction: Kelly safety fraction (default: 0.5 = 50% Kelly)
         min_value_threshold: Minimum expected value to recommend bet (default: 5%)
         
     Returns:
@@ -89,7 +89,7 @@ def get_betting_recommendations(
 def get_betting_recommendations_for_match_teams(
     home_team: str,
     away_team: str,
-    kelly_fraction: float = 0.25,
+    kelly_fraction: float = 0.5,
     min_value_threshold: float = 0.05,
     days_ahead: int = 30
 ) -> Dict[str, Any]:
@@ -148,7 +148,7 @@ def get_betting_recommendations_for_match_teams(
 
 def get_value_bets_summary(
     match_ids: List[int],
-    kelly_fraction: float = 0.25,
+    kelly_fraction: float = 0.5,
     min_value_threshold: float = 0.05
 ) -> Dict[str, Any]:
     """

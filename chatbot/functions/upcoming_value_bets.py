@@ -150,7 +150,7 @@ def get_upcoming_value_bets(
 def get_upcoming_value_bets_by_country(
     country: str,
     days_ahead: int = 7,
-    kelly_fraction: float = 0.25,
+    kelly_fraction: float = 0.5,
     min_value_threshold: float = 0.05,
 ) -> Dict[str, Any]:
     """
@@ -171,7 +171,6 @@ def get_upcoming_value_bets_by_country(
         upcoming_matches = get_upcoming_matches(
             days_ahead=days_ahead,
             country=country,
-            limit=100
         )
         
         if not upcoming_matches:

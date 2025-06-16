@@ -65,7 +65,7 @@ def calculate_kelly_bet_size(
     model_probability: float,
     odds_value: float,
     kelly_fraction: float = 0.5,
-    max_bet_percentage: float = 0.10
+    max_bet_percentage: float = 0.50
 ) -> Dict[str, Any]:
     """
     Calculate optimal bet size using Kelly Criterion as percentage of bankroll.
@@ -73,8 +73,8 @@ def calculate_kelly_bet_size(
     Args:
         model_probability: Our model's win probability (0-1)
         odds_value: Decimal odds from bookmaker
-        kelly_fraction: Fraction of full Kelly to use (0.25 = 25% Kelly for safety)
-        max_bet_percentage: Maximum percentage of bankroll to bet (0.10 = 10%)
+        kelly_fraction: Fraction of full Kelly to use (0.50 = 50% Kelly for safety)
+        max_bet_percentage: Maximum percentage of bankroll to bet (0.50 = 50%)
         
     Returns:
         Dictionary with bet sizing percentages
@@ -108,15 +108,15 @@ def calculate_kelly_bet_size(
 
 def calculate_bet_percentages(
     value_bets: List[Dict[str, Any]],
-    kelly_fraction: float = 0.25,
-    max_bet_percentage: float = 0.10
+    kelly_fraction: float = 0.50,
+    max_bet_percentage: float = 0.50
 ) -> List[Dict[str, Any]]:
     """
     Calculate bet percentages for all value bets.
     
     Args:
         value_bets: List of value bets from calculate_value_bets()
-        kelly_fraction: Kelly fraction for safety (0.25 = 25% Kelly)
+        kelly_fraction: Kelly fraction for safety (0.50 = 50% Kelly)
         max_bet_percentage: Maximum percentage of bankroll per bet
         
     Returns:
@@ -150,7 +150,7 @@ def calculate_bet_percentages(
 def analyze_betting_opportunity(
     model_predictions: Dict[str, float],
     best_odds: Dict[str, Dict[str, Any]],
-    kelly_fraction: float = 0.25,
+    kelly_fraction: float = 0.50,
     min_value_threshold: float = 0.05
 ) -> Dict[str, Any]:
     """
@@ -190,7 +190,7 @@ def analyze_betting_opportunity(
 
 def analyze_multiple_matches_for_value(
     match_ids: List[int],
-    kelly_fraction: float = 0.25,
+    kelly_fraction: float = 0.50,
     min_value_threshold: float = 0.05
 ) -> Dict[str, Any]:
     """
