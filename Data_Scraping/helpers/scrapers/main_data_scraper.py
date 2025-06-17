@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 import os
 from collections import defaultdict
@@ -101,26 +102,47 @@ def scrape_matches_from_api(leagues, latest_only=False):
     return scraped_data
 
 def _assign_domestic_leagues(scraped_data):
-    domestic_league_dict = defaultdict(lambda: {
-        'seasons': defaultdict(lambda: defaultdict(int)),
-        'countries': defaultdict(int)
-    })
+    # Format: team_id → year → comp_id → count
+    domestic_league_dict = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+    # Optional: team_id → country → count
+    country_dict = defaultdict(lambda: defaultdict(int))
+
+    def extract_year(season_id):
+        return season_id.split('_')[1]
 
     for match in scraped_data:
-        year = match['competition_season_id'].split('_')[1]
-        home_id, away_id = match['home_team_id'], match['away_team_id']
-        comp_id, country = match['competition_id'], match['competition_country']
+        year = extract_year(match['competition_season_id'])
+        comp_id = match['competition_id']
+        country = match['competition_country']
+        season_start = datetime.strptime(match['season_start_date'], "%Y-%m-%d")
+        season_end = datetime.strptime(match['season_end_date'], "%Y-%m-%d")
+        duration = (season_end - season_start).days
 
-        for team_id in [home_id, away_id]:
-            domestic_league_dict[team_id]['countries'][country] += 1
-            domestic_league_dict[team_id]['seasons'][year][comp_id] += 1
+        if duration > 90:
+            for team_id in [match['home_team_id'], match['away_team_id']]:
+                domestic_league_dict[team_id][year][comp_id] += 1
+        for team_id in [match['home_team_id'], match['away_team_id']]:
+            country_dict[team_id][country] += 1
 
     for match in scraped_data:
-        year = match['competition_season_id'].split('_')[1]
+        year = extract_year(match['competition_season_id'])
+        prev_year = str(int(year) - 1)
+
         for side in ['home', 'away']:
             team_id = match[f'{side}_team_id']
-            league_counts = domestic_league_dict[team_id]['seasons'][year]
-            
-            country_counts = domestic_league_dict[team_id]['countries']
-            match[f'{side}_team_domestic_league_id'] = max(league_counts, key=league_counts.get)
-            match[f'{side}_team_domestic_country'] = max(country_counts, key=country_counts.get)
+
+            current_counts = domestic_league_dict[team_id].get(year, {})
+            prev_counts = domestic_league_dict[team_id].get(prev_year, {})
+
+            if current_counts:
+                league_id = max(current_counts, key=current_counts.get)
+            elif prev_counts:
+                league_id = max(prev_counts, key=prev_counts.get)
+            else:
+                league_id = 0
+
+            match[f'{side}_team_domestic_league_id'] = league_id
+
+            # Still assign most frequent country overall
+            country_counts = country_dict[team_id]
+            match[f'{side}_team_domestic_country'] = max(country_counts, key=country_counts.get) if country_counts else None

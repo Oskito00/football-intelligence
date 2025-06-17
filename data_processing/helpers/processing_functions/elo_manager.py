@@ -15,6 +15,7 @@ class EloManager:
         self.team_id_name_map = extract_team_id_name_map(self.matches)
         self.team_ids = extract_team_ids(self.matches)
         self.nation_names = extract_nation_names(self.matches)
+        print(self.nation_names)
         self.league_ids = extract_league_ids(self.matches)
         self.competition_ids = extract_competition_ids(self.matches)
 
@@ -45,6 +46,9 @@ class EloManager:
         home_team_domestic_league_id = match['home_team_domestic_league_id']
         away_team_domestic_league_id = match['away_team_domestic_league_id']
 
+        if match_id == 1321688:
+            print(home_team_domestic_league_id, away_team_domestic_league_id)
+
         #map domestic country to continent
         home_team_continent = COUNTRY_TO_CONTINENT.get(home_team_domestic_country, 'World')
         away_team_continent = COUNTRY_TO_CONTINENT.get(away_team_domestic_country, 'World')
@@ -58,6 +62,8 @@ class EloManager:
             away_score = match['away_score']
 
         # Check match type flags
+        if match_id == 1321688:
+            print(home_team_domestic_country, away_team_domestic_country, home_team_domestic_league_id, away_team_domestic_league_id)
         is_same_nation = home_team_domestic_country == away_team_domestic_country
         is_same_league = home_team_domestic_league_id == away_team_domestic_league_id
         is_domestic = is_same_nation and not is_same_league
@@ -115,9 +121,6 @@ class EloManager:
 
         # STOP HERE FOR INFERENCE MODE - Don't update ELOs or counts
         if self.mode == 'inference':
-            for record in self.elo_history:
-                if record['match_id'] == 1321688:
-                    print("ELO history record for 1321688:", record)
             return
 
         # TRAINING MODE ONLY: Update ELOs and counts based on match results

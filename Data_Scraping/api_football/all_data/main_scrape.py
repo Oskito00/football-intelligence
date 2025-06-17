@@ -3,8 +3,8 @@ import json
 import psycopg2
 import psycopg2.extras
 from config import get_config
-from utils.data_scraping.scrapers.main_data_scraper import scrape_matches_from_api
-from utils.database_helpers.postgresql import upsert_records
+from data_scraping.helpers.scrapers.main_data_scraper import scrape_matches_from_api
+from utils.database.postgresql import upsert_records
 
 config = get_config()
 
