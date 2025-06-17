@@ -24,8 +24,6 @@ def calculate_elo_ratings(conn, home_score, away_score, home_elos, away_elos,
     home_elo_updates = home_elos.copy()
     away_elo_updates = away_elos.copy()
 
-
-
     for k in k_values:
         column_name = f'{column_pattern}{k}'
 
@@ -204,7 +202,7 @@ def bulk_upsert_entity_elos(conn, table_name, id_column, elos_dict):
         conn.rollback()
         return False
 
-def save_updated_elos_bulk(conn, club_elos, nation_elos, league_elos):
+def save_updated_elos_bulk(conn, club_elos, nation_elos, league_elos, continent_elos):
     success_club = bulk_upsert_entity_elos(conn, "club_elo_ratings", "team_id", club_elos)
     if not success_club:
         print("Failed to bulk update club ELOs")
@@ -216,14 +214,19 @@ def save_updated_elos_bulk(conn, club_elos, nation_elos, league_elos):
     success_league = bulk_upsert_entity_elos(conn, "league_elo_ratings", "league_id", league_elos)
     if not success_league:
         print("Failed to bulk update league ELOs")
+    
+    success_continent = bulk_upsert_entity_elos(conn, "continent_elo_ratings", "continent_name", continent_elos)
+    if not success_continent:
+        print("Failed to bulk update continent ELOs")
 
-    return success_club and success_nation and success_league
+    return success_club and success_nation and success_league and success_continent
 
     
 def build_elo_history_record(match_id, start_time, home_team_id, away_team_id, home_team_name, away_team_name,
                               home_club_elos, away_club_elos, 
                               home_nation_elos, away_nation_elos,
                               home_league_elos, away_league_elos,
+                              home_continent_elos, away_continent_elos,
                               home_score, away_score,
                               k_draw_parameter, eta_home_advantage):
     """
@@ -267,6 +270,16 @@ def build_elo_history_record(match_id, start_time, home_team_id, away_team_id, h
         for col, val in away_league_elos.items():
             league_col = col.replace('league_', 'team_league_')
             data[f'away_{league_col}'] = val
+    
+    # Continent ELOs
+    if home_continent_elos:
+        for col, val in home_continent_elos.items():
+            continent_col = col.replace('continent_', 'team_continent_')
+            data[f'home_{continent_col}'] = val
+    if away_continent_elos:
+        for col, val in away_continent_elos.items():
+            continent_col = col.replace('continent_', 'team_continent_')
+            data[f'away_{continent_col}'] = val
 
     return data
 

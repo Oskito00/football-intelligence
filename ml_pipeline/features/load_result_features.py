@@ -97,15 +97,18 @@ class ResultFeatureLoader(BaseFeatureLoader):
         
         # Add additional filters if provided
         if where_clause:
+            print(f"WHERE clause: {where_clause}")
             base_query += f" WHERE {where_clause}"
         
         # Add limit
         if limit:
             base_query += f" LIMIT {limit}"
-        
+
         # Execute query (this already filters through the INNER JOINs)
         features_df = self.execute_query(base_query)
-        
+
+        print(features_df.head())
+
         if features_df.empty:
             self.logger.warning("No features loaded")
             return pd.DataFrame()
@@ -185,12 +188,12 @@ class ResultFeatureLoader(BaseFeatureLoader):
             f"{table_alias}.away_team_name",
             "",
             "-- CORE ELO FEATURES (Club ELOs - all K values)",
-            # f"{table_alias}.home_team_elo_K5, {table_alias}.away_team_elo_K5",
-            # f"{table_alias}.home_team_elo_K10, {table_alias}.away_team_elo_K10",
+            f"{table_alias}.home_team_elo_K5, {table_alias}.away_team_elo_K5",
+            f"{table_alias}.home_team_elo_K10, {table_alias}.away_team_elo_K10",
             f"{table_alias}.home_team_elo_K20, {table_alias}.away_team_elo_K20", 
-            # f"{table_alias}.home_team_elo_K30, {table_alias}.away_team_elo_K30",
-            # f"{table_alias}.home_team_elo_K40, {table_alias}.away_team_elo_K40",
-            # f"{table_alias}.home_team_elo_K80, {table_alias}.away_team_elo_K80",
+            f"{table_alias}.home_team_elo_K30, {table_alias}.away_team_elo_K30",
+            f"{table_alias}.home_team_elo_K40, {table_alias}.away_team_elo_K40",
+            f"{table_alias}.home_team_elo_K80, {table_alias}.away_team_elo_K80",
             "",
             "-- HOME/AWAY SPECIFIC ELO RATINGS",
             f"{table_alias}.home_team_elo_home_matches_K5, {table_alias}.away_team_elo_home_matches_K5",
@@ -230,6 +233,14 @@ class ResultFeatureLoader(BaseFeatureLoader):
             f"{table_alias}.home_team_elo_international_K30, {table_alias}.away_team_elo_international_K30",
             f"{table_alias}.home_team_elo_international_K40, {table_alias}.away_team_elo_international_K40",
             f"{table_alias}.home_team_elo_international_K80, {table_alias}.away_team_elo_international_K80",
+
+            "-- INTERCONTINENTAL ELO RATINGS",
+            f"{table_alias}.home_team_league_intercontinental_elo_K5, {table_alias}.away_team_league_intercontinental_elo_K5",
+            f"{table_alias}.home_team_league_intercontinental_elo_K10, {table_alias}.away_team_league_intercontinental_elo_K10",
+            f"{table_alias}.home_team_league_intercontinental_elo_K20, {table_alias}.away_team_league_intercontinental_elo_K20",
+            f"{table_alias}.home_team_league_intercontinental_elo_K30, {table_alias}.away_team_league_intercontinental_elo_K30",
+            f"{table_alias}.home_team_league_intercontinental_elo_K40, {table_alias}.away_team_league_intercontinental_elo_K40",
+            f"{table_alias}.home_team_league_intercontinental_elo_K80, {table_alias}.away_team_league_intercontinental_elo_K80",
             "",
             "-- NATION ELO RATINGS",
             f"{table_alias}.home_team_nation_elo_K5, {table_alias}.away_team_nation_elo_K5",
@@ -254,13 +265,21 @@ class ResultFeatureLoader(BaseFeatureLoader):
             f"{table_alias}.home_team_league_continental_elo_K40, {table_alias}.away_team_league_continental_elo_K40",
             f"{table_alias}.home_team_league_continental_elo_K80, {table_alias}.away_team_league_continental_elo_K80",
             "",
+            "-- CONTINENT ELO RATINGS",
+            f"{table_alias}.home_team_continent_elo_K5, {table_alias}.away_team_continent_elo_K5",
+            f"{table_alias}.home_team_continent_elo_K10, {table_alias}.away_team_continent_elo_K10",
+            f"{table_alias}.home_team_continent_elo_K20, {table_alias}.away_team_continent_elo_K20",
+            f"{table_alias}.home_team_continent_elo_K30, {table_alias}.away_team_continent_elo_K30",
+            f"{table_alias}.home_team_continent_elo_K40, {table_alias}.away_team_continent_elo_K40",
+            f"{table_alias}.home_team_continent_elo_K80, {table_alias}.away_team_continent_elo_K80",
+
             "-- ELO PARAMETERS",
-            f"{table_alias}.k_draw_parameter",
-            f"{table_alias}.eta_home_advantage",
+            # f"{table_alias}.k_draw_parameter",
+            # f"{table_alias}.eta_home_advantage",
             "",
             "-- TEAM IDs",
-            f"{table_alias}.home_team_id",
-            f"{table_alias}.away_team_id"
+            # f"{table_alias}.home_team_id",
+            # f"{table_alias}.away_team_id"
         ])
         
         # Stage of season - INNER JOIN (required)

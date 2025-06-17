@@ -8,6 +8,7 @@ def create_tables(conn):
     create_club_elo_rating_table(conn)
     create_league_elo_table(conn)
     create_nation_elo_table(conn)
+    create_continent_elo_table(conn)
     create_match_info_table(conn)
     create_stage_of_season_table(conn)
     create_league_standings_table(conn)
@@ -204,6 +205,18 @@ def create_elo_future_table(conn):
             home_team_league_continental_elo_K30 INTEGER,
             home_team_league_continental_elo_K40 INTEGER,
             home_team_league_continental_elo_K80 INTEGER,
+            home_team_league_intercontinental_elo_K5 INTEGER,
+            home_team_league_intercontinental_elo_K10 INTEGER,
+            home_team_league_intercontinental_elo_K20 INTEGER,
+            home_team_league_intercontinental_elo_K30 INTEGER,
+            home_team_league_intercontinental_elo_K40 INTEGER,
+            home_team_league_intercontinental_elo_K80 INTEGER,
+            home_team_continent_elo_K5 INTEGER,
+            home_team_continent_elo_K10 INTEGER,
+            home_team_continent_elo_K20 INTEGER,
+            home_team_continent_elo_K30 INTEGER,
+            home_team_continent_elo_K40 INTEGER,
+            home_team_continent_elo_K80 INTEGER,
             home_team_elo_home_matches_K5 INTEGER,
             home_team_elo_home_matches_K10 INTEGER,
             home_team_elo_home_matches_K20 INTEGER,
@@ -240,6 +253,7 @@ def create_elo_future_table(conn):
             home_team_elo_international_K30 INTEGER,
             home_team_elo_international_K40 INTEGER,
             home_team_elo_international_K80 INTEGER,
+            
                 
             -- AWAY TEAM ELO RATINGS
             away_team_nation_elo_K5 INTEGER,
@@ -260,6 +274,18 @@ def create_elo_future_table(conn):
             away_team_league_continental_elo_K30 INTEGER,
             away_team_league_continental_elo_K40 INTEGER,
             away_team_league_continental_elo_K80 INTEGER,
+            away_team_league_intercontinental_elo_K5 INTEGER,
+            away_team_league_intercontinental_elo_K10 INTEGER,
+            away_team_league_intercontinental_elo_K20 INTEGER,
+            away_team_league_intercontinental_elo_K30 INTEGER,
+            away_team_league_intercontinental_elo_K40 INTEGER,
+            away_team_league_intercontinental_elo_K80 INTEGER,
+            away_team_continent_elo_K5 INTEGER,
+            away_team_continent_elo_K10 INTEGER,
+            away_team_continent_elo_K20 INTEGER,
+            away_team_continent_elo_K30 INTEGER,
+            away_team_continent_elo_K40 INTEGER,
+            away_team_continent_elo_K80 INTEGER,
             away_team_elo_home_matches_K5 INTEGER,
             away_team_elo_home_matches_K10 INTEGER,
             away_team_elo_home_matches_K20 INTEGER,
@@ -337,6 +363,18 @@ def create_elo_history_table(conn):
             home_team_league_continental_elo_K30 INTEGER,
             home_team_league_continental_elo_K40 INTEGER,
             home_team_league_continental_elo_K80 INTEGER,
+            home_team_league_intercontinental_elo_K5 INTEGER,
+            home_team_league_intercontinental_elo_K10 INTEGER,
+            home_team_league_intercontinental_elo_K20 INTEGER,
+            home_team_league_intercontinental_elo_K30 INTEGER,
+            home_team_league_intercontinental_elo_K40 INTEGER,
+            home_team_league_intercontinental_elo_K80 INTEGER,
+            home_team_continent_elo_K5 INTEGER,
+            home_team_continent_elo_K10 INTEGER,
+            home_team_continent_elo_K20 INTEGER,
+            home_team_continent_elo_K30 INTEGER,
+            home_team_continent_elo_K40 INTEGER,
+            home_team_continent_elo_K80 INTEGER,
             home_team_elo_home_matches_K5 INTEGER,
             home_team_elo_home_matches_K10 INTEGER,
             home_team_elo_home_matches_K20 INTEGER,
@@ -393,6 +431,18 @@ def create_elo_history_table(conn):
             away_team_league_continental_elo_K30 INTEGER,
             away_team_league_continental_elo_K40 INTEGER,
             away_team_league_continental_elo_K80 INTEGER,
+            away_team_league_intercontinental_elo_K5 INTEGER,
+            away_team_league_intercontinental_elo_K10 INTEGER,
+            away_team_league_intercontinental_elo_K20 INTEGER,
+            away_team_league_intercontinental_elo_K30 INTEGER,
+            away_team_league_intercontinental_elo_K40 INTEGER,
+            away_team_league_intercontinental_elo_K80 INTEGER,
+            away_team_continent_elo_K5 INTEGER,
+            away_team_continent_elo_K10 INTEGER,
+            away_team_continent_elo_K20 INTEGER,
+            away_team_continent_elo_K30 INTEGER,
+            away_team_continent_elo_K40 INTEGER,
+            away_team_continent_elo_K80 INTEGER,
             away_team_elo_home_matches_K5 INTEGER,
             away_team_elo_home_matches_K10 INTEGER,
             away_team_elo_home_matches_K20 INTEGER,
@@ -501,7 +551,13 @@ def create_league_elo_table(conn):
             league_continental_elo_K20 INTEGER,
             league_continental_elo_K30 INTEGER,
             league_continental_elo_K40 INTEGER,
-            league_continental_elo_K80 INTEGER
+            league_continental_elo_K80 INTEGER,
+            league_intercontinental_elo_K5 INTEGER,
+            league_intercontinental_elo_K10 INTEGER,
+            league_intercontinental_elo_K20 INTEGER,
+            league_intercontinental_elo_K30 INTEGER,
+            league_intercontinental_elo_K40 INTEGER,
+            league_intercontinental_elo_K80 INTEGER
         )
     """)
     conn.commit()
@@ -836,3 +892,19 @@ def create_h2h_tables(conn):
             CREATE INDEX IF NOT EXISTS idx_h2h_stats_team_pair 
             ON h2h_stats(team1_id, team2_id)
         """)
+
+def create_continent_elo_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS continent_elo_ratings (
+            continent_name TEXT PRIMARY KEY,
+            continent_elo_K5 INTEGER,
+            continent_elo_K10 INTEGER,
+            continent_elo_K20 INTEGER,
+            continent_elo_K30 INTEGER,
+            continent_elo_K40 INTEGER,
+            continent_elo_K80 INTEGER
+        )
+    """)
+    conn.commit()
+    cursor.close()

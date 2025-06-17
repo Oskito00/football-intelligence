@@ -18,7 +18,8 @@ def infer_result_model(conn, config: Dict[str, Any],
                       limit: Optional[int] = None,
                       where_clause: Optional[str] = None,
                       output_path: Optional[str] = None,
-                      mode: str = 'inference') -> Dict[str, Any]:
+                      mode: str = 'inference',
+                      match_id: Optional[int] = None) -> Dict[str, Any]:
     """
     Run inference with the football result prediction model
     
@@ -30,6 +31,7 @@ def infer_result_model(conn, config: Dict[str, Any],
         where_clause: Optional SQL WHERE clause to filter data
         output_path: Optional path to save predictions
         mode: 'training' or 'inference' - determines which tables to use
+        match_id: Optional specific match_id to run inference on
         
     Returns:
         Dictionary with inference results
@@ -60,14 +62,23 @@ def infer_result_model(conn, config: Dict[str, Any],
         # Load features for inference
         logger.info("Loading features for inference")
         
-        # Build where clause for unprocessed matches if not specified
-        if where_clause is None:
+        # Build where clause for specific match_id if provided
+        if match_id is not None:
+            where_clause = f"eh.match_id = {match_id}"
+            logger.info(f"Running inference for specific match_id: {match_id}")
+        elif where_clause is None:
             if mode == 'inference':
                 where_clause = "1=1"  # For inference, process all available future data
             else:
                 where_clause = "1=1"  # For training mode on historical data
         
         features = feature_loader.load_features(where_clause=where_clause, limit=limit)
+        if match_id is not None:
+            # Convert the first row to a dictionary
+            feature_dict = features.iloc[0].to_dict()
+            # Print each key-value pair on its own line
+            for k, v in feature_dict.items():
+                print(f"{k}: {v}")
         
         if features.empty:
             logger.warning("No features found for inference")
