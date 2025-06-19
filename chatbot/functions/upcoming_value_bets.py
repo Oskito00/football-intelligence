@@ -116,6 +116,9 @@ def get_upcoming_value_bets(
                     'competition_id': match_info.get('competition_id')
                 })
         
+        # Sort by start_time (earliest first)
+        top_value_bets.sort(key=lambda x: x['start_time'])
+
         print(f"   • Found {len(top_value_bets)} value betting opportunities")
         
         return {
@@ -208,6 +211,9 @@ def get_upcoming_value_bets_by_country(
                     'competition': match_info['competition'],
                     'country': match_info['country']
                 })
+        
+        # Sort by start_time (earliest first)
+        top_value_bets.sort(key=lambda x: x['start_time'])
         
         return {
             'success': True,

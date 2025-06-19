@@ -11,7 +11,10 @@ def prune_old_future_features(conn, days_threshold=1):
         'elo_future',
         'formation_future', 
         'stage_of_season_future',
-        'match_info_future'
+        'match_info_future',
+        #TODO: Add start time to these fields so that we can prune them
+        # 'form_future',
+        # 'h2h_future',
     ]
     
     cursor = conn.cursor()

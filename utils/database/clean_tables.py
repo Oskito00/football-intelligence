@@ -1,7 +1,7 @@
 def drop_tables(conn):
     """Drops all processing tables"""
     table_names = [
-        # 'teammatchhistory',
+        'teammatchhistory',
         'counter_table',
         'elo_history',
         'club_elo_ratings',
@@ -29,14 +29,14 @@ def drop_tables(conn):
 def drop_future_tables(conn):
     """Drops all future processing tables"""
     table_names = [
-        'elo_future',
-        'stage_of_season_future',
-        'match_info_future',
-        'league_standings_future',
-        'formation_future',
-        'form_future',
-        'h2h_future',
-        'fatigue_future'
+        # 'elo_future',
+        # 'stage_of_season_future',
+        # 'match_info_future',
+        # 'league_standings_future',
+        # 'formation_future',
+        # 'form_future',
+        # 'h2h_future',
+        # 'fatigue_future'
     ]
     with conn.cursor() as cur:
         for table in reversed(table_names):

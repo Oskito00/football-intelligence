@@ -50,7 +50,7 @@ def process_matches(conn):
         print("No matches to process")
         return
     
-    # process_matches_to_history(conn, batch_size=1000)
+    process_matches_to_history(conn, batch_size=1000)
 
     for i in range(0, len(matches), BATCH_SIZE):
         batch = matches[i:i+BATCH_SIZE]
