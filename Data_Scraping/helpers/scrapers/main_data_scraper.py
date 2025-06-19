@@ -2,7 +2,6 @@ from datetime import datetime
 import json
 import os
 from collections import defaultdict
-from psycopg2.extras import execute_batch
 
 from data_scraping.helpers.requests import fetch_with_retry
 from utils.formatting.time import datetime_string_converter
@@ -114,9 +113,15 @@ def _assign_domestic_leagues(scraped_data):
         year = extract_year(match['competition_season_id'])
         comp_id = match['competition_id']
         country = match['competition_country']
-        season_start = datetime.strptime(match['season_start_date'], "%Y-%m-%d")
-        season_end = datetime.strptime(match['season_end_date'], "%Y-%m-%d")
-        duration = (season_end - season_start).days
+        
+        # Add null checks for season dates
+        if match['season_start_date'] is None or match['season_end_date'] is None:
+            # Skip duration calculation if dates are missing
+            duration = 0
+        else:
+            season_start = datetime.strptime(match['season_start_date'], "%Y-%m-%d")
+            season_end = datetime.strptime(match['season_end_date'], "%Y-%m-%d")
+            duration = (season_end - season_start).days
 
         if duration > 90:
             for team_id in [match['home_team_id'], match['away_team_id']]:

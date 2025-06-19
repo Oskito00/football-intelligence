@@ -49,19 +49,29 @@ class FootballChatbot:
             )
             
             print(f"🔍 Parsed query: {parsed_query}")  # Debug output
-            
+
             # Dispatch to appropriate function
             function_result = self.function_dispatcher.dispatch(parsed_query)
             
             print(f"📊 Function result: {function_result}")  # Debug output
-            
-            # Generate natural language response
-            response = self.llm_handler.generate_response(
+
+
+            # For predictions and value bets use pre written response for others use the llm
+            if parsed_query['intent'] in ['get_match_prediction', 'get_upcoming_value_bets', 'get_betting_recommendations', 'get_betting_value', 'get_upcoming_value_bets', 'get_upcoming_predictions']:
+                response = self.llm_handler.manual_response(
+                    user_input,
+                    parsed_query,
+                    function_result,
+                    self.conversation_memory
+                )
+            else:
+                # Generate natural language response
+                response = self.llm_handler.generate_response(
                 user_input,
                 parsed_query,
                 function_result,
                 self.conversation_memory
-            )
+                )
             
             # Add assistant response to memory
             self.memory_manager.add_message("assistant", response, self.conversation_memory)

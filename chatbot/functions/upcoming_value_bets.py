@@ -8,8 +8,8 @@ import sys
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-from chatbot.functions.league_finder import search_leagues
-from chatbot.functions.match_finder import get_upcoming_matches
+from chatbot.utils.league_finder import search_leagues
+from chatbot.utils.match_finder import get_upcoming_matches
 from chatbot.functions.value_betting import analyze_multiple_matches_for_value
 
 # Add project root to path
@@ -20,7 +20,7 @@ def get_upcoming_value_bets(
     days_ahead: int = 7,
     league_query: str = None,
     kelly_fraction: float = 0.50,
-    min_value_threshold: float = 0.05,
+    min_value_threshold: float = 0.03,
 ) -> Dict[str, Any]:
     """
     Find the best value betting opportunities in upcoming matches.
@@ -29,8 +29,7 @@ def get_upcoming_value_bets(
         days_ahead: Number of days to look ahead (default: 7)
         league_query: Optional league/competition to filter by
         kelly_fraction: Kelly safety fraction (default: 0.50)
-        min_value_threshold: Minimum expected value (default: 5%)
-        
+        min_value_threshold: Minimum expected value (default: 3%)
     Returns:
         Dictionary with best value betting opportunities
     """
@@ -43,8 +42,8 @@ def get_upcoming_value_bets(
         # Step 1: Resolve league filter if provided
         competition_ids = None
         league_info = None
-        
-        if league_query:
+
+        if league_query is not None and league_query != "None" and league_query != "":
             matching_leagues = search_leagues(league_query)
             if matching_leagues:
                 # Use the best matching league

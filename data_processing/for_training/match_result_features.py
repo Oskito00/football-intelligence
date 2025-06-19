@@ -79,7 +79,7 @@ def process_matches(conn):
                     formation_manager.process_match(match)
                 
                 match_ids.append(match['match_id'])
-                # with_formation_flags.append(has_formation)
+                with_formation_flags.append(has_formation)
         
         # Update processed status after successful processing
         update_processed_status(conn, match_ids, with_formation_flags, mode='training')

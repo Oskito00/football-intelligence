@@ -8,8 +8,8 @@ import sys
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-from chatbot.functions.league_finder import search_leagues
-from chatbot.functions.match_finder import get_upcoming_matches
+from chatbot.utils.league_finder import search_leagues
+from chatbot.utils.match_finder import get_upcoming_matches
 from chatbot.functions.match_predictions import get_multiple_match_predictions
 
 def get_upcoming_predictions(
@@ -29,6 +29,25 @@ def get_upcoming_predictions(
         Dictionary with match predictions
     """
     try:
+        # Convert string inputs to integers
+        days_ahead = int(days_ahead)
+        max_results = int(max_results)
+        
+        # Validate inputs
+        if days_ahead < 1 or days_ahead > 30:
+            return {
+                'success': False,
+                'error': 'days_ahead must be between 1 and 30',
+                'data': None
+            }
+            
+        if max_results < 1:
+            return {
+                'success': False,
+                'error': 'max_results must be greater than 0',
+                'data': None
+            }
+        
         print("🔍 Searching for upcoming match predictions...")
         print(f"   • Time window: next {days_ahead} days")
         if league_query:
@@ -38,7 +57,7 @@ def get_upcoming_predictions(
         competition_ids = None
         league_info = None
         
-        if league_query:
+        if league_query is not None and league_query != "None" and league_query != "":
             matching_leagues = search_leagues(league_query)
             if matching_leagues:
                 # Use the best matching league

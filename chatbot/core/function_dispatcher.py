@@ -9,11 +9,13 @@ from typing import Dict, Any, Callable
 import traceback
 
 from chatbot.functions.match_predictions import get_match_prediction
-from chatbot.functions.match_finder import find_matches_by_teams
+from chatbot.utils.match_finder import find_matches_by_teams
 from chatbot.functions.betting_recommendations import (
     get_betting_recommendations_for_match_teams,
     get_betting_recommendations
 )
+from chatbot.functions.recent_form_analysis import get_recent_match_analysis
+from chatbot.utils.team_finder import find_team_id
 from chatbot.functions.upcoming_value_bets import get_upcoming_value_bets
 from chatbot.functions.upcoming_predictions import get_upcoming_predictions
 
@@ -28,6 +30,7 @@ class FunctionDispatcher:
             "get_betting_recommendations": self._handle_betting_recommendations,
             "get_upcoming_value_bets": self._handle_upcoming_value_bets,
             "get_upcoming_predictions": self._handle_upcoming_predictions,
+            "get_recent_form": self._handle_recent_form,
             "general_chat": self._handle_general_chat
         }
     
@@ -127,7 +130,7 @@ class FunctionDispatcher:
         else:
             return {
                 "success": False,
-                "error": "Please specify teams for betting value analysis, e.g., 'What are the value bets for Arsenal vs Chelsea?'",
+                "error": "You didn't specify the teams for betting value analysis. Please ask the user to specify the teams'",
                 "data": None
             }
     
@@ -177,6 +180,55 @@ class FunctionDispatcher:
             max_results=max_results
         )
     
+
+    def _handle_recent_form(self, parsed_query: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle recent form analysis requests."""
+        parameters = parsed_query.get("parameters", {})
+    
+        team_name = parameters.get("team_name")
+        last_n_matches = parameters.get("last_n_matches", 10)
+        competition_id = parameters.get("competition_id")
+        at_home = parameters.get("at_home")
+    
+        if not team_name:
+            return {
+            "success": False,
+            "error": "Team name is required for recent form analysis",
+            "data": None
+        }
+    
+        # Find team ID using team_finder
+        team_id_result = find_team_id(team_name)
+    
+        if team_id_result is None:
+            return {
+            "success": False,
+            "error": f"Team '{team_name}' not found",
+            "data": None
+        }
+    
+        # Handle suggestions if exact match not found
+        if isinstance(team_id_result, dict):
+            suggestions = team_id_result["suggestions"]
+            return {
+                "success": False,
+                "error": f"Team '{team_name}' not found exactly. Did you mean one of these?",
+                "data": {
+                    "suggestions": suggestions
+                }
+            }
+    
+        team_id = team_id_result
+    
+        # Call the analysis function with team_id
+        return get_recent_match_analysis(
+        team_id=team_id,
+        last_n_matches=last_n_matches,
+        competition_id=competition_id,
+        at_home=at_home
+    )
+    
+
     def _handle_general_chat(self, parsed_query: Dict[str, Any]) -> Dict[str, Any]:
         """Handle general chat requests."""
         return {

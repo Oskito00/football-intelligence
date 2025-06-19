@@ -167,7 +167,7 @@ def search_leagues(league_query: str, country_hint: str = None) -> List[Dict[str
         matching_leagues.sort(key=lambda x: x['relevance_score'], reverse=True)
         
         # Debug: Show top matches
-        print(f"   • Top 5 matches:")
+        print("   • Top 5 matches:")
         for i, league in enumerate(matching_leagues[:5]):
             print(f"     {i+1}. {league['league_name']} (score: {league['relevance_score']:.2f})")
         
