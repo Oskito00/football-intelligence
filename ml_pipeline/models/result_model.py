@@ -8,6 +8,7 @@ import pandas as pd
 import xgboost as xgb
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
+import numpy as np
 
 from ml_pipeline.models.base_model import BaseModel
 
@@ -69,10 +70,11 @@ class ResultModel(BaseModel):
     
     def _train_basic(self, X_train: pd.DataFrame, y_train: pd.Series) -> Dict[str, Any]:
         """Basic training implementation"""
-        self.model.fit(X_train, y_train)
+        algorithm = self.config['model']['algorithm'].lower()
         
+        self.model.fit(X_train, y_train)
         return {
-            'algorithm': self.config['model']['algorithm'],
+            'algorithm': algorithm,
             'training_samples': len(X_train),
             'features': len(X_train.columns)
         }

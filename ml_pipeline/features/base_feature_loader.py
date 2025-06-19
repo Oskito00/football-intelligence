@@ -71,7 +71,6 @@ class BaseFeatureLoader(ABC):
         Returns:
             Tuple of (features_df, targets_series) with aligned indices
         """
-        self.logger.info("Loading features and targets")
         
         # Load features
         features = self.load_features(where_clause=where_clause, limit=limit)
@@ -87,43 +86,41 @@ class BaseFeatureLoader(ABC):
         features_aligned = features.loc[common_indices]
         targets_aligned = targets.loc[common_indices]
         
-        self.logger.info(f"Final dataset: {len(features_aligned)} samples with {len(features_aligned.columns)} features")
         
         return features_aligned, targets_aligned
     
     def check_data_quality(self, features: pd.DataFrame, targets: pd.Series) -> Dict[str, Any]:
         """
         Check data quality and return summary statistics
-        
-        Args:
-            features: Feature DataFrame
-            targets: Target Series
-            
-        Returns:
-            Dictionary with data quality metrics
         """
-        quality_report = {
-            'total_samples': len(features),
-            'total_features': len(features.columns),
-            'missing_values': features.isnull().sum().to_dict(),
-            'target_distribution': targets.value_counts().to_dict() if targets.dtype == 'object' else {
-                'mean': targets.mean(),
-                'std': targets.std(),
-                'min': targets.min(),
-                'max': targets.max()
-            },
-            'feature_types': features.dtypes.value_counts().to_dict(),
-            'duplicate_rows': features.duplicated().sum(),
-            'infinite_values': {}
-        }
         
+        quality_report = {
+        'total_samples': len(features),
+        'total_features': len(features.columns),
+        'missing_values': {},
+        'target_distribution': targets.value_counts().to_dict() if targets.dtype == 'object' else {
+            'mean': targets.mean(),
+            'std': targets.std(),
+            'min': targets.min(),
+            'max': targets.max()
+        },
+        'feature_types': features.dtypes.value_counts().to_dict(),
+        'duplicate_rows': features.duplicated().sum(),
+        'infinite_values': {}
+    }
+    
+        # Check for missing values, excluding list/JSON columns
+        for col in features.columns:
+            if features[col].dtype != 'object' or not isinstance(features[col].iloc[0], (list, dict)):
+                quality_report['missing_values'][col] = features[col].isnull().sum()
+    
         # Check for infinite values in numeric columns
         numeric_cols = features.select_dtypes(include=['number']).columns
         for col in numeric_cols:
             inf_count = (features[col] == float('inf')).sum() + (features[col] == float('-inf')).sum()
             if inf_count > 0:
                 quality_report['infinite_values'][col] = inf_count
-        
+    
         return quality_report
     
     def clean_data(self, features: pd.DataFrame, targets: pd.Series, 

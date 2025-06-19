@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 
-from helpers.database_helpers.postgresql import save_predictions_to_db
+from utils.database.postgresql import save_predictions_to_db
 from ml_pipeline.features.load_result_features import ResultFeatureLoader
 from ml_pipeline.utils.io import model_io
 
@@ -18,7 +18,8 @@ def infer_result_model(conn, config: Dict[str, Any],
                       limit: Optional[int] = None,
                       where_clause: Optional[str] = None,
                       output_path: Optional[str] = None,
-                      mode: str = 'inference') -> Dict[str, Any]:
+                      mode: str = 'inference',
+                      match_id: Optional[int] = None) -> Dict[str, Any]:
     """
     Run inference with the football result prediction model
     
@@ -30,6 +31,7 @@ def infer_result_model(conn, config: Dict[str, Any],
         where_clause: Optional SQL WHERE clause to filter data
         output_path: Optional path to save predictions
         mode: 'training' or 'inference' - determines which tables to use
+        match_id: Optional specific match_id to run inference on
         
     Returns:
         Dictionary with inference results
@@ -60,14 +62,23 @@ def infer_result_model(conn, config: Dict[str, Any],
         # Load features for inference
         logger.info("Loading features for inference")
         
-        # Build where clause for unprocessed matches if not specified
-        if where_clause is None:
+        # Build where clause for specific match_id if provided
+        if match_id is not None:
+            where_clause = f"eh.match_id = {match_id}"
+            logger.info(f"Running inference for specific match_id: {match_id}")
+        elif where_clause is None:
             if mode == 'inference':
                 where_clause = "1=1"  # For inference, process all available future data
             else:
                 where_clause = "1=1"  # For training mode on historical data
         
         features = feature_loader.load_features(where_clause=where_clause, limit=limit)
+        if match_id is not None:
+            # Convert the first row to a dictionary
+            feature_dict = features.iloc[0].to_dict()
+            # Print each key-value pair on its own line
+            for k, v in feature_dict.items():
+                print(f"{k}: {v}")
         
         if features.empty:
             logger.warning("No features found for inference")
@@ -78,29 +89,6 @@ def infer_result_model(conn, config: Dict[str, Any],
             }
         
         logger.info(f"Loaded {len(features)} samples for inference")
-        
-        # Debug: Check if metadata columns exist and have data
-        metadata_columns = ['home_team_name', 'away_team_name', 'start_time']
-        logger.info(f"Available columns: {list(features.columns)}")
-        
-        for col in metadata_columns:
-            if col in features.columns:
-                non_null_count = features[col].notna().sum()
-                logger.info(f"Column '{col}': {non_null_count}/{len(features)} non-null values")
-                if non_null_count > 0:
-                    logger.info(f"Sample values: {features[col].dropna().head(3).tolist()}")
-            else:
-                logger.warning(f"Column '{col}' not found in features")
-        
-        # Extract metadata before model processing
-        metadata_df = None
-        available_metadata = [col for col in metadata_columns if col in features.columns]
-        if available_metadata:
-            metadata_df = features[available_metadata].copy()
-            logger.info(f"Extracted metadata for columns: {available_metadata}")
-            logger.info(f"Metadata sample:\n{metadata_df.head()}")
-        else:
-            logger.warning("No metadata columns found")
         
         # Ensure features match training schema
         training_features = metadata.get('feature_names', [])
@@ -135,59 +123,72 @@ def infer_result_model(conn, config: Dict[str, Any],
         logger.info("Making predictions")
         predictions = model.predict(features_processed)
         
-        # Get prediction probabilities if available
-        prediction_probabilities = None
-        if hasattr(model, 'predict_proba'):
-            prediction_probabilities = model.predict_proba(features_processed)
-        
-        # Create results DataFrame starting with match_id and predictions
+        # Create results DataFrame with predictions
         results_df = pd.DataFrame({
             'match_id': features_processed.index,
             'predicted_result': predictions
         })
         
-        # Add metadata if available
-        if metadata_df is not None and not metadata_df.empty:
-            logger.info("Joining metadata to results")
-            # Reset index to join properly
-            results_df = results_df.reset_index(drop=True)
-            metadata_df = metadata_df.reset_index()
-            
-            # Merge on match_id
-            results_df = pd.merge(results_df, metadata_df, on='match_id', how='left')
-            logger.info(f"Results after metadata join:\n{results_df.head()}")
-        else:
-            logger.warning("No metadata to join")
+        # Remove duplicates from results
+        results_df = results_df.drop_duplicates(subset=['match_id'])
+        logger.info(f"Results shape after removing duplicates: {results_df.shape}")
         
-        # Add probabilities if available
-        if prediction_probabilities is not None:
-            # Reorder to put home team first (more intuitive)
-            class_names = ['away_win', 'draw', 'home_win']  # This is sklearn's internal order
-            display_names = ['home_win', 'draw', 'away_win']  # This is the display order we want
+        # Filter and deduplicate metadata
+        filtered_metadata = feature_loader.metadata_df[feature_loader.metadata_df['match_id'].isin(features_processed.index)]
+        filtered_metadata = filtered_metadata.drop_duplicates(subset=['match_id'])
+        logger.info(f"Filtered metadata shape after removing duplicates: {filtered_metadata.shape}")
+        
+        # Join with metadata
+        results_df = pd.merge(
+            results_df,
+            filtered_metadata,
+            on='match_id',
+            how='left',
+            validate='1:1'
+        )
+        
+        # Add prediction probabilities if available
+        if hasattr(model, 'predict_proba'):
+            # Get probabilities for all matches
+            all_probabilities = model.predict_proba(features_processed)
             
-            # Map sklearn output to our preferred display order
-            sklearn_to_display = {
-                'home_win': prediction_probabilities[:, 2],  # sklearn index 2
-                'draw': prediction_probabilities[:, 1],      # sklearn index 1  
-                'away_win': prediction_probabilities[:, 0]   # sklearn index 0
-            }
+            # Create probability DataFrame
+            prob_df = pd.DataFrame({
+                'match_id': features_processed.index,
+                'prob_home_win': all_probabilities[:, 2],  # sklearn index 2 is home_win
+                'prob_draw': all_probabilities[:, 1],      # sklearn index 1 is draw
+                'prob_away_win': all_probabilities[:, 0]   # sklearn index 0 is away_win
+            })
             
-            for class_name in display_names:
-                results_df[f'prob_{class_name}'] = sklearn_to_display[class_name]
+            # Remove duplicates to match results
+            prob_df = prob_df.drop_duplicates(subset=['match_id'])
+            
+            # Merge probabilities with results
+            results_df = pd.merge(
+                results_df,
+                prob_df,
+                on='match_id',
+                how='left',
+                validate='1:1'
+            )
         
         # Add timestamp
         results_df['prediction_timestamp'] = datetime.now()
         
-        # Reorder columns for better readability
-        base_columns = ['match_id', 'predicted_result']
-        metadata_columns_available = [col for col in ['start_time', 'home_team_name', 'away_team_name'] if col in results_df.columns]
-        # Reorder probability columns to show home first
-        prob_columns = ['prob_home_win', 'prob_draw', 'prob_away_win']
-        prob_columns = [col for col in prob_columns if col in results_df.columns]
-        other_columns = ['prediction_timestamp']
+        # Ensure columns are in the correct order
+        column_order = [
+            'match_id',
+            'predicted_result',
+            'start_time',
+            'home_team_name',
+            'away_team_name',
+            'prob_home_win',
+            'prob_draw',
+            'prob_away_win',
+            'prediction_timestamp'
+        ]
         
-        column_order = base_columns + metadata_columns_available + prob_columns + other_columns
-        results_df = results_df[[col for col in column_order if col in results_df.columns]]
+        results_df = results_df[column_order]
         
         logger.info(f"Final results shape: {results_df.shape}")
         logger.info(f"Final columns: {list(results_df.columns)}")
@@ -222,8 +223,8 @@ def infer_result_model(conn, config: Dict[str, Any],
                 'match_id': row['match_id'],
                 'prediction': row['predicted_result']
             }
-            if prediction_probabilities is not None:
-                sample['confidence'] = max([row[f'prob_{cls}'] for cls in class_names])
+            if hasattr(model, 'predict_proba'):
+                sample['confidence'] = max([row[f'prob_{cls}'] for cls in ['home_win', 'draw', 'away_win']])
             sample_predictions.append(sample)
         
         return {

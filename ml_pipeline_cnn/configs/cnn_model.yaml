@@ -1,0 +1,206 @@
+model:
+  name: cnn_football_predictor
+  architecture:
+    # Form sequence processing (10 matches, 2 features each)
+    form_conv_layers:
+      - filters: 32
+        kernel_size: 3
+        stride: 1
+      - filters: 64
+        kernel_size: 2
+        stride: 1
+    form_pool_size: 2
+    
+    # H2H sequence processing (10 matches, 2 features each)
+    h2h_conv_layers:
+      - filters: 16
+        kernel_size: 3
+        stride: 1
+      - filters: 32
+        kernel_size: 2
+        stride: 1
+    h2h_pool_size: 2
+    
+    traditional_features_size: 118  # 96 ELO features + 2 other features
+    
+    # Fully connected layers - increased sizes to handle more features
+    fc_layers:
+      - units: 256  # Increased from 128
+        dropout: 0.3
+      - units: 128  # Increased from 64
+        dropout: 0.2
+    
+    # Output layer (3 classes: home win, draw, away win)
+    output_units: 3
+
+data:
+  # Data loading configuration
+  batch_size: 32
+  validation_split: 0.2
+  
+  # Feature configuration - updated to include all ELO variants
+  traditional_features:
+    # Core ELOs
+    - home_team_elo_K5
+    - away_team_elo_K5
+    - home_team_elo_K10
+    - away_team_elo_K10
+    - home_team_elo_K20
+    - away_team_elo_K20
+    - home_team_elo_K30
+    - away_team_elo_K30
+    - home_team_elo_K40
+    - away_team_elo_K40
+    - home_team_elo_K80
+    - away_team_elo_K80
+    
+    # Home/Away specific ELOs
+    - home_team_elo_home_matches_K5
+    - away_team_elo_home_matches_K5
+    - home_team_elo_home_matches_K10
+    - away_team_elo_home_matches_K10
+    - home_team_elo_home_matches_K20
+    - away_team_elo_home_matches_K20
+    - home_team_elo_home_matches_K30
+    - away_team_elo_home_matches_K30
+    - home_team_elo_home_matches_K40
+    - away_team_elo_home_matches_K40
+    - home_team_elo_home_matches_K80
+    - away_team_elo_home_matches_K80
+    
+    - home_team_elo_away_matches_K5
+    - away_team_elo_away_matches_K5
+    - home_team_elo_away_matches_K10
+    - away_team_elo_away_matches_K10
+    - home_team_elo_away_matches_K20
+    - away_team_elo_away_matches_K20
+    - home_team_elo_away_matches_K30
+    - away_team_elo_away_matches_K30
+    - home_team_elo_away_matches_K40
+    - away_team_elo_away_matches_K40
+    - home_team_elo_away_matches_K80
+    - away_team_elo_away_matches_K80
+    
+    # Domestic competition ELOs
+    - home_team_elo_domestic_K5
+    - away_team_elo_domestic_K5
+    - home_team_elo_domestic_K10
+    - away_team_elo_domestic_K10
+    - home_team_elo_domestic_K20
+    - away_team_elo_domestic_K20
+    - home_team_elo_domestic_K30
+    - away_team_elo_domestic_K30
+    - home_team_elo_domestic_K40
+    - away_team_elo_domestic_K40
+    - home_team_elo_domestic_K80
+    - away_team_elo_domestic_K80
+    
+    # Intra-league ELOs
+    - home_team_elo_intraleague_K5
+    - away_team_elo_intraleague_K5
+    - home_team_elo_intraleague_K10
+    - away_team_elo_intraleague_K10
+    - home_team_elo_intraleague_K20
+    - away_team_elo_intraleague_K20
+    - home_team_elo_intraleague_K30
+    - away_team_elo_intraleague_K30
+    - home_team_elo_intraleague_K40
+    - away_team_elo_intraleague_K40
+    - home_team_elo_intraleague_K80
+    - away_team_elo_intraleague_K80
+    
+    # International ELOs
+    - home_team_elo_international_K5
+    - away_team_elo_international_K5
+    - home_team_elo_international_K10
+    - away_team_elo_international_K10
+    - home_team_elo_international_K20
+    - away_team_elo_international_K20
+    - home_team_elo_international_K30
+    - away_team_elo_international_K30
+    - home_team_elo_international_K40
+    - away_team_elo_international_K40
+    - home_team_elo_international_K80
+    - away_team_elo_international_K80
+    
+    # Nation ELOs
+    - home_team_nation_elo_K5
+    - away_team_nation_elo_K5
+    - home_team_nation_elo_K10
+    - away_team_nation_elo_K10
+    - home_team_nation_elo_K20
+    - away_team_nation_elo_K20
+    - home_team_nation_elo_K30
+    - away_team_nation_elo_K30
+    - home_team_nation_elo_K40
+    - away_team_nation_elo_K40
+    - home_team_nation_elo_K80
+    - away_team_nation_elo_K80
+    
+    # League ELOs
+    - home_team_league_domestic_elo_K5
+    - away_team_league_domestic_elo_K5
+    - home_team_league_domestic_elo_K10
+    - away_team_league_domestic_elo_K10
+    - home_team_league_domestic_elo_K20
+    - away_team_league_domestic_elo_K20
+    - home_team_league_domestic_elo_K30
+    - away_team_league_domestic_elo_K30
+    - home_team_league_domestic_elo_K40
+    - away_team_league_domestic_elo_K40
+    - home_team_league_domestic_elo_K80
+    - away_team_league_domestic_elo_K80
+    
+    - home_team_league_continental_elo_K5
+    - away_team_league_continental_elo_K5
+    - home_team_league_continental_elo_K10
+    - away_team_league_continental_elo_K10
+    - home_team_league_continental_elo_K20
+    - away_team_league_continental_elo_K20
+    - home_team_league_continental_elo_K30
+    - away_team_league_continental_elo_K30
+    - home_team_league_continental_elo_K40
+    - away_team_league_continental_elo_K40
+    - home_team_league_continental_elo_K80
+    - away_team_league_continental_elo_K80
+    
+    # ELO parameters
+    - k_draw_parameter
+    - eta_home_advantage
+    
+    # Other features
+    - stage_of_season
+    - competition_id
+  
+  # Sequence configuration
+  sequence_length: 10  # Number of past matches to consider
+  form_features:
+    - goals_scored
+    - goals_conceded
+  h2h_features:
+    - home_score
+    - away_score
+
+training:
+  epochs: 100
+  learning_rate: 0.01
+  batch_size: 32
+  early_stopping:
+    patience: 10
+    min_delta: 0.001
+  optimizer: adam
+  loss: cross_entropy
+  metrics:
+    - accuracy
+    - f1_score
+  lr_scheduler:
+    type: "reduce_on_plateau"
+    factor: 0.5
+    patience: 3
+    min_lr: 0.0001
+  
+  # Data filters
+  filters:
+    min_date: '2010-01-01'
+    max_date: '2023-12-31'
+    leagues: [1, 2, 3, 4]  # Example league IDs 

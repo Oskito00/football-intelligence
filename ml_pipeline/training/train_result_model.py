@@ -3,12 +3,12 @@ Training logic for football result prediction model
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import cross_val_score, StratifiedKFold
 
-from helpers.parsing_helpers.pandas import convert_to_native_types
+from utils.parsing.pandas import convert_to_native_types
 from ml_pipeline.models.result_model import ResultModel
 from ml_pipeline.features.load_result_features import ResultFeatureLoader
 from ml_pipeline.utils.io import model_io
@@ -45,17 +45,14 @@ def train_result_model(conn, config: Dict[str, Any],
         logger.info("Loading training data")
         where_clause = _build_where_clause(config['data'].get('filters', {}))
         features, targets = feature_loader.load_data(where_clause=where_clause, limit=limit)
-        
-        logger.info(f"Loaded {len(features)} samples with {len(features.columns)} features")
+       
         
         # Check data quality
         quality_report = feature_loader.check_data_quality(features, targets)
-        logger.info(f"Data quality check: {quality_report['total_samples']} samples, "
-                   f"{quality_report['duplicate_rows']} duplicates")
         
         # Clean data
         features, targets = feature_loader.clean_data(features, targets)
-        logger.info(f"After cleaning: {len(features)} samples")
+
 
         # Initialize model
         logger.info("Initializing model")
@@ -63,12 +60,13 @@ def train_result_model(conn, config: Dict[str, Any],
         
         # Prepare data (train/test split)
         data_config = config['data']
+        
         X_train, X_test, y_train, y_test = model.prepare_data(
             features, targets, 
             test_size=data_config.get('test_size', 0.2),
             random_state=data_config.get('random_state', 42)
         )
-    
+        
         # Preprocess features
         logger.info("Preprocessing features")
         X_train_processed, X_test_processed = model.preprocess_features(X_train, X_test)
@@ -150,10 +148,10 @@ def _build_where_clause(filters: Dict[str, Any]) -> Optional[str]:
     conditions = []
     
     if filters.get('min_date'):
-        conditions.append(f"m.start_time >= '{filters['min_date']}'")
+        conditions.append(f"eh.start_time >= '{filters['min_date']}'")
     
     if filters.get('max_date'):
-        conditions.append(f"m.start_time <= '{filters['max_date']}'")
+        conditions.append(f"eh.start_time <= '{filters['max_date']}'")
     
     if filters.get('leagues'):
         league_list = "', '".join(str(l) for l in filters['leagues'])

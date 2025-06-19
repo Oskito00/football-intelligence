@@ -6,6 +6,7 @@ Loads and combines features from multiple tables for match outcome prediction
 from typing import List, Optional, Dict, Any
 import pandas as pd
 import numpy as np
+import json
 
 from ml_pipeline.features.base_feature_loader import BaseFeatureLoader
 
@@ -35,11 +36,15 @@ class ResultFeatureLoader(BaseFeatureLoader):
             self.formation_table = 'formation_future'  # If it exists
             self.stage_table = 'stage_of_season_future'
             self.match_info_table = 'match_info_future'
+            self.form_history_table = 'form_future'
+            self.h2h_table = 'h2h_future'
         else:  # training mode
             self.elo_table = 'elo_history'
             self.formation_table = 'formation_history'
             self.stage_table = 'stage_of_season_history'
             self.match_info_table = 'match_info_history'
+            self.form_history_table = 'form_history'
+            self.h2h_table = 'h2h_history'
         
         self.logger.info(f"Feature loader initialized for {mode} mode using {self.elo_table}")
         
@@ -50,10 +55,10 @@ class ResultFeatureLoader(BaseFeatureLoader):
         base_tables = [
             'matches',
             'elo_history',
-            # 'fatigue_history',
             'stage_of_season_history',
             'match_info_history',
-
+            'form_history',
+            'h2h_history'
         ]
         
         # Add formation_history only if formations are required
@@ -82,6 +87,9 @@ class ResultFeatureLoader(BaseFeatureLoader):
         base_query = f"""
             SELECT 
                 eh.match_id,
+                eh.start_time,
+                eh.home_team_name,
+                eh.away_team_name,
                 {query_parts['select_fields']}
             FROM {self.elo_table} eh
             {query_parts['joins']}
@@ -89,21 +97,30 @@ class ResultFeatureLoader(BaseFeatureLoader):
         
         # Add additional filters if provided
         if where_clause:
+            print(f"WHERE clause: {where_clause}")
             base_query += f" WHERE {where_clause}"
         
         # Add limit
         if limit:
             base_query += f" LIMIT {limit}"
-        
-        # Execute query
+
+        # Execute query (this already filters through the INNER JOINs)
         features_df = self.execute_query(base_query)
-        
+
+        print(features_df.head())
+
         if features_df.empty:
             self.logger.warning("No features loaded")
             return pd.DataFrame()
         
+        # Store metadata for ONLY the filtered matches
+        self.metadata_df = features_df[['match_id', 'start_time', 'home_team_name', 'away_team_name']].copy()
+        
         # Set match_id as index
         features_df.set_index('match_id', inplace=True)
+        
+        # Drop metadata columns from features
+        features_df = features_df.drop(columns=['start_time', 'home_team_name', 'away_team_name'])
         
         # Engineer additional features based on what's available
         features_df = self._engineer_features_dynamic(features_df)
@@ -117,7 +134,51 @@ class ResultFeatureLoader(BaseFeatureLoader):
         joins = []
         
         # Get table alias for the base ELO table
-        table_alias = 'eh'  # Keep consistent alias regardless of actual table name
+        table_alias = 'eh'
+        
+        # Add form history - INNER JOIN with minimum form length check
+        if self.form_history_table in self.feature_tables:
+            select_fields.extend([
+                "-- FORM HISTORY",
+                "fh.home_team_form::jsonb as home_team_form",
+                "fh.away_team_form::jsonb as away_team_form",
+                "fh.draw_features::jsonb as draw_features"
+            ])
+            joins.append(f"""
+                INNER JOIN {self.form_history_table} fh 
+                ON {table_alias}.match_id = fh.match_id 
+                AND jsonb_array_length(fh.home_team_form) >= 10
+                AND jsonb_array_length(fh.away_team_form) >= 10
+            """)
+        
+        # Add H2H features - INNER JOIN
+        if self.h2h_table in self.feature_tables:
+            select_fields.extend([
+                "-- H2H FEATURES",
+                "h2h.h2h_draws_last_3",
+                "h2h.h2h_draws_last_5",
+                "h2h.h2h_draws_last_10",
+                "h2h.h2h_home_wins_last_3",
+                "h2h.h2h_home_wins_last_5",
+                "h2h.h2h_home_wins_last_10",
+                "h2h.h2h_away_wins_last_3",
+                "h2h.h2h_away_wins_last_5",
+                "h2h.h2h_away_wins_last_10",
+                "h2h.h2h_avg_total_goals",
+                "h2h.h2h_avg_goal_diff",
+                "h2h.h2h_home_goals_avg_last_3",
+                "h2h.h2h_home_goals_avg_last_5",
+                "h2h.h2h_home_goals_avg_last_10",
+                "h2h.h2h_away_goals_avg_last_3",
+                "h2h.h2h_away_goals_avg_last_5",
+                "h2h.h2h_away_goals_avg_last_10",
+                "h2h.h2h_both_teams_scored_rate",
+                "h2h.h2h_zero_goal_rate"
+            ])
+            joins.append(f"""
+                INNER JOIN {self.h2h_table} h2h 
+                ON {table_alias}.match_id = h2h.match_id
+            """)
         
         # Always include comprehensive ELO features (already in base table)
         select_fields.extend([
@@ -172,6 +233,14 @@ class ResultFeatureLoader(BaseFeatureLoader):
             f"{table_alias}.home_team_elo_international_K30, {table_alias}.away_team_elo_international_K30",
             f"{table_alias}.home_team_elo_international_K40, {table_alias}.away_team_elo_international_K40",
             f"{table_alias}.home_team_elo_international_K80, {table_alias}.away_team_elo_international_K80",
+
+            "-- INTERCONTINENTAL ELO RATINGS",
+            f"{table_alias}.home_team_league_intercontinental_elo_K5, {table_alias}.away_team_league_intercontinental_elo_K5",
+            f"{table_alias}.home_team_league_intercontinental_elo_K10, {table_alias}.away_team_league_intercontinental_elo_K10",
+            f"{table_alias}.home_team_league_intercontinental_elo_K20, {table_alias}.away_team_league_intercontinental_elo_K20",
+            f"{table_alias}.home_team_league_intercontinental_elo_K30, {table_alias}.away_team_league_intercontinental_elo_K30",
+            f"{table_alias}.home_team_league_intercontinental_elo_K40, {table_alias}.away_team_league_intercontinental_elo_K40",
+            f"{table_alias}.home_team_league_intercontinental_elo_K80, {table_alias}.away_team_league_intercontinental_elo_K80",
             "",
             "-- NATION ELO RATINGS",
             f"{table_alias}.home_team_nation_elo_K5, {table_alias}.away_team_nation_elo_K5",
@@ -196,13 +265,21 @@ class ResultFeatureLoader(BaseFeatureLoader):
             f"{table_alias}.home_team_league_continental_elo_K40, {table_alias}.away_team_league_continental_elo_K40",
             f"{table_alias}.home_team_league_continental_elo_K80, {table_alias}.away_team_league_continental_elo_K80",
             "",
+            "-- CONTINENT ELO RATINGS",
+            f"{table_alias}.home_team_continent_elo_K5, {table_alias}.away_team_continent_elo_K5",
+            f"{table_alias}.home_team_continent_elo_K10, {table_alias}.away_team_continent_elo_K10",
+            f"{table_alias}.home_team_continent_elo_K20, {table_alias}.away_team_continent_elo_K20",
+            f"{table_alias}.home_team_continent_elo_K30, {table_alias}.away_team_continent_elo_K30",
+            f"{table_alias}.home_team_continent_elo_K40, {table_alias}.away_team_continent_elo_K40",
+            f"{table_alias}.home_team_continent_elo_K80, {table_alias}.away_team_continent_elo_K80",
+
             "-- ELO PARAMETERS",
-            f"{table_alias}.k_draw_parameter",
-            f"{table_alias}.eta_home_advantage",
+            # f"{table_alias}.k_draw_parameter",
+            # f"{table_alias}.eta_home_advantage",
             "",
             "-- TEAM IDs",
-            f"{table_alias}.home_team_id",
-            f"{table_alias}.away_team_id"
+            # f"{table_alias}.home_team_id",
+            # f"{table_alias}.away_team_id"
         ])
         
         # Stage of season - INNER JOIN (required)
@@ -284,52 +361,48 @@ class ResultFeatureLoader(BaseFeatureLoader):
         return targets_series
     
     def _engineer_features_dynamic(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Engineer additional features based on available columns
-        
-        Args:
-            df: Raw features DataFrame
-            
-        Returns:
-            DataFrame with engineered features
-        """
+        """Engineer additional features based on available columns"""
         self.logger.info("Engineering features dynamically")
         
-        # TODO: Add when fatigue features ready
-        # self._create_fatigue_differences(df)
+        # Process draw features
+        if 'draw_features' in df.columns:
+            # Extract draw features from JSONB
+            draw_feature_names = [
+                'home_draw_rate_3', 'home_draw_rate_5', 'home_draw_rate_10',
+                'away_draw_rate_3', 'away_draw_rate_5', 'away_draw_rate_10',
+                'both_draw_rate_3', 'both_draw_rate_5', 'both_draw_rate_10',
+                'zero_goals_rate_3', 'zero_goals_rate_5', 'zero_goals_rate_10',
+                'home_avg_goal_diff_3', 'home_avg_goal_diff_5', 'home_avg_goal_diff_10',
+                'away_avg_goal_diff_3', 'away_avg_goal_diff_5', 'away_avg_goal_diff_10'
+            ]
+            
+            # Convert JSONB to dict and extract features
+            for feature in draw_feature_names:
+                df[feature] = df['draw_features'].apply(
+                    lambda x: float(x.get(feature, 0.0)) if isinstance(x, dict) else 0.0
+                )
+            
+            # Drop original draw_features column
+            df = df.drop('draw_features', axis=1)
+            df = df.drop(['home_team_form', 'away_team_form'], axis=1)
         
-        # Only do formation features if formations are available and required
-        if (self.feature_requirements.get('formations', False) and 
-            'home_team_formation' in df.columns):
-            self._create_formation_features(df)
+        # Drop columns we don't want to use as features
+        columns_to_drop = [
+            'competition_name',
+            'competition_country'
+        ]
+        df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
         
-        # Encode categorical features
-        categorical_columns = []
-        
-        # Competition features
+        # Handle competition_id as category
         if 'competition_id' in df.columns:
-            # Convert to category instead of one-hot encoding
             df['competition_id'] = df['competition_id'].astype('category')
-            categorical_columns = []  # Don't one-hot encode competition_id
         
-        if 'competition_name' in df.columns:
-            categorical_columns.append('competition_name')
-        
-        if 'competition_country' in df.columns:
-            categorical_columns.append('competition_country')
-        
-        # Stage of season category
-        if 'stage_of_season_category' in df.columns:
-            categorical_columns.append('stage_of_season_category')
-        
-        # One-hot encode all categorical columns
-        if categorical_columns:
-            self.logger.info(f"One-hot encoding categorical features: {categorical_columns}")
-            df = pd.get_dummies(df, columns=categorical_columns, prefix=categorical_columns)
+        # Handle stage of season as category
+        if 'stage_of_season' in df.columns:
+            df['stage_of_season'] = df['stage_of_season'].astype('category')
         
         return df
     
-
     def _create_fatigue_differences(self, df: pd.DataFrame) -> None:
         """Create fatigue differences for all available time windows"""
         # TODO: Implement when fatigue features are ready

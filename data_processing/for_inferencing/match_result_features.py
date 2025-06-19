@@ -1,15 +1,16 @@
-from helpers.data_processing.processing_functions.elo_manager import EloManager
-from helpers.data_processing.processing_functions.fatigue_manager import FatigueManager
-from helpers.data_processing.processing_functions.formation_manager import FormationManager
-from helpers.data_processing.processing_functions.match_info_manager import MatchInfoManager
-from helpers.data_processing.processing_functions.stage_of_season_manager import StageOfSeasonManager
-from helpers.database_helpers.clean_tables import drop_future_tables
-from helpers.database_helpers.create_tables import create_future_tables
+from data_processing.helpers.processing_functions.elo_manager import EloManager
+from data_processing.helpers.processing_functions.form_manager import FormManager
+from data_processing.helpers.processing_functions.formation_manager import FormationManager
+from data_processing.helpers.processing_functions.match_info_manager import MatchInfoManager
+from data_processing.helpers.processing_functions.h2h_manager import H2HManager
+from data_processing.helpers.processing_functions.stage_of_season_manager import StageOfSeasonManager
+from utils.database.clean_tables import drop_future_tables
+from utils.database.create_tables import create_future_tables
 from config import get_config
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from helpers.database_helpers.get_and_set_functions import get_from_matches, update_processed_status
-from helpers.database_helpers.prune_future_features import prune_old_future_features
+from utils.database.get_and_set_functions import get_from_matches, update_processed_status
+from utils.database.prune_future_features import prune_old_future_features
 
 
 def process_future_matches(conn):
@@ -52,18 +53,23 @@ def process_future_matches(conn):
         batch = matches[i:i+BATCH_SIZE]
         print(f"Processing future matches batch {i//BATCH_SIZE + 1} of {len(matches)//BATCH_SIZE + 1}")
 
-        with (EloManager(conn, batch, mode='inference') as elo_manager, 
-              MatchInfoManager(conn, batch, mode='inference') as match_info_manager, 
+        with (MatchInfoManager(conn, batch, mode='inference') as match_info_manager, 
               StageOfSeasonManager(conn, batch, mode='inference') as stage_of_season_manager, 
-              FormationManager(conn, batch, mode='inference') as formation_manager):
+              FormationManager(conn, batch, mode='inference') as formation_manager,
+              EloManager(conn, batch, mode='inference') as elo_manager,
+              FormManager(conn, batch, mode='inference', elo_manager=elo_manager) as form_manager,
+              H2HManager(conn, batch, mode='inference') as h2h_manager):
             
             match_ids = []
             with_formation_flags = []
             
             for match in batch:
-                elo_manager.process_match(match)
+                
                 match_info_manager.process_match(match)
                 stage_of_season_manager.process_match(match)
+                form_manager.process_match(match)
+                elo_manager.process_match(match)
+                h2h_manager.process_match(match)
                 
                 has_formation = bool(match.get('home_team_formation') and match.get('away_team_formation'))
                 if has_formation:

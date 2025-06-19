@@ -15,7 +15,7 @@ from psycopg2.extras import RealDictCursor
 from config import get_config
 from ml_pipeline.inference.infer_result_model import infer_result_model
 from ml_pipeline.utils.config import config_manager
-from helpers.database_helpers.create_tables import create_match_result_predictions_table
+from utils.database.create_tables import create_match_result_predictions_table
 
 
 # Add project root to path
@@ -57,6 +57,7 @@ def main():
     parser.add_argument('--where-clause', help='SQL WHERE clause to filter data')
     parser.add_argument('--mode', choices=['training', 'inference'], default='inference', 
                         help='Mode: training (use elo_history) or inference (use elo_future)')
+    parser.add_argument('--match-id', type=int, help='Specific match_id to run inference on')
     
     args = parser.parse_args()
     
@@ -100,7 +101,8 @@ def main():
             limit=args.limit,
             where_clause=args.where_clause,
             output_path=args.output,
-            mode=args.mode
+            mode=args.mode,
+            match_id=args.match_id
         )
         
         if result['success']:
