@@ -8,12 +8,12 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy only the requirements first
+COPY chatbot/requirements.txt ./chatbot/
+RUN pip install --no-cache-dir -r chatbot/requirements.txt
 
-# Copy the chatbot code
+# Copy the entire project
 COPY . .
 
 # Run the Flask API
-CMD ["python", "api.py"]
+CMD ["uvicorn", "chatbot.api:app", "--host", "0.0.0.0", "--port", "5000"]

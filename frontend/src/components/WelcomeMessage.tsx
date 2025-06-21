@@ -10,7 +10,8 @@ interface WelcomeMessageProps {
 const WelcomeMessage: React.FC<WelcomeMessageProps> = ({ onComplete }) => {
   // Combine all messages into a single sequence
   const allMessages: Message[] = [
-    { text: "Hi, I'm Ian! 👋", isBot: true },
+    { text: "Hi, 👋", isBot: true },
+    { text: "I am an AI football pundit", isBot: true },
     {
       text: "I can help you with predictions, analysis, and insights across all major leagues.",
       isBot: true,

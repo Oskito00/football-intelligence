@@ -38,6 +38,17 @@ async def reset_conversation():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/")
+async def root():
+    return {
+        "message": "Football Predictor API",
+        "endpoints": {
+            "chat": "/api/chat",
+            "reset": "/api/reset",
+            "docs": "/docs"
+        }
+    }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000) 

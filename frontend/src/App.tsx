@@ -17,6 +17,8 @@ import ChatInput from "./components/ChatInput";
 import WelcomeMessage from "./components/WelcomeMessage";
 import TypewriterMessage from "./components/TypewriterMessage";
 
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
 function App() {
   const [mode, setMode] = useState<ColorMode>("dark");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -84,7 +86,7 @@ function App() {
 
     try {
       // Make API call to backend
-      const response = await fetch("http://localhost:8000/api/chat", {
+      const response = await fetch(`${API_URL}/api/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

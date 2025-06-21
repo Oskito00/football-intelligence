@@ -2,13 +2,13 @@ import schedule
 import time
 import os
 from datetime import datetime
-import sys
+import sys 
 import logging
 
 # Import your script functions
 from data_scraping.api_football.all_data.scrape_league_ids import get_all_leagues_on_api
 from data_scraping.api_football.current_season.current_seasons_scrape import scrape_current_seasons
-from data_processing.for_training.match_result_features import process_matches as process_training
+from data_processing.for_training.match_result_features import process_matches
 from data_processing.for_inferencing.match_result_features import process_future_matches
 from ml_pipeline.main_infer import main as infer_results
 from data_scraping.api_football.odds.scrape_future_match_odds import scrape_future_match_odds
@@ -38,7 +38,7 @@ def run_all_scripts():
     scripts = [
         ("League IDs Scraper", get_all_leagues_on_api),
         ("Current Seasons Scraper", scrape_current_seasons),
-        ("Training Data Processor", process_training),
+        ("Training Data Processor", process_matches),
         ("Future Matches Processor", process_future_matches),
         ("Result Model Inference", infer_results),
         ("Future Match Odds Scraper", scrape_future_match_odds)
@@ -52,9 +52,6 @@ def main():
     
     # Schedule all scripts to run at midnight
     schedule.every().day.at("00:00").do(run_all_scripts)
-    
-    # Also run immediately on startup
-    run_all_scripts()
     
     # Keep the script running
     while True:

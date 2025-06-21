@@ -5,7 +5,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - REACT_APP_API_URL=http://localhost:5000
+      - REACT_APP_API_URL=http://165.227.225.47:5000
     depends_on:
       - api
 
@@ -16,7 +16,7 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - DB_HOST=host.docker.internal
+      - DB_HOST=localhost
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
@@ -26,7 +26,7 @@ services:
       context: .
       dockerfile: scheduler/Dockerfile
     environment:
-      - DB_HOST=host.docker.internal
+      - DB_HOST=localhost
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
