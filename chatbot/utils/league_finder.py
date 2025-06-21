@@ -46,19 +46,17 @@ def normalize_league_name(league_name: str) -> str:
     
     return normalized
 
-def search_leagues(league_query: str, country_hint: str = None) -> List[Dict[str, Any]]:
+def search_leagues(league_query: str, nation: str = None) -> List[Dict[str, Any]]:
     """
-    Search for leagues using fuzzy matching.
+    Search for leagues using fuzzy matching, prioritizing nation filtering.
     
     Args:
         league_query: League name or partial name to search for
-        country_hint: Optional country to prioritize results
+        nation: Optional nation to filter by first
         
     Returns:
         List of matching leagues sorted by relevance
     """
-    if not DB_AVAILABLE:
-        return _get_mock_league_data(league_query)
     
     try:
         config = get_config()
@@ -93,6 +91,18 @@ def search_leagues(league_query: str, country_hint: str = None) -> List[Dict[str
         
         # Debug: Show query
         print(f"🔍 Searching for leagues matching: '{league_query}'")
+        if nation:
+            print(f"   • Filtering by nation: '{nation}'")
+        
+        # First filter by nation if provided
+        if nation:
+            all_leagues = [
+                league for league in all_leagues
+                if league.get('country', {}).get('name', '').lower() == nation.lower()
+            ]
+            
+            if not all_leagues:
+                return []  # No leagues found in specified nation
         
         # Fuzzy match against query
         query_normalized = normalize_league_name(league_query)
@@ -119,7 +129,6 @@ def search_leagues(league_query: str, country_hint: str = None) -> List[Dict[str
             # 4. Length-based scoring
             length_penalty = 0
             if len(league_name) <= 5 and word_overlap < 0.8:
-                # Penalize very short names unless they're a very good match
                 length_penalty = 0.4
             
             # 5. Prefer exact word matches
@@ -132,22 +141,11 @@ def search_leagues(league_query: str, country_hint: str = None) -> List[Dict[str
             
             # Combine all scores
             final_score = (string_similarity * 0.4 + 
-                          word_overlap * 0.4 + 
-                          coverage * 0.2 + 
-                          exact_word_bonus + 
-                          completeness_bonus - 
-                          length_penalty)
-            
-            # Country boost if specified
-            if country_hint:
-                try:
-                    league_country = league.get('country', {})
-                    if isinstance(league_country, dict):
-                        country_name = league_country.get('name', '').lower()
-                        if country_hint.lower() in country_name or country_name in country_hint.lower():
-                            final_score += 0.2
-                except:
-                    pass
+                         word_overlap * 0.4 + 
+                         coverage * 0.2 + 
+                         exact_word_bonus + 
+                         completeness_bonus - 
+                         length_penalty)
             
             # Only include if reasonable match
             if final_score > 0.2:
@@ -166,16 +164,45 @@ def search_leagues(league_query: str, country_hint: str = None) -> List[Dict[str
         # Sort by relevance score
         matching_leagues.sort(key=lambda x: x['relevance_score'], reverse=True)
         
-        # Debug: Show top matches
-        print(f"   • Top 5 matches:")
+        # Debug: Show only top matches with countries
+        print("   • Top matches:")
         for i, league in enumerate(matching_leagues[:5]):
-            print(f"     {i+1}. {league['league_name']} (score: {league['relevance_score']:.2f})")
+            country_name = league['country'].get('name', 'Unknown')
+            print(f"     {i+1}. {league['league_name']} ({country_name}, score: {league['relevance_score']:.2f})")
         
-        return matching_leagues[:10]  # Return top 10
+        # Only ask for clarification if:
+        # 1. No nation specified
+        # 2. Multiple matches exist
+        # 3. Second best match is very close to the best match (within 5% of top score)
+        if not nation and len(matching_leagues) > 1:
+            top_score = matching_leagues[0]['relevance_score']
+            second_score = matching_leagues[1]['relevance_score']
+            score_difference_percentage = (top_score - second_score) / top_score * 100
+            
+            # If score difference is less than 5%, we need clarification
+            if score_difference_percentage < 5:
+                similar_scores = [
+                    league for league in matching_leagues 
+                    if (top_score - league['relevance_score']) / top_score * 100 < 5
+                ]
+                
+                if len(similar_scores) > 1:
+                    # Add a special flag to indicate clarification needed
+                    matching_leagues[0]['needs_clarification'] = True
+                    matching_leagues[0]['available_nations'] = sorted(set(
+                        league['country']['name'] 
+                        for league in similar_scores
+                    ))
+            else:
+                print(f"   • Selected first match (score difference: {score_difference_percentage:.1f}%)")
+                # Remove all but the best match since we're confident about it
+                matching_leagues = [matching_leagues[0]]
+        
+        return matching_leagues
         
     except Exception as e:
         print(f"Error searching leagues: {str(e)}")
-        return _get_mock_league_data(league_query)
+        return []
 
 def _get_league_name_variations(league_query: str) -> List[str]:
     """Generate basic variations of league names without hard-coding."""

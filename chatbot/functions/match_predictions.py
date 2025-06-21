@@ -226,7 +226,7 @@ def get_predictions_by_team(team_name: str, days_ahead: int = 14) -> List[Dict[s
     Returns:
         List of predictions for team's matches
     """
-    from chatbot.functions.match_finder import search_team_matches
+    from chatbot.utils.match_finder import search_team_matches
     
     # Get team's upcoming matches
     team_matches = search_team_matches(team_name, days_ahead)

@@ -81,6 +81,10 @@ class StageOfSeasonManager:
     @staticmethod
     def calculate_stage_of_season(start_time, season_start_date, season_end_date):
         """Calculate the stage of season normalized between 0 and 1"""
+        # Handle None values
+        if season_start_date is None or season_end_date is None:
+            return 0.0  # Default to early season if dates are missing
+        
         # Convert strings to datetime objects if needed
         if isinstance(start_time, str):
             start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))

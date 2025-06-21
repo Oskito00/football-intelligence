@@ -123,9 +123,6 @@ def _handle_betting_analysis(self, parsed_query):
 
 ## Development
 
-### Mock Data Mode
-When database is unavailable, the system automatically falls back to mock data for testing.
-
 ### Debug Mode
 Set debug flags in the main chatbot to see:
 - Parsed query details

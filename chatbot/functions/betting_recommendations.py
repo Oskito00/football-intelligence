@@ -11,6 +11,7 @@ from typing import Dict, Any, List, Optional
 from chatbot.functions.match_predictions import get_match_prediction
 from chatbot.functions.odds_retrieval import get_best_odds_for_match
 from chatbot.functions.value_betting import analyze_betting_opportunity
+from chatbot.utils.match_finder import find_matches_by_teams
 
 
 def get_betting_recommendations(
@@ -108,7 +109,6 @@ def get_betting_recommendations_for_match_teams(
     """
     try:
         # Find the match first
-        from chatbot.functions.match_finder import find_matches_by_teams
         
         matches = find_matches_by_teams(home_team, away_team, days_ahead)
         if not matches:

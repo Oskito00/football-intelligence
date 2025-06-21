@@ -76,9 +76,6 @@ def find_matches_by_teams(home_team: str, away_team: str, days_ahead: int = 30) 
     """
     Find upcoming matches between specified teams using optimized match_status query.
     """
-    if not DB_AVAILABLE:
-        return _get_mock_match_data(home_team, away_team)
-    
     try:
         config = get_config()
         conn = psycopg2.connect(
@@ -216,7 +213,7 @@ def find_matches_by_teams(home_team: str, away_team: str, days_ahead: int = 30) 
         
     except Exception as e:
         print(f"Database error in match finder: {str(e)}")
-        return _get_mock_match_data(home_team, away_team)
+        return []
 
 def search_team_matches(team_name: str, days_ahead: int = 14) -> List[Dict[str, Any]]:
     """
@@ -360,39 +357,10 @@ def _get_team_name_variations(team_name: str) -> List[str]:
     
     return variations
 
-def _get_mock_match_data(home_team: str, away_team: str) -> List[Dict[str, Any]]:
-    """
-    Return mock match data for testing when database is unavailable.
-    
-    Args:
-        home_team: Home team name
-        away_team: Away team name
-        
-    Returns:
-        Mock match data
-    """
-    # Generate a mock match ID
-    mock_match_id = abs(hash(f"{home_team}_{away_team}")) % 1000000
-    
-    # Mock start time (next weekend)
-    next_weekend = datetime.now() + timedelta(days=(6 - datetime.now().weekday()))
-    
-    return [{
-        "match_id": mock_match_id,
-        "start_time": next_weekend.isoformat(),
-        "home_team": home_team.title(),
-        "away_team": away_team.title(),
-        "competition": "Premier League",
-        "country": "England",
-        "relevance_score": 0.95,
-        "direct_match": True
-    }]
-
 def get_upcoming_matches(
     days_ahead: int = 7,
     competition_ids: List[int] = None,
     country: str = None,
-    
 ) -> List[Dict[str, Any]]:
     """
     Get upcoming matches with optional filtering.
@@ -401,15 +369,14 @@ def get_upcoming_matches(
         days_ahead: Number of days to look ahead
         competition_ids: Optional list of competition IDs to filter by
         country: Optional country name to filter by
-        limit: Maximum number of matches to return
         
     Returns:
         List of upcoming matches
-    """
-    if not DB_AVAILABLE:
-        return _get_mock_upcoming_matches(days_ahead)
-    
+    """    
     try:
+        # Convert days_ahead to int if it's a string
+        days_ahead = int(days_ahead)
+        
         config = get_config()
         conn = psycopg2.connect(
             host=config.DB_HOST,
@@ -483,33 +450,4 @@ def get_upcoming_matches(
         
     except Exception as e:
         print(f"Error getting upcoming matches: {str(e)}")
-        return _get_mock_upcoming_matches(days_ahead)
-
-def _get_mock_upcoming_matches(days_ahead: int) -> List[Dict[str, Any]]:
-    """Generate mock upcoming matches for testing."""
-    from datetime import datetime, timedelta
-    
-    mock_matches = []
-    base_time = datetime.now()
-    
-    teams = [
-        ('Arsenal', 'Chelsea'),
-        ('Manchester United', 'Liverpool'),
-        ('Manchester City', 'Tottenham'),
-        ('Barcelona', 'Real Madrid'),
-        ('PSG', 'Lyon')
-    ]
-    
-    for i, (home, away) in enumerate(teams):
-        match_time = base_time + timedelta(days=i+1, hours=15)
-        mock_matches.append({
-            'match_id': 1000000 + i,
-            'start_time': match_time.isoformat(),
-            'home_team': home,
-            'away_team': away,
-            'competition': 'Premier League',
-            'country': 'England',
-            'competition_id': 39
-        })
-    
-    return mock_matches 
+        return []

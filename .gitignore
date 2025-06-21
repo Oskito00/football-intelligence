@@ -14,3 +14,4 @@ api_football.db
 api_football.db-journal
 requirements.txt
 config.py
+backup.sql.gz
