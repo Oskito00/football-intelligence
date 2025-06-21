@@ -3,7 +3,6 @@
 *.csv
 *.log
 *.joblib
-*.json
 venv/
 Data/APIfootball/raw/
 *.db
