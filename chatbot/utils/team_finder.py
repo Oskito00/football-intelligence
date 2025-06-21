@@ -5,90 +5,74 @@ Dynamically finds team IDs from team names using existing match data.
 """
 
 import psycopg2
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 from config import get_config
 
 
-def find_team_id(team_name: str) -> Optional[int]:
+def find_team_id(conn, team_name: str) -> Optional[List[Dict[str, Any]]]:
     """
-    Find team ID from team name using existing match data.
-    
-    Args:
-        team_name: Name of the team to search for
-        
-    Returns:
-        Team ID if found, None otherwise
+    Find team ID from team name using teams mapping table.
+    Always returns a list of matches, even for single results.
     """
-    config = get_config()
-    
     try:
-        conn = psycopg2.connect(
-            host=config.DB_HOST,
-            database=config.DB_NAME,
-            user=config.DB_USER,
-            password=config.DB_PASSWORD
-        )
-        
         cursor = conn.cursor()
         
-        # First try exact match
+        # Try exact match first
         cursor.execute("""
-            SELECT DISTINCT home_team_id as team_id, home_team_name as team_name
-            FROM matches 
-            WHERE LOWER(home_team_name) = LOWER(%s)
-            AND home_team_id IS NOT NULL
-            UNION
-            SELECT DISTINCT away_team_id as team_id, away_team_name as team_name
-            FROM matches 
-            WHERE LOWER(away_team_name) = LOWER(%s)
-            AND away_team_id IS NOT NULL
-        """, (team_name, team_name))
+            SELECT team_id, team_name, domestic_country
+            FROM teams_mapping
+            WHERE LOWER(team_name) = LOWER(%s)
+        """, (team_name,))
         
-        result = cursor.fetchone()
-        if result:
-            cursor.close()
-            conn.close()
-            return result[0]
+        exact_matches = cursor.fetchall()
         
-        # Then try fuzzy search using similarity
+        # If we have exact matches, return them all
+        if exact_matches:
+            return [
+                {
+                    "team_id": match[0],
+                    "team_name": match[1],
+                    "country": match[2]
+                }
+                for match in exact_matches
+            ]
+            
+        # If no exact match, try fuzzy search
         cursor.execute("""
-            SELECT DISTINCT 
-                home_team_id as team_id, 
-                home_team_name as team_name,
-                similarity(LOWER(home_team_name), LOWER(%s)) as sim_score
-            FROM matches 
-            WHERE similarity(LOWER(home_team_name), LOWER(%s)) > 0.3
-            AND home_team_id IS NOT NULL
-            UNION
-            SELECT DISTINCT 
-                away_team_id as team_id, 
-                away_team_name as team_name,
-                similarity(LOWER(away_team_name), LOWER(%s)) as sim_score
-            FROM matches 
-            WHERE similarity(LOWER(away_team_name), LOWER(%s)) > 0.3
-            AND away_team_id IS NOT NULL
+            SELECT 
+                team_id,
+                team_name,
+                domestic_country,
+                similarity(LOWER(team_name), LOWER(%s)) as sim_score
+            FROM teams_mapping
+            WHERE similarity(LOWER(team_name), LOWER(%s)) > 0.3
             ORDER BY sim_score DESC
             LIMIT 5
-        """, (team_name, team_name, team_name, team_name))
+        """, (team_name, team_name))
         
-        results = cursor.fetchall()
+        fuzzy_matches = cursor.fetchall()
         cursor.close()
-        conn.close()
         
-        if results:
-            # Return the best match if similarity is high enough
-            best_match = results[0]
-            if best_match[2] > 0.6:  # 60% similarity threshold
-                return best_match[0]
-            else:
-                # Return multiple options for user to choose
-                return {
-                    "suggestions": [
-                        {"team_id": r[0], "team_name": r[1], "similarity": r[2]}
-                        for r in results
-                    ]
+        if fuzzy_matches:
+            # If best match has high similarity, return it as single item list
+            if fuzzy_matches[0][3] > 0.6:
+                return [{
+                    "team_id": fuzzy_matches[0][0],
+                    "team_name": fuzzy_matches[0][1],
+                    "country": fuzzy_matches[0][2],
+                    "similarity": fuzzy_matches[0][3]
+                }]
+            # Return all fuzzy matches
+            return [
+                {
+                    "team_id": match[0],
+                    "team_name": match[1],
+                    "country": match[2],
+                    "similarity": match[3]
                 }
-        
+                for match in fuzzy_matches
+            ]
+            
         return None
         
     except Exception as e:

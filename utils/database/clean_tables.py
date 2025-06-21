@@ -37,7 +37,6 @@ def drop_future_tables(conn):
         # 'formation_future',
         # 'form_future',
         # 'h2h_future',
-
     ]
     with conn.cursor() as cur:
         for table in reversed(table_names):

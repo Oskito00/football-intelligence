@@ -10,6 +10,7 @@ from config import get_config
 
 
 def get_recent_match_analysis(
+    conn,
     team_id: int,
     last_n_matches: int = 10,
     competition_id: Optional[str] = None,
@@ -26,17 +27,8 @@ def get_recent_match_analysis(
     
     Returns:
         Dictionary containing analysis results
-    """
-    config = get_config()
-    
+    """    
     try:
-        conn = psycopg2.connect(
-            host=config.DB_HOST,
-            database=config.DB_NAME,
-            user=config.DB_USER,
-            password=config.DB_PASSWORD
-        )
-        
         # Build the query using UNION ALL for home and away matches
         query_parts = [
             """
@@ -45,14 +37,15 @@ def get_recent_match_analysis(
                 m.start_time,
                 m.home_team_name,
                 m.away_team_name,
-                m.result,
+                m.home_score,
+                m.away_score,
                 m.competition_name,
                 m.competition_id,
-                'home' as team_side,
-                m.result as team_result
+                'home' as team_side
             FROM matches m
             WHERE m.home_team_id = %s
-            AND m.result IS NOT NULL
+            AND m.home_score IS NOT NULL
+            AND m.away_score IS NOT NULL
             """
         ]
         
@@ -72,18 +65,15 @@ def get_recent_match_analysis(
                 m.start_time,
                 m.home_team_name,
                 m.away_team_name,
-                m.result,
+                m.home_score,
+                m.away_score,
                 m.competition_name,
                 m.competition_id,
-                'away' as team_side,
-                CASE 
-                    WHEN m.result = 'Home Win' THEN 'Away Win'
-                    WHEN m.result = 'Away Win' THEN 'Home Win'
-                    ELSE m.result
-                END as team_result
+                'away' as team_side
             FROM matches m
             WHERE m.away_team_id = %s
-            AND m.result IS NOT NULL
+            AND m.home_score IS NOT NULL
+            AND m.away_score IS NOT NULL
             """)
             params.append(team_id)
             
@@ -115,14 +105,40 @@ def get_recent_match_analysis(
         draws = 0
         losses = 0
         
+        # Process matches with proper result calculation
+        processed_matches = []
         for match in matches:
-            team_result = match[8]  # team_result column
-            if team_result == 'Home Win' or team_result == 'Away Win':
+            match_id, date, home_team, away_team, home_score, away_score, comp_name, comp_id, team_side = match
+            
+            # Calculate match result
+            if home_score == away_score:
+                match_result = 'Draw'
+                team_result = 'Draw'
+            elif home_score > away_score:
+                match_result = 'Home Win'
+                team_result = 'Win' if team_side == 'home' else 'Loss'
+            else:
+                match_result = 'Away Win'
+                team_result = 'Win' if team_side == 'away' else 'Loss'
+            
+            # Update counters
+            if team_result == 'Win':
                 wins += 1
             elif team_result == 'Draw':
                 draws += 1
             else:
                 losses += 1
+                
+            processed_matches.append({
+                "match_id": match_id,
+                "date": date.strftime("%Y-%m-%d") if date else None,
+                "home_team": home_team,
+                "away_team": away_team,
+                "score": f"{home_score}-{away_score}",
+                "match_result": match_result,
+                "team_side": team_side,
+                "team_result": team_result
+            })
         
         # Calculate percentages
         win_rate = (wins / total_matches) * 100 if total_matches > 0 else 0
@@ -130,22 +146,22 @@ def get_recent_match_analysis(
         loss_rate = (losses / total_matches) * 100 if total_matches > 0 else 0
         
         # Get team name from first match
-        team_name = matches[0][2] if matches[0][7] == 'home' else matches[0][3]
+        team_name = matches[0][2] if matches[0][8] == 'home' else matches[0][3]
         
         # Get competition info if filtered
         competition_info = None
         if competition_id and matches:
             competition_info = {
-                "competition_id": matches[0][6],
-                "competition_name": matches[0][5]
+                "competition_id": matches[0][7],
+                "competition_name": matches[0][6]
             }
         
         # Get home/away breakdown
-        home_matches = [m for m in matches if m[7] == 'home']
-        away_matches = [m for m in matches if m[7] == 'away']
+        home_matches = [m for m in processed_matches if m['team_side'] == 'home']
+        away_matches = [m for m in processed_matches if m['team_side'] == 'away']
         
-        home_wins = sum(1 for m in home_matches if m[8] in ['Home Win', 'Away Win'])
-        away_wins = sum(1 for m in away_matches if m[8] in ['Home Win', 'Away Win'])
+        home_wins = sum(1 for m in home_matches if m['team_result'] == 'Win')
+        away_wins = sum(1 for m in away_matches if m['team_result'] == 'Win')
         
         home_win_rate = (home_wins / len(home_matches) * 100) if home_matches else 0
         away_win_rate = (away_wins / len(away_matches) * 100) if away_matches else 0
@@ -178,18 +194,7 @@ def get_recent_match_analysis(
                     "competition_id": competition_id,
                     "at_home": at_home
                 },
-                "recent_matches": [
-                    {
-                        "match_id": match[0],
-                        "date": match[1].strftime("%Y-%m-%d") if match[1] else None,
-                        "home_team": match[2],
-                        "away_team": match[3],
-                        "result": match[4],
-                        "team_side": match[7],
-                        "team_result": match[8]
-                    }
-                    for match in matches[:5]  # Show last 5 matches
-                ]
+                "recent_matches": processed_matches[:5]  # Show last 5 matches
             }
         }
         

@@ -8,8 +8,12 @@ import time
 from typing import Dict, Any, Callable
 import traceback
 
+import psycopg2
+
 from chatbot.functions.match_predictions import get_match_prediction
-from chatbot.utils.match_finder import find_matches_by_teams
+from chatbot.functions.upcoming_matches import get_upcoming_match_list
+from chatbot.utils.league_finder import search_leagues
+from chatbot.utils.match_finder import find_matches_by_teams, get_upcoming_matches
 from chatbot.functions.betting_recommendations import (
     get_betting_recommendations_for_match_teams,
     get_betting_recommendations
@@ -18,6 +22,7 @@ from chatbot.functions.recent_form_analysis import get_recent_match_analysis
 from chatbot.utils.team_finder import find_team_id
 from chatbot.functions.upcoming_value_bets import get_upcoming_value_bets
 from chatbot.functions.upcoming_predictions import get_upcoming_predictions
+from config import get_config
 
 class FunctionDispatcher:
     """Dispatches parsed queries to appropriate analytics functions."""
@@ -31,6 +36,7 @@ class FunctionDispatcher:
             "get_upcoming_value_bets": self._handle_upcoming_value_bets,
             "get_upcoming_predictions": self._handle_upcoming_predictions,
             "get_recent_form": self._handle_recent_form,
+            "get_upcoming_matches": self._handle_upcoming_matches,
             "general_chat": self._handle_general_chat
         }
     
@@ -172,23 +178,52 @@ class FunctionDispatcher:
         
         days_ahead = parameters.get("days_ahead", 7)
         league_query = parameters.get("league_query")
+        nation = parameters.get("nation")
         max_results = parameters.get("max_results", 15)
         
         return get_upcoming_predictions(
             days_ahead=days_ahead,
             league_query=league_query,
+            nation = nation,
+            max_results=max_results
+        )
+    
+    def _handle_upcoming_matches(self, parsed_query: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle upcoming matches requests."""
+        parameters = parsed_query.get("parameters", {})
+        days_ahead = parameters.get("days_ahead", 7)
+        nation = parameters.get("nation")
+        league_query = parameters.get("league_query")
+        max_results = parameters.get("max_results", 15)
+
+        return get_upcoming_match_list(
+            days_ahead=days_ahead,
+            league_query=league_query,
+            nation=nation,
             max_results=max_results
         )
     
 
     def _handle_recent_form(self, parsed_query: Dict[str, Any]) -> Dict[str, Any]:
         """Handle recent form analysis requests."""
+        config = get_config()
+        conn = psycopg2.connect(
+            host=config.DB_HOST,
+            database=config.DB_NAME,
+            user=config.DB_USER,
+            password=config.DB_PASSWORD
+        )
         parameters = parsed_query.get("parameters", {})
     
         team_name = parameters.get("team_name")
         last_n_matches = parameters.get("last_n_matches", 10)
-        competition_id = parameters.get("competition_id")
+        competition_name = parameters.get("competition_name")
         at_home = parameters.get("at_home")
+
+        if competition_name:
+            competition_id = search_leagues(competition_name)[0]['league_id']
+        else:
+            competition_id = None
     
         if not team_name:
             return {
@@ -197,8 +232,10 @@ class FunctionDispatcher:
             "data": None
         }
     
-        # Find team ID using team_finder
-        team_id_result = find_team_id(team_name)
+        start_time_find_team_id = time.time()
+        team_id_result = find_team_id(conn, team_name)
+        end_time_find_team_id = time.time()
+        print(f"Time taken to find team ID: {end_time_find_team_id - start_time_find_team_id} seconds")
     
         if team_id_result is None:
             return {
@@ -207,26 +244,33 @@ class FunctionDispatcher:
             "data": None
         }
     
-        # Handle suggestions if exact match not found
-        if isinstance(team_id_result, dict):
-            suggestions = team_id_result["suggestions"]
+        # Handle multiple teams found
+        if len(team_id_result) > 1:
             return {
                 "success": False,
-                "error": f"Team '{team_name}' not found exactly. Did you mean one of these?",
+                "error": "Found multiple teams with the same name. Please specify the country the team comes from.",
                 "data": {
-                    "suggestions": suggestions
+                    "possible_teams": team_id_result
                 }
             }
     
-        team_id = team_id_result
-    
-        # Call the analysis function with team_id
-        return get_recent_match_analysis(
-        team_id=team_id,
-        last_n_matches=last_n_matches,
-        competition_id=competition_id,
-        at_home=at_home
-    )
+        # Get the team_id from the single result in the list
+        team_id = team_id_result[0]["team_id"]
+        
+        start_time_get_recent_match_analysis = time.time()
+        recent_match_analysis = get_recent_match_analysis(
+            conn=conn,
+            team_id=team_id,
+            last_n_matches=last_n_matches,
+            competition_id=competition_id,
+            at_home=at_home
+        )
+        end_time_get_recent_match_analysis = time.time()
+        print(f"Time taken to get recent match analysis: {end_time_get_recent_match_analysis - start_time_get_recent_match_analysis} seconds")
+
+        return recent_match_analysis
+
+
     
 
     def _handle_general_chat(self, parsed_query: Dict[str, Any]) -> Dict[str, Any]:

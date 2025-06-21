@@ -21,11 +21,6 @@ with conn.cursor() as cursor:
 
 scraped_data = scrape_matches_from_api(leagues)
 
-output_path = 'data/api_football/raw/match_data_backup2.json'
-with open(output_path, 'w') as file:
-    json.dump(scraped_data, file, indent=4)
-    print(f"Data saved to {output_path}")
-
 upsert_records(
     conn=conn,
     table_name="matches",

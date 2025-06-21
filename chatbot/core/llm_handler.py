@@ -62,7 +62,7 @@ class LLMHandler:
         prompt = [
             {
                 "role": "system",
-                "content": """You are a football betting assistant. Your job is to classify user queries into one of these functions and extract the parameters:
+                "content": """Your name is Ian. You are a football betting assistant. Your job is to classify user queries into one of these functions and extract the parameters:
 
 1. get_match_prediction
    - home_team (required)
@@ -83,13 +83,23 @@ class LLMHandler:
 5. get_upcoming_predictions
    - days_ahead (default: 7)
    - league_query (optional)
+   - nation (optional)
    - max_results (default: 15)
 
 6. get_recent_form
    - team_name (required)
    - last_n_matches (default: 10)
-   - competition_id (optional)
+   - competition_name (optional)
    - at_home (optional boolean)
+
+7. get_upcoming_matches
+   - days_ahead (default: 7)
+   - league_query (optional)
+   - nation (optional) If any hint of a nation is mentioned, use this parameter (change from english to england, italian to italy, etc)
+   - max_results (default: 15)
+
+When the user refers to "this match" or "that match", use your conversation memory to call the function with the right parameters.
+
 
 Return ONLY a JSON object with this structure, no other text:
 {
@@ -182,7 +192,7 @@ If you are unsure about the intent, return exactly:
                 3. Structure responses clearly:
                    - Start with a summary
                    - Group related information
-                   - End with relevant context/advice
+                   - Be confident in your responses
                 
                 4. Maintain conversation context
                 5. Be very concise
@@ -212,40 +222,8 @@ If you are unsure about the intent, return exactly:
             return "I apologize, but I encountered an issue generating a response. Please try again."
 
     def manual_response(self, user_input, parsed_query, function_result, conversation_memory) -> str:
-        """Generate a response for predictions."""
-        if parsed_query['intent'] == 'get_upcoming_predictions':
-            data = function_result.get('data', {})
-            if not data.get('predictions'):
-                return "❌ No predictions available for the specified criteria."
-            
-            # Get summary and predictions
-            summary = data['summary']
-            league_info = data['search_criteria'].get('league_info', {})
-            
-            # Start with header
-            response = [
-                f"📊 **{league_info.get('league_name', 'Upcoming')} Predictions:**",
-                f"Found {summary['matches_with_predictions']} matches with predictions",
-                ""
-            ]
-            
-            # Add each prediction
-            for pred in data['predictions']:
-                home_prob = round(pred['prob_home_win'] * 100, 1)
-                draw_prob = round(pred['prob_draw'] * 100, 1)
-                away_prob = round(pred['prob_away_win'] * 100, 1)
-                
-                response.append(
-                    f"⚽ **{pred['home_team']}** vs **{pred['away_team']}**\n"
-                    f"📅 {pred['start_time']}\n"
-                    f"Prediction: **{pred['predicted_result']}** ({round(pred['confidence'] * 100, 1)}%)\n"
-                    f"Home: **{home_prob}%** | Draw: **{draw_prob}%** | Away: **{away_prob}%**"
-                )
-                response.append("")  # Add blank line between matches
-            
-            return "\n".join(response)
-            
-        elif parsed_query['intent'] == 'get_match_prediction':
+        """Generate a response for predictions and matches."""
+        if parsed_query['intent'] == 'get_match_prediction':
             data = function_result.get('data', {})
             if not data:
                 return "❌ No prediction data available."
@@ -277,6 +255,80 @@ If you are unsure about the intent, return exactly:
             ]
             
             return "\n".join(response)
+            
+        elif parsed_query['intent'] == 'get_upcoming_predictions':
+            data = function_result.get('data', {})
+            if not data.get('predictions'):
+                return "❌ No predictions available for the specified criteria."
+            
+            predictions = data['predictions']
+            response_parts = []
+            
+            # Add header
+            response_parts.append("🔮 Match Predictions:")
+            
+            # Group by date
+            current_date = None
+            for pred in predictions:
+                match_date = pred['start_time'].split('T')[0]
+                match_time = pred['start_time'].split('T')[1][:5]
+                
+                if match_date != current_date:
+                    current_date = match_date
+                    response_parts.append(f"\n📅 {match_date}")
+                
+                # Format prediction with probabilities
+                home_prob = round(pred['prob_home_win'] * 100, 1)
+                draw_prob = round(pred['prob_draw'] * 100, 1)
+                away_prob = round(pred['prob_away_win'] * 100, 1)
+                
+                response_parts.append(
+                    f"⏰ {match_time} - {pred['home_team']} vs {pred['away_team']} ({pred['competition']})\n"
+                    f"   Prediction: {pred['predicted_result']} (Confidence: {round(pred['confidence'] * 100, 1)}%)\n"
+                    f"   Home: {home_prob}% | Draw: {draw_prob}% | Away: {away_prob}%"
+                )
+            
+            return "\n".join(response_parts)
+            
+        elif parsed_query['intent'] == 'get_upcoming_matches':
+            data = function_result.get('data', {})
+            if not data.get('matches'):
+                return "❌ No upcoming matches found for the specified criteria."
+            
+            matches = data['matches']
+            summary = data['summary']
+            
+            # Build response
+            response_parts = []
+            
+            # Add header
+            response_parts.append("📅 Upcoming Matches:")
+            
+            # Group by date and competition
+            current_date = None
+            current_competition = None
+            
+            for match in matches:
+                match_date = match['start_time'].split('T')[0]
+                match_time = match['start_time'].split('T')[1][:5]
+                
+                if match_date != current_date:
+                    current_date = match_date
+                    current_competition = None
+                    response_parts.append(f"\n🗓️ {match_date}")
+                
+                if match['competition'] != current_competition:
+                    current_competition = match['competition']
+                    response_parts.append(f"\n🏆 {match['competition']} ({match['country']})")
+                
+                response_parts.append(
+                    f"⏰ {match_time} - {match['home_team']} vs {match['away_team']}"
+                )
+            
+            # Add summary footer
+            response_parts.append(f"\n\nFound {summary['total_matches_found']} matches in total.")
+            
+            return "\n".join(response_parts)
             
         elif parsed_query['intent'] == 'get_betting_recommendations' or parsed_query['intent'] == 'get_betting_value':
             data = function_result.get('data', {})
@@ -351,10 +403,10 @@ If you are unsure about the intent, return exactly:
                 "💰 **Top Value Bets:**"
             ]
             
-            # Sort bets by value percentage and get top 5
-            sorted_bets = sorted(data['value_bets'], key=lambda x: x['value_percentage'], reverse=True)[:5]
+            # Sort bets by start time
+            sorted_bets = sorted(data['value_bets'], key=lambda x: x['start_time'])
             
-            # Add each top value bet
+            # Add each value bet
             for bet in sorted_bets:
                 value = round(bet['value_percentage'], 1)
                 odds = bet['odds_value']
@@ -364,12 +416,15 @@ If you are unsure about the intent, return exactly:
                 response.append(
                     f"\n⚽ **{bet['home_team']}** vs **{bet['away_team']}**\n"
                     f"🏆 {bet['competition']} • 📅 {bet['start_time']}\n"
-                    f"- BET ON *{bet['outcome']}* @ {odds} ({bet['bookmaker_name']})\n"
+                    f"- BET ON **{bet['outcome']}** @ {odds} ({bet['bookmaker_name']})\n"
                     f"- Model Probability: {model_prob}%\n"
                     f"- Stake {stake}% of bankroll"
                 )
             
             return "\n".join(response)
+        
+        elif parsed_query['intent'] == 'general_chat':
+            return "Let's chat about football :) Ask me about predictions, upcoming matches, best matches to bet on, and team recent form, and I will do my best to help you."
             
         else:
             return "general chat response here"

@@ -55,9 +55,8 @@ class FootballChatbot:
             
             print(f"📊 Function result: {function_result}")  # Debug output
 
-
             # For predictions and value bets use pre written response for others use the llm
-            if parsed_query['intent'] in ['get_match_prediction', 'get_upcoming_value_bets', 'get_betting_recommendations', 'get_betting_value', 'get_upcoming_value_bets', 'get_upcoming_predictions']:
+            if parsed_query['intent'] in ['get_match_prediction', 'get_upcoming_value_bets', 'get_betting_recommendations', 'get_betting_value', 'get_upcoming_value_bets', 'get_upcoming_predictions', 'get_upcoming_matches', 'general_chat']:
                 response = self.llm_handler.manual_response(
                     user_input,
                     parsed_query,
