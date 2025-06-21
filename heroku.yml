@@ -1,12 +1,16 @@
 setup:
   addons:
-    - plan: heroku-postgresql:mini
+    - plan: heroku-postgresql:essential-2
 
 build:
   docker:
     web: frontend/Dockerfile
-    api: chatbot/Dockerfile
-    scheduler: scheduler/Dockerfile
+    api:
+      dockerfile: chatbot/Dockerfile
+      context: .
+    scheduler:
+      dockerfile: scheduler/Dockerfile
+      context: .
 
 release:
   command:
