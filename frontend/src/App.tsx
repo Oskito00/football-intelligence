@@ -22,6 +22,9 @@ function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [typingMessage, setTypingMessage] = useState<Message | null>(null);
   const [input, setInput] = useState("");
+  const [typingTimeoutId, setTypingTimeoutId] = useState<NodeJS.Timeout | null>(
+    null
+  );
   const theme = createCustomTheme(mode);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -47,7 +50,31 @@ function App() {
     return () => observer.disconnect();
   }, []); // Empty dependency array since we only want to set this up once
 
-  const handleSendMessage = () => {
+  const handleStopTyping = () => {
+    if (typingTimeoutId) {
+      clearTimeout(typingTimeoutId);
+      setTypingTimeoutId(null);
+    }
+    if (typingMessage) {
+      // Add the partial message to the messages array
+      setMessages((prev) => [...prev, typingMessage]);
+      setTypingMessage(null);
+    }
+  };
+
+  const handleFastForward = () => {
+    if (typingTimeoutId) {
+      clearTimeout(typingTimeoutId);
+      setTypingTimeoutId(null);
+    }
+    if (typingMessage) {
+      // Add the complete message immediately
+      setMessages((prev) => [...prev, typingMessage]);
+      setTypingMessage(null);
+    }
+  };
+
+  const handleSendMessage = async () => {
     if (!input.trim()) return;
 
     // Add user message
@@ -55,24 +82,55 @@ function App() {
     setMessages(newMessages);
     setInput("");
 
-    // Start bot response with typewriter
-    const botResponse = {
-      text: "This is a placeholder response. The actual API integration will be added later.",
-      isBot: true,
-    };
-    setTypingMessage(botResponse);
+    try {
+      // Make API call to backend
+      const response = await fetch("http://localhost:8000/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ text: input }),
+      });
 
-    // After typing is complete, add to regular messages
-    setTimeout(() => {
-      setMessages((prev) => [...prev, botResponse]);
-      setTypingMessage(null);
-    }, 1000 + botResponse.text.length * 30); // Approximate typing time
+      if (!response.ok) {
+        throw new Error("Failed to get response from server");
+      }
+
+      const data = await response.json();
+      const botResponse = {
+        text: data.response,
+        isBot: true,
+      };
+
+      // Start bot response with typewriter
+      setTypingMessage(botResponse);
+
+      // After typing is complete, add to regular messages
+      const timeoutId = setTimeout(() => {
+        setMessages((prev) => [...prev, botResponse]);
+        setTypingMessage(null);
+        setTypingTimeoutId(null);
+      }, 1000 + botResponse.text.length * 30); // Approximate typing time
+
+      setTypingTimeoutId(timeoutId);
+    } catch (error) {
+      console.error("Error:", error);
+      const errorResponse = {
+        text: "Sorry, I encountered an error processing your request. Please try again.",
+        isBot: true,
+      };
+      setMessages((prev) => [...prev, errorResponse]);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      if (typingMessage) {
+        handleStopTyping();
+      } else {
+        handleSendMessage();
+      }
     }
   };
 
@@ -175,7 +233,10 @@ function App() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onSend={handleSendMessage}
+            onStop={handleStopTyping}
+            onFastForward={handleFastForward}
             onKeyPress={handleKeyPress}
+            isTyping={!!typingMessage}
           />
         </Container>
       </Box>

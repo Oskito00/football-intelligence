@@ -39,6 +39,7 @@ class FootballChatbot:
             Natural language response
         """
         try:
+            print(f"🔍 User input: {user_input}")  # Debug output
             # Add user message to memory
             self.memory_manager.add_message("user", user_input, self.conversation_memory)
             

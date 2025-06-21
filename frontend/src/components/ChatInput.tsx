@@ -1,19 +1,25 @@
 import React from "react";
-import { TextField, InputAdornment, IconButton } from "@mui/material";
-import { Send } from "@mui/icons-material";
+import { TextField, InputAdornment, IconButton, Stack } from "@mui/material";
+import { Send, Stop, FastForward } from "@mui/icons-material";
 
 interface ChatInputProps {
   value: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onSend: () => void;
+  onStop?: () => void;
+  onFastForward?: () => void;
   onKeyPress: (e: React.KeyboardEvent) => void;
+  isTyping?: boolean;
 }
 
 const ChatInput: React.FC<ChatInputProps> = ({
   value,
   onChange,
   onSend,
+  onStop,
+  onFastForward,
   onKeyPress,
+  isTyping = false,
 }) => {
   return (
     <TextField
@@ -50,9 +56,48 @@ const ChatInput: React.FC<ChatInputProps> = ({
       InputProps={{
         endAdornment: (
           <InputAdornment position="end">
-            <IconButton onClick={onSend} color="primary" size="small">
-              <Send />
-            </IconButton>
+            <Stack direction="row" spacing={0.5}>
+              {isTyping ? (
+                <>
+                  <IconButton
+                    onClick={onStop}
+                    color="inherit"
+                    size="small"
+                    sx={{
+                      transition: "transform 0.3s ease-in-out",
+                      transform: "scale(0.9)",
+                      color: "grey.500",
+                    }}
+                  >
+                    <Stop />
+                  </IconButton>
+                  <IconButton
+                    onClick={onFastForward}
+                    color="inherit"
+                    size="small"
+                    sx={{
+                      transition: "transform 0.3s ease-in-out",
+                      transform: "scale(0.9)",
+                      color: "grey.500",
+                    }}
+                  >
+                    <FastForward />
+                  </IconButton>
+                </>
+              ) : (
+                <IconButton
+                  onClick={onSend}
+                  color="primary"
+                  size="small"
+                  sx={{
+                    transition: "transform 0.3s ease-in-out",
+                    transform: "scale(1)",
+                  }}
+                >
+                  <Send />
+                </IconButton>
+              )}
+            </Stack>
           </InputAdornment>
         ),
       }}

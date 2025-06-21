@@ -6,15 +6,15 @@ A terminal-based natural language interface for football predictions and betting
 """
 
 import sys
-import os
 from pathlib import Path
+
+from chatbot.core.chatbot import FootballChatbot
+from chatbot.utils.helpers import print_banner, typewriter_print
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent
 sys.path.append(str(project_root))
 
-from chatbot.core.chatbot import FootballChatbot
-from chatbot.utils.helpers import print_banner, typewriter_print
 
 def main():
     """Main entry point for the chatbot."""

@@ -12,10 +12,6 @@ const WelcomeMessage: React.FC<WelcomeMessageProps> = ({ onComplete }) => {
   const allMessages: Message[] = [
     { text: "Hi, I'm Ian! 👋", isBot: true },
     {
-      text: "I'm your AI football expert, powered by advanced analytics and real-time data.",
-      isBot: true,
-    },
-    {
       text: "I can help you with predictions, analysis, and insights across all major leagues.",
       isBot: true,
     },

@@ -19,7 +19,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
         maxWidth: "70%",
       }}
     >
-      <Typography>{message.text}</Typography>
+      <Typography sx={{ whiteSpace: "pre-line" }}>{message.text}</Typography>
     </Box>
   );
 };
