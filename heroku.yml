@@ -1,0 +1,19 @@
+setup:
+  addons:
+    - plan: heroku-postgresql:mini
+
+build:
+  docker:
+    web: frontend/Dockerfile
+    api: chatbot/Dockerfile
+    scheduler: scheduler/Dockerfile
+
+release:
+  command:
+    - echo 'Release phase'
+  image: api
+
+run:
+  web: npm start
+  api: uvicorn chatbot.api:app --host 0.0.0.0 --port $PORT
+  scheduler: python -m scheduler.scheduler

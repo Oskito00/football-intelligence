@@ -47,3 +47,9 @@ services:
 # Remove this too since we don't need it anymore:
 # volumes:
 #   postgres_data:
+
+build:
+  docker:
+    web: frontend/Dockerfile
+    api: chatbot/Dockerfile
+    scheduler: scheduler/Dockerfile
