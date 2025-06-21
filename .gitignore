@@ -1,7 +1,6 @@
 .env
 *.sqlite
 *.csv
-*.txt
 *.log
 *.joblib
 *.json
@@ -12,6 +11,5 @@ Data/APIfootball/raw/
 *.db-journal
 api_football.db
 api_football.db-journal
-requirements.txt
 config.py
 backup.sql.gz
