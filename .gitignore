@@ -1,7 +1,6 @@
 .env
 *.sqlite
 *.csv
-*.txt
 *.log
 *.joblib
 *.json
