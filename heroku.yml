@@ -4,8 +4,8 @@ setup:
 
 build:
   docker:
-    web: chatbot/Dockerfile
-    scheduler: scheduler/Dockerfile
+    web: Dockerfile.web
+    scheduler: Dockerfile.scheduler
 
 release:
   command:
