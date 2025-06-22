@@ -4,8 +4,12 @@ setup:
 
 build:
   docker:
-    web: chatbot/Dockerfile
-    scheduler: scheduler/Dockerfile
+    web: 
+      dockerfile: chatbot/Dockerfile
+      context: .
+    scheduler:
+      dockerfile: scheduler/Dockerfile
+      context: .
 
 release:
   command:
@@ -13,5 +17,5 @@ release:
   image: web
 
 run:
-  web: bash -c "echo '=== WEB DEBUG START ===' && echo 'Current directory:' && pwd && echo '=== ALL FILES IN CURRENT DIR ===' && ls -la && echo '=== CHATBOT DIR CONTENTS ===' && ls -la chatbot/ && echo '=== CHATBOT __INIT__ ===' && cat chatbot/__init__.py && echo '=== PYTHON PATH ===' && python -c 'import sys; print(\"Python path:\"); [print(f\"  {p}\") for p in sys.path]' && echo '=== TRYING TO IMPORT CHATBOT ===' && python -c 'import chatbot; print(\"CHATBOT IMPORTED SUCCESSFULLY\")' && echo '=== TRYING TO IMPORT CHATBOT.API ===' && python -c 'import chatbot.api; print(\"CHATBOT.API IMPORTED SUCCESSFULLY\")' && echo '=== STARTING WEB SERVER ===' && cd /app && PYTHONPATH=/app python -m uvicorn chatbot.api:app --host 0.0.0.0 --port $PORT"
-  scheduler: bash -c "echo '=== SCHEDULER DEBUG START ===' && echo 'Current directory:' && pwd && echo '=== ALL FILES IN CURRENT DIR ===' && ls -la && echo '=== DATA_SCRAPING DIR CONTENTS ===' && ls -la data_scraping/ && echo '=== DATA_SCRAPING __INIT__ ===' && cat data_scraping/__init__.py && echo '=== API_FOOTBALL DIR ===' && ls -la data_scraping/api_football/ && echo '=== PYTHON PATH ===' && python -c 'import sys; print(\"Python path:\"); [print(f\"  {p}\") for p in sys.path]' && echo '=== TRYING TO IMPORT DATA_SCRAPING ===' && python -c 'import data_scraping; print(\"DATA_SCRAPING IMPORTED SUCCESSFULLY\")' && echo '=== TRYING TO IMPORT API_FOOTBALL ===' && python -c 'import data_scraping.api_football; print(\"API_FOOTBALL IMPORTED SUCCESSFULLY\")' && echo '=== STARTING SCHEDULER ===' && cd /app && PYTHONPATH=/app python -m scheduler.scheduler"
+  web: python -m uvicorn chatbot.api:app --host 0.0.0.0 --port $PORT
+  scheduler: python -m scheduler.scheduler
