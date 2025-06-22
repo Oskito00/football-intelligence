@@ -9,11 +9,10 @@ app = FastAPI()
 # Add CORS middleware with more permissive configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # More permissive for development
-    allow_credentials=False,  # Changed to False since we're using allow_origins=["*"]
+    allow_origins=["https://football-predictor-r7ov.onrender.com", "http://localhost:3000"],  # More permissive for development
+    allow_credentials=True,  # Changed to False since we're using allow_origins=["*"]
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]
 )
 
 # Initialize chatbot
