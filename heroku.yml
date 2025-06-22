@@ -13,5 +13,5 @@ release:
   image: web
 
 run:
-  web: python -m uvicorn chatbot.api:app --host 0.0.0.0 --port $PORT
-  scheduler: python -m scheduler.scheduler
+  web: PYTHONPATH=/app python -m uvicorn chatbot.api:app --host 0.0.0.0 --port $PORT
+  scheduler: PYTHONPATH=/app python -m scheduler.scheduler
