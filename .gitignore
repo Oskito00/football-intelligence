@@ -10,5 +10,4 @@ Data/APIfootball/raw/
 *.db-journal
 api_football.db
 api_football.db-journal
-config.py
 backup.sql.gz
