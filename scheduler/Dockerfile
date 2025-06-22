@@ -13,7 +13,7 @@ COPY scheduler/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the entire project
-COPY . .
+COPY .. .
 
 # Run the scheduler
 CMD ["python", "-m", "scheduler.scheduler"]

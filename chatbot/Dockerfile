@@ -13,7 +13,7 @@ COPY chatbot/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the entire project
-COPY . .
+COPY .. .
 
 # Run the FastAPI server
 CMD ["python", "-m", "uvicorn", "chatbot.api:app", "--host", "0.0.0.0", "--port", "5000"]

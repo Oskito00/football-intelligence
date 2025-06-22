@@ -4,12 +4,8 @@ setup:
 
 build:
   docker:
-    web: 
-      dockerfile: chatbot/Dockerfile
-      context: .
-    scheduler:
-      dockerfile: scheduler/Dockerfile
-      context: .
+    web: chatbot/Dockerfile
+    scheduler: scheduler/Dockerfile
 
 release:
   command:
