@@ -19,5 +19,5 @@ release:
 
 run:
   web: npm start
-  api: uvicorn chatbot.api:app --host 0.0.0.0 --port $PORT
+  api: uvicorn chatbot.api:app --host 0.0.0.0 --port $PORT  
   scheduler: python -m scheduler.scheduler
