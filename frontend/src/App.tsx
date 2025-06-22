@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import logo from './inbetments.png';
 import {
   AppBar,
   Box,
@@ -152,7 +153,7 @@ function App() {
           <Toolbar>
             <Box
               component="img"
-              src="/inbetments.png"
+              src={logo}
               alt="Inbetments Logo"
               sx={{
                 height: 40,
