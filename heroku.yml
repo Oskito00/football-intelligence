@@ -4,14 +4,14 @@ setup:
 
 build:
   docker:
-    api: chatbot/Dockerfile
+    web: chatbot/Dockerfile
     scheduler: scheduler/Dockerfile
 
 release:
   command:
     - echo 'Release phase'
-  image: api
+  image: web
 
 run:
-  api: uvicorn chatbot.api:app --host 0.0.0.0 --port $PORT
+  web: uvicorn chatbot.api:app --host 0.0.0.0 --port $PORT
   scheduler: python -m scheduler.scheduler
