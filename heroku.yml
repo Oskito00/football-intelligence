@@ -13,5 +13,5 @@ release:
   image: web
 
 run:
-  web: python -m uvicorn chatbot.api:app --host 0.0.0.0 --port $PORT
-  scheduler: python -m scheduler.scheduler
+  web: bash -c "echo '=== WEB DEBUG ===' && echo 'PWD:' && pwd && echo 'LS -LA:' && ls -la && echo 'CHATBOT DIR:' && ls -la chatbot/ && echo 'DATA_SCRAPING DIR:' && ls -la data_scraping/ && echo 'PYTHON PATH:' && python -c 'import sys; print(sys.path)' && echo 'TRYING CHATBOT IMPORT:' && python -c 'import chatbot; print(\"SUCCESS\")' && echo 'STARTING WEB...' && python -m uvicorn chatbot.api:app --host 0.0.0.0 --port $PORT"
+  scheduler: bash -c "echo '=== SCHEDULER DEBUG ===' && echo 'PWD:' && pwd && echo 'LS -LA:' && ls -la && echo 'SCHEDULER DIR:' && ls -la scheduler/ && echo 'DATA_SCRAPING DIR:' && ls -la data_scraping/ && echo 'PYTHON PATH:' && python -c 'import sys; print(sys.path)' && echo 'TRYING DATA_SCRAPING IMPORT:' && python -c 'import data_scraping; print(\"SUCCESS\")' && echo 'STARTING SCHEDULER...' && python -m scheduler.scheduler"
