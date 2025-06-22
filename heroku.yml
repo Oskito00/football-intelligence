@@ -4,7 +4,6 @@ setup:
 
 build:
   docker:
-    web: frontend/Dockerfile
     api: chatbot/Dockerfile
     scheduler: scheduler/Dockerfile
 
@@ -14,6 +13,5 @@ release:
   image: api
 
 run:
-  web: npm start
   api: uvicorn chatbot.api:app --host 0.0.0.0 --port $PORT
   scheduler: python -m scheduler.scheduler

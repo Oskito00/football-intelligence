@@ -17,7 +17,7 @@ import ChatInput from "./components/ChatInput";
 import WelcomeMessage from "./components/WelcomeMessage";
 import TypewriterMessage from "./components/TypewriterMessage";
 
-const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+const API_URL = process.env.REACT_APP_API_URL || "https://inbetments-c9b27c044fce.herokuapp.com/";
 
 function App() {
   const [mode, setMode] = useState<ColorMode>("dark");
