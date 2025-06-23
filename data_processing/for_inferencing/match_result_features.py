@@ -80,15 +80,3 @@ def process_future_matches(conn):
         
         # Update processed status for inference
         update_processed_status(conn, match_ids, with_formation_flags, mode='inference')
-
-
-if __name__ == "__main__":
-    config = get_config()
-    conn = psycopg2.connect(
-        host=config.DB_HOST,
-        database=config.DB_NAME,
-        user=config.DB_USER,
-        password=config.DB_PASSWORD,
-        cursor_factory=RealDictCursor
-    )
-    process_future_matches(conn)

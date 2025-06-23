@@ -1,11 +1,14 @@
+import psycopg2
 import schedule
 import time
 import os
 from datetime import datetime
 import sys 
 import logging
+from psycopg2.extras import RealDictCursor
 
 # Import your script functions
+from config import get_config
 from data_scraping.api_football.all_data.scrape_league_ids import get_all_leagues_on_api
 from data_scraping.api_football.current_season.current_seasons_scrape import scrape_current_seasons
 from data_processing.for_training.match_result_features import process_matches
@@ -35,20 +38,40 @@ def run_script(script_name, func):
 
 def run_all_scripts():
     """Run all scripts in sequence"""
-    scripts = [
-        ("League IDs Scraper", get_all_leagues_on_api),
-        ("Current Seasons Scraper", scrape_current_seasons),
-        ("Training Data Processor", process_matches),
-        ("Future Matches Processor", process_future_matches),
-        ("Result Model Inference", infer_results),
-        ("Future Match Odds Scraper", scrape_future_match_odds)
+    config = get_config()
+    with psycopg2.connect(
+    host=config.DB_HOST,
+    database=config.DB_NAME,
+    user=config.DB_USER,
+    password=config.DB_PASSWORD,
+    cursor_factory=RealDictCursor
+    ) as conn:
+        scripts = [
+        ("League IDs Scraper", lambda: get_all_leagues_on_api(conn)),
+        ("Current Seasons Scraper", lambda: scrape_current_seasons()),
+        ("Training Data Processor", lambda: process_matches(conn)),
+        ("Future Matches Processor", lambda: process_future_matches(conn)),
+        ("Result Model Inference", lambda: infer_results_with_args(conn)),
+        ("Future Match Odds Scraper", lambda: scrape_future_match_odds(conn))
     ]
     
-    for script_name, func in scripts:
-        run_script(script_name, func)
+        for script_name, func in scripts:
+            run_script(script_name, func)
+
+def infer_results_with_args(conn):
+    """Wrapper to call infer_results with proper arguments"""
+    # Set up the arguments that main_infer.py expects
+    sys.argv = ['main_infer.py', 'result_model_early', '--mode', 'inference']
+    
+    # Import and call the main function with the connection
+    from ml_pipeline.main_infer import main
+    main(conn)
 
 def main():
     logger.info("Scheduler starting...")
+
+    # Run all scripts immediately
+    run_all_scripts()
     
     # Schedule all scripts to run at midnight
     schedule.every().day.at("00:00").do(run_all_scripts)

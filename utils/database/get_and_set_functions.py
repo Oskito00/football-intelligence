@@ -218,7 +218,15 @@ def get_future_matches_with_odds(conn) -> List[int]:
     """
     
     cursor.execute(query)
-    match_ids = [row[0] for row in cursor.fetchall()]
+    # Handle both RealDictCursor (dictionaries) and regular cursor (tuples)
+    rows = cursor.fetchall()
+    if rows and isinstance(rows[0], dict):
+        # RealDictCursor returns dictionaries
+        match_ids = [row['match_id'] for row in rows]
+    else:
+        # Regular cursor returns tuples
+        match_ids = [row[0] for row in rows]
+    
     cursor.close()
     
     return match_ids

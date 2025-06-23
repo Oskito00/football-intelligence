@@ -48,7 +48,7 @@ def get_inferrer(model_name: str):
     return inferrers[model_name]
 
 
-def main():
+def main(conn):
     parser = argparse.ArgumentParser(description='Run inference with trained ML models')
     parser.add_argument('config', help='Name of the config file (without extension)')
     parser.add_argument('--model-version', help='Specific model version to use (default: latest)')
@@ -73,15 +73,6 @@ def main():
         
         # Get database connection using your existing config
         logger.info("Connecting to database")
-        db_config = get_config()  # This gets your database config
-        
-        conn = psycopg2.connect(
-            host=db_config.DB_HOST,
-            database=db_config.DB_NAME,
-            user=db_config.DB_USER,
-            password=db_config.DB_PASSWORD,
-            cursor_factory=RealDictCursor
-        )
         
         # Get model name from config
         model_name = config['model']['name']
@@ -127,10 +118,6 @@ def main():
     except Exception as e:
         logging.error(f"Inference failed with error: {str(e)}")
         raise
-    finally:
-        # Close database connection
-        if 'conn' in locals():
-            conn.close()
 
 
 if __name__ == "__main__":

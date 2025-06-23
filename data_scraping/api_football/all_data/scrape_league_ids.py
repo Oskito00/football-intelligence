@@ -12,20 +12,13 @@ headers = {
     'x-rapidapi-host': 'v3.football.api-sports.io'
 }
 
-def get_all_leagues_on_api():
+def get_all_leagues_on_api(conn):
     response = requests.get("https://v3.football.api-sports.io/leagues", headers=headers)
 
 
     if response.status_code != 200:
         print("Failed to fetch leagues:", response.text)
         return
-
-    conn = psycopg2.connect(
-        host=config.DB_HOST,
-        database=config.DB_NAME,
-        user=config.DB_USER,
-        password=config.DB_PASSWORD
-    )
 
     data = response.json().get('response', [])
 
@@ -47,7 +40,6 @@ def get_all_leagues_on_api():
 
     upsert_records(conn, 'leagues', rows, ['id'], batch_size=1000)
 
-    conn.close()
 
 if __name__ == "__main__":
-    get_all_leagues_on_api()
+    get_all_leagues_on_api(conn)

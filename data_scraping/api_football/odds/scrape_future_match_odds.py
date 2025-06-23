@@ -2,6 +2,7 @@ import requests
 import psycopg2
 from datetime import datetime
 from time import sleep
+from psycopg2.extras import RealDictCursor
 
 from config import get_config
 from utils.database.create_tables import create_odds_table
@@ -119,25 +120,49 @@ def save_odds_to_db(conn, odds_records: list):
     finally:
         cursor.close()
 
-def scrape_future_match_odds():
+def scrape_future_match_odds(conn=None):
     """Main function to scrape odds for future matches"""
     print("🚀 Starting odds scraping for future matches...")
     print(f"🎯 Target bookmakers: {TARGET_BOOKMAKERS}")
     
-    conn = psycopg2.connect(
-        host=config.DB_HOST,
-        database=config.DB_NAME,
-        user=config.DB_USER,
-        password=config.DB_PASSWORD
-    )
+    # If no connection provided, create one
+    should_close_conn = conn is None
+    if conn is None:
+        print("🔌 Creating new database connection...")
+        conn = psycopg2.connect(
+            host=config.DB_HOST,
+            database=config.DB_NAME,
+            user=config.DB_USER,
+            password=config.DB_PASSWORD,
+            cursor_factory=RealDictCursor
+        )
+    else:
+        print("🔌 Using provided database connection...")
     
     try:
+        print("📋 Creating odds table if it doesn't exist...")
         # Create odds table if it doesn't exist
         create_odds_table(conn)
+        print("✅ Odds table ready")
         
         # Get future matches
-        match_ids = get_future_matches_with_odds(conn)
-        print(f"📋 Found {len(match_ids)} future matches to process")
+        print("🔍 Querying for future matches with odds...")
+        try:
+            match_ids = get_future_matches_with_odds(conn)
+            print(f"📋 Found {len(match_ids)} future matches to process")
+        except Exception as e:
+            print(f"❌ Error in get_future_matches_with_odds: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return
+        
+        if len(match_ids) == 0:
+            print("⚠️ No future matches found with odds available")
+            print("💡 This could mean:")
+            print("   • No matches have has_odds = TRUE")
+            print("   • No future matches within 7 days")
+            print("   • All future matches already have scores")
+            return
         
         successful_matches = 0
         failed_matches = 0
@@ -183,9 +208,12 @@ def scrape_future_match_odds():
         
     except Exception as e:
         print(f"❌ Error during scraping: {str(e)}")
+        import traceback
+        print(f"🔍 Full error details:")
+        traceback.print_exc()
         
     finally:
-        conn.close()
-
-if __name__ == "__main__":
-    scrape_future_match_odds()
+        # Only close the connection if we created it
+        if should_close_conn and conn:
+            print("🔌 Closing database connection...")
+            conn.close()
