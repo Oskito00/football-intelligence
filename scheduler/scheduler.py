@@ -48,7 +48,7 @@ def run_all_scripts():
     ) as conn:
         scripts = [
         ("League IDs Scraper", lambda: get_all_leagues_on_api(conn)),
-        ("Current Seasons Scraper", lambda: scrape_current_seasons()),
+        ("Current Seasons Scraper", lambda: scrape_current_seasons(conn)),
         ("Training Data Processor", lambda: process_matches(conn)),
         ("Future Matches Processor", lambda: process_future_matches(conn)),
         ("Result Model Inference", lambda: infer_results_with_args(conn)),
@@ -68,18 +68,12 @@ def infer_results_with_args(conn):
     main(conn)
 
 def main():
-    logger.info("Scheduler starting...")
+    logger.info("🚀 Starting daily football prediction pipeline...")
 
-    # Run all scripts immediately
+    # Run all scripts once and exit
     run_all_scripts()
     
-    # Schedule all scripts to run at midnight
-    schedule.every().day.at("00:00").do(run_all_scripts)
-    
-    # Keep the script running
-    while True:
-        schedule.run_pending()
-        time.sleep(60)
+    logger.info("✅ Daily pipeline completed successfully!")
 
 if __name__ == "__main__":
     main()
