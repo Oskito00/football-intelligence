@@ -5,6 +5,7 @@ setup:
 build:
   docker:
     web: Dockerfile.web
+    scheduler: Dockerfile.scheduler
 
 release:
   command:
