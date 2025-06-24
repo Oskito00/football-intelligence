@@ -1,5 +1,4 @@
 import psycopg2
-import schedule
 import time
 import os
 from datetime import datetime
@@ -48,7 +47,7 @@ def run_all_scripts():
     ) as conn:
         scripts = [
         ("League IDs Scraper", lambda: get_all_leagues_on_api(conn)),
-        ("Current Seasons Scraper", lambda: scrape_current_seasons(conn)),
+        ("Current Seasons Scraper", lambda: scrape_current_seasons()),
         ("Training Data Processor", lambda: process_matches(conn)),
         ("Future Matches Processor", lambda: process_future_matches(conn)),
         ("Result Model Inference", lambda: infer_results_with_args(conn)),
