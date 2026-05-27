@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import json
 
+from football_intelligence.features.schema import FORM_FEATURE_SCHEMA
 from ml_pipeline.features.base_feature_loader import BaseFeatureLoader
 
 
@@ -36,14 +37,14 @@ class ResultFeatureLoader(BaseFeatureLoader):
             self.formation_table = 'formation_future'  # If it exists
             self.stage_table = 'stage_of_season_future'
             self.match_info_table = 'match_info_future'
-            self.form_history_table = 'form_future'
+            self.form_history_table = FORM_FEATURE_SCHEMA.table_for_mode(mode)
             self.h2h_table = 'h2h_future'
         else:  # training mode
             self.elo_table = 'elo_history'
             self.formation_table = 'formation_history'
             self.stage_table = 'stage_of_season_history'
             self.match_info_table = 'match_info_history'
-            self.form_history_table = 'form_history'
+            self.form_history_table = FORM_FEATURE_SCHEMA.table_for_mode(mode)
             self.h2h_table = 'h2h_history'
         
         self.logger.info(f"Feature loader initialized for {mode} mode using {self.elo_table}")
@@ -54,11 +55,11 @@ class ResultFeatureLoader(BaseFeatureLoader):
         """Return list of required database tables"""
         base_tables = [
             'matches',
-            'elo_history',
-            'stage_of_season_history',
-            'match_info_history',
-            'form_history',
-            'h2h_history'
+            self.elo_table,
+            self.stage_table,
+            self.match_info_table,
+            self.form_history_table,
+            self.h2h_table
         ]
         
         # Add formation_history only if formations are required
@@ -138,17 +139,15 @@ class ResultFeatureLoader(BaseFeatureLoader):
         
         # Add form history - INNER JOIN with minimum form length check
         if self.form_history_table in self.feature_tables:
-            select_fields.extend([
-                "-- FORM HISTORY",
-                "fh.home_team_form::jsonb as home_team_form",
-                "fh.away_team_form::jsonb as away_team_form",
-                "fh.draw_features::jsonb as draw_features"
-            ])
+            select_fields.extend(["-- FORM HISTORY"])
+            select_fields.extend(FORM_FEATURE_SCHEMA.loader_select_fields("fh"))
+            form_join_conditions = "\n                AND ".join(
+                FORM_FEATURE_SCHEMA.loader_join_conditions("fh")
+            )
             joins.append(f"""
                 INNER JOIN {self.form_history_table} fh 
                 ON {table_alias}.match_id = fh.match_id 
-                AND jsonb_array_length(fh.home_team_form) >= 10
-                AND jsonb_array_length(fh.away_team_form) >= 10
+                AND {form_join_conditions}
             """)
         
         # Add H2H features - INNER JOIN
@@ -367,14 +366,7 @@ class ResultFeatureLoader(BaseFeatureLoader):
         # Process draw features
         if 'draw_features' in df.columns:
             # Extract draw features from JSONB
-            draw_feature_names = [
-                'home_draw_rate_3', 'home_draw_rate_5', 'home_draw_rate_10',
-                'away_draw_rate_3', 'away_draw_rate_5', 'away_draw_rate_10',
-                'both_draw_rate_3', 'both_draw_rate_5', 'both_draw_rate_10',
-                'zero_goals_rate_3', 'zero_goals_rate_5', 'zero_goals_rate_10',
-                'home_avg_goal_diff_3', 'home_avg_goal_diff_5', 'home_avg_goal_diff_10',
-                'away_avg_goal_diff_3', 'away_avg_goal_diff_5', 'away_avg_goal_diff_10'
-            ]
+            draw_feature_names = FORM_FEATURE_SCHEMA.expanded_json_features["draw_features"]
             
             # Convert JSONB to dict and extract features
             for feature in draw_feature_names:
@@ -384,7 +376,14 @@ class ResultFeatureLoader(BaseFeatureLoader):
             
             # Drop original draw_features column
             df = df.drop('draw_features', axis=1)
-            df = df.drop(['home_team_form', 'away_team_form'], axis=1)
+            df = df.drop(
+                [
+                    column
+                    for column in FORM_FEATURE_SCHEMA.loader_json_length_columns
+                    if column in df.columns
+                ],
+                axis=1,
+            )
         
         # Drop columns we don't want to use as features
         columns_to_drop = [
@@ -452,4 +451,4 @@ class ResultFeatureLoader(BaseFeatureLoader):
     def _encode_formations(self, df: pd.DataFrame) -> pd.DataFrame:
         """Legacy method - use _create_formation_features instead"""
         self._create_formation_features(df)
-        return df 
+        return df

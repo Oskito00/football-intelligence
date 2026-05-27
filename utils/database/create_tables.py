@@ -1,5 +1,7 @@
 #This file contains all the code to create the necessary tables in the database
 
+from football_intelligence.features.schema import FORM_FEATURE_SCHEMA
+
 def create_tables(conn):
     """Creates tables of use to processing functions"""
     create_team_match_history_table(conn)
@@ -66,19 +68,7 @@ def create_future_tables(conn):
 
 def create_form_future_table(conn):
     """Creates table to store processed form match data"""
-    with conn.cursor() as cur:
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS form_future (
-                match_id INTEGER PRIMARY KEY,
-                home_team_id INTEGER,
-                away_team_id INTEGER,
-                home_name VARCHAR(255),
-                away_name VARCHAR(255),
-                home_team_form JSONB,
-                away_team_form JSONB,
-                draw_features JSONB
-            )
-        """)
+    _create_form_feature_table(conn, FORM_FEATURE_SCHEMA.table_for_mode("inference"))
 
 def create_h2h_future_table(conn):
     """Creates table to store processed H2H match data"""
@@ -794,17 +784,15 @@ def create_odds_table(conn):
 
 def create_form_history_table(conn):
     """Creates table to store form history for each match"""
+    _create_form_feature_table(conn, FORM_FEATURE_SCHEMA.table_for_mode("training"))
+
+
+def _create_form_feature_table(conn, table_name):
+    columns_sql = ",\n                ".join(FORM_FEATURE_SCHEMA.ddl_columns())
     with conn.cursor() as cur:
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS form_history (
-                match_id INTEGER PRIMARY KEY,
-                home_team_id INTEGER,
-                away_team_id INTEGER,
-                home_name VARCHAR(255),
-                away_name VARCHAR(255),
-                home_team_form JSONB,
-                away_team_form JSONB,
-                draw_features JSONB
+        cur.execute(f"""
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                {columns_sql}
             )
         """)
 

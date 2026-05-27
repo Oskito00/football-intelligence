@@ -56,3 +56,19 @@ Migration pattern:
 2. Add product-language interfaces in this namespace before changing callers.
 3. Use lazy compatibility exports only as temporary bridges to legacy modules.
 4. Move real implementation into these package homes in follow-up issues, then delete the bridge export when no callers need it.
+
+## Feature schema registry
+
+`football_intelligence.features.schema` is the tracer-bullet home for feature
+family schema definitions. The first registered family is `form`, centralizing:
+
+- Historical and Future Feature Set table names: `form_history` and
+  `form_future`.
+- Storage columns and JSON columns written by the form feature manager.
+- JSON loader selects, minimum form-history length checks, and draw-feature
+  expansion columns expected by the result model loader.
+
+Follow-up feature-family migrations should add their table pairs, storage
+columns, JSON expansion rules, and loader expectations to the registry first,
+then update the manager, table DDL, and model loader to consume the same schema
+definition before changing behavior.

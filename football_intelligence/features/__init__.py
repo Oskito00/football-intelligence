@@ -10,6 +10,11 @@ from football_intelligence.features.pipeline import (
     default_feature_pipeline_dependencies,
     run_feature_pipeline,
 )
+from football_intelligence.features.schema import (
+    FORM_FEATURE_SCHEMA,
+    FeatureFamilySchema,
+    get_feature_schema,
+)
 
 _LEGACY_EXPORTS = {
     "EloManager": LegacyExport(
@@ -22,9 +27,12 @@ __all__ = [
     "FeaturePipelineDependencies",
     "FeaturePipelineResult",
     "FeatureSetMode",
+    "FeatureFamilySchema",
+    "FORM_FEATURE_SCHEMA",
     "build_future_feature_set",
     "build_historical_feature_set",
     "default_feature_pipeline_dependencies",
+    "get_feature_schema",
     "run_feature_pipeline",
     *_LEGACY_EXPORTS,
 ]
