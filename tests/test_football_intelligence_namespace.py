@@ -74,3 +74,20 @@ def test_legacy_database_helper_wrapper_keeps_old_import_path_compatible():
     )
 
     assert legacy_get_from_matches is get_from_matches
+
+
+def test_database_namespace_exposes_read_only_football_queries():
+    from football_intelligence.database import (
+        FootballQueryError,
+        PostgresReadOnlyRunner,
+        ReadOnlyFootballQueries,
+    )
+    from football_intelligence.database.football import (
+        FootballQueryError as ModuleFootballQueryError,
+        PostgresReadOnlyRunner as ModulePostgresReadOnlyRunner,
+        ReadOnlyFootballQueries as ModuleReadOnlyFootballQueries,
+    )
+
+    assert FootballQueryError is ModuleFootballQueryError
+    assert PostgresReadOnlyRunner is ModulePostgresReadOnlyRunner
+    assert ReadOnlyFootballQueries is ModuleReadOnlyFootballQueries
