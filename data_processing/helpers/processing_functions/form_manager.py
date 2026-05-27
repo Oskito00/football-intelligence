@@ -286,6 +286,10 @@ class FormManager:
                 placeholders_sql = ", ".join(
                     f"%({column})s" for column in storage_columns
                 )
+                update_assignments_sql = ",\n                        ".join(
+                    f"{column} = EXCLUDED.{column}"
+                    for column in FORM_FEATURE_SCHEMA.json_columns
+                )
                 
                 cur.executemany(f"""
                     INSERT INTO {table_name} (
@@ -295,9 +299,7 @@ class FormManager:
                         {placeholders_sql}
                     )
                     ON CONFLICT (match_id) DO UPDATE
-                    SET home_team_form = EXCLUDED.home_team_form,
-                        away_team_form = EXCLUDED.away_team_form,
-                        draw_features = EXCLUDED.draw_features
+                    SET {update_assignments_sql}
                 """, [{
                     'match_id': record['match_id'],
                     'home_team_id': record['home_team_id'],

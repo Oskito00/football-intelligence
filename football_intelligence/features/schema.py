@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -14,10 +15,10 @@ class FeatureFamilySchema:
     future_table: str
     storage_columns: tuple[str, ...]
     json_columns: tuple[str, ...] = ()
-    json_column_types: dict[str, str] | None = None
+    column_types: Mapping[str, str] = field(default_factory=dict)
     loader_json_columns: tuple[str, ...] = ()
     loader_json_length_columns: tuple[str, ...] = ()
-    expanded_json_features: dict[str, tuple[str, ...]] | None = None
+    expanded_json_features: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
 
     def table_for_mode(self, mode: str) -> str:
         """Return the table name used by a feature processing mode."""
@@ -43,10 +44,9 @@ class FeatureFamilySchema:
 
     def ddl_columns(self) -> tuple[str, ...]:
         """Return storage columns with database types for CREATE TABLE statements."""
-        json_types = self.json_column_types or {}
         ddl_columns = []
         for column in self.storage_columns:
-            column_type = json_types.get(column)
+            column_type = self.column_types.get(column)
             if column_type is None:
                 column_type = "INTEGER" if column.endswith("_id") else "VARCHAR(255)"
             ddl_columns.append(f"{column} {column_type}")
@@ -68,7 +68,7 @@ FORM_FEATURE_SCHEMA = FeatureFamilySchema(
         "draw_features",
     ),
     json_columns=("home_team_form", "away_team_form", "draw_features"),
-    json_column_types={
+    column_types={
         "match_id": "INTEGER PRIMARY KEY",
         "home_team_id": "INTEGER",
         "away_team_id": "INTEGER",
