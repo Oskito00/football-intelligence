@@ -59,6 +59,14 @@ The first read-only **Analyst Agent** also lives in `football_intelligence.analy
 
 LangChain imports are isolated to the analyst agent module and are loaded only when the default LangChain adapters are constructed.
 
+The existing chat API contract is served from `football_intelligence.api` and
+kept compatible through `chatbot.api`:
+
+- `POST /api/chat` still accepts `{"text": "..."}` and returns `{"response": "..."}`.
+- `POST /api/reset` still returns `{"message": "Conversation reset successfully"}`.
+- API conversation memory keeps recent user and assistant messages for follow-up context; reset clears that memory.
+- The API delegates answers to the read-only **Analyst Agent**, so it does not expose Prediction Refresh, Model Training, ingestion, arbitrary SQL, or other operational capabilities.
+
 Migration pattern:
 
 1. Keep existing import paths working while behavior moves gradually.

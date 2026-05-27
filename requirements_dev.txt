@@ -1,5 +1,6 @@
 # Core web framework
 fastapi
+httpx
 uvicorn
 pydantic
 
