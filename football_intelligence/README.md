@@ -12,6 +12,16 @@ Use these package homes for new code:
 - `football_intelligence.database`: database access interfaces.
 - `football_intelligence.cli`: operational commands such as **Prediction Refresh**.
 
+Deployment boundary:
+
+The durable operational interface is the CLI, not any host-specific scheduler
+file. **Prediction Refresh** is available through
+`python -m football_intelligence.cli prediction-refresh`, and **Model Training**
+is available through `python -m football_intelligence.cli model-training`.
+Heroku, Docker, cron, or another runtime can invoke those commands. Existing
+Heroku scheduler files are compatibility runners during migration, not the
+conceptual owner of the **Match Intelligence Lifecycle**.
+
 Initial read-only football queries live in `football_intelligence.database`:
 
 - `ReadOnlyFootballQueries.get_match_prediction(match_id)` returns one **Prediction** dictionary or `None`.
