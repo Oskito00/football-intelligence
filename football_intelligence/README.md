@@ -23,6 +23,20 @@ Initial read-only football queries live in `football_intelligence.database`:
 
 Database failures raise `FootballQueryError` so Analyst Tools can distinguish backend errors from valid no-result lookups.
 
+Initial **Analyst Tools** live in `football_intelligence.analyst`:
+
+- `AnalystFootballTools.definitions` returns the curated tool catalogue for `match_prediction`, `upcoming_matches`, `recent_form`, `match_odds`, and `value_lookup`.
+- `AnalystFootballTools.run(name, arguments)` dispatches one read-only tool by name.
+- Direct methods are available for the same tools when deterministic Python callers do not need name-based dispatch.
+
+Every Analyst Tool returns a stable envelope:
+
+```python
+{"success": bool, "tool": str, "error": dict | None, "data": object | None}
+```
+
+Tool data is converted to agent-safe Python values, including ISO strings for dates and datetimes. Analyst Tools call `ReadOnlyFootballQueries`; they do not expose arbitrary SQL or reach into legacy chatbot internals.
+
 Migration pattern:
 
 1. Keep existing import paths working while behavior moves gradually.

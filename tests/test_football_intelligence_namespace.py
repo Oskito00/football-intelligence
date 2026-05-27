@@ -49,6 +49,23 @@ def test_analyst_namespace_keeps_legacy_chatbot_import_compatible():
     assert LegacyAnalystAgent is FootballChatbot
 
 
+def test_analyst_namespace_exposes_read_only_tools():
+    from football_intelligence.analyst import (
+        ANALYST_TOOL_DEFINITIONS,
+        AnalystFootballTools,
+        AnalystToolDefinition,
+    )
+    from football_intelligence.analyst.tools import (
+        ANALYST_TOOL_DEFINITIONS as ModuleAnalystToolDefinitions,
+        AnalystFootballTools as ModuleAnalystFootballTools,
+        AnalystToolDefinition as ModuleAnalystToolDefinition,
+    )
+
+    assert ANALYST_TOOL_DEFINITIONS is ModuleAnalystToolDefinitions
+    assert AnalystFootballTools is ModuleAnalystFootballTools
+    assert AnalystToolDefinition is ModuleAnalystToolDefinition
+
+
 @pytest.mark.parametrize(("module_name", "attribute_name"), LEGACY_ENTRYPOINTS)
 def test_legacy_entrypoint_imports_still_work(module_name, attribute_name):
     module = importlib.import_module(module_name)
