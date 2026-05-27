@@ -189,7 +189,8 @@ class AnalystFootballTools:
         """Get the latest Prediction for one match."""
         tool = "match_prediction"
         try:
-            prediction = self._queries.get_match_prediction(int(match_id))
+            normalized_match_id = int(match_id)
+            prediction = self._queries.get_match_prediction(normalized_match_id)
         except FootballQueryError as exc:
             return _failure(tool, "backend_error", str(exc))
         except (TypeError, ValueError) as exc:
@@ -255,9 +256,11 @@ class AnalystFootballTools:
         """Analyze recent Completed Match form for a team."""
         tool = "recent_form"
         try:
+            normalized_team_id = int(team_id)
+            normalized_last_n_matches = int(last_n_matches)
             result = self._queries.get_recent_form(
-                team_id=int(team_id),
-                last_n_matches=int(last_n_matches),
+                team_id=normalized_team_id,
+                last_n_matches=normalized_last_n_matches,
                 competition_id=competition_id,
                 at_home=at_home,
             )
@@ -279,15 +282,17 @@ class AnalystFootballTools:
         """Get match-result odds for one match."""
         tool = "match_odds"
         try:
+            normalized_match_id = int(match_id)
+            normalized_bet_type_id = int(bet_type_id)
             if include_all_bookmakers:
                 odds = self._queries.get_latest_match_odds(
-                    int(match_id),
-                    bet_type_id=int(bet_type_id),
+                    normalized_match_id,
+                    bet_type_id=normalized_bet_type_id,
                 )
             else:
                 odds = self._queries.get_best_odds_for_match(
-                    int(match_id),
-                    bet_type_id=int(bet_type_id),
+                    normalized_match_id,
+                    bet_type_id=normalized_bet_type_id,
                 )
         except FootballQueryError as exc:
             return _failure(tool, "backend_error", str(exc))
@@ -299,8 +304,8 @@ class AnalystFootballTools:
         return _success(
             tool,
             {
-                "match_id": int(match_id),
-                "bet_type_id": int(bet_type_id),
+                "match_id": normalized_match_id,
+                "bet_type_id": normalized_bet_type_id,
                 "include_all_bookmakers": bool(include_all_bookmakers),
                 "odds": odds,
             },
