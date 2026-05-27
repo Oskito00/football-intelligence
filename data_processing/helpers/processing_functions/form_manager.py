@@ -5,6 +5,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import json
 
+from football_intelligence.features.schema import FORM_FEATURE_SCHEMA
 from utils.parsing.list import extract_team_ids
 
 class FormManager:
@@ -279,20 +280,19 @@ class FormManager:
         if self.form_history:
             with self.conn.cursor() as cur:
                 # Choose table based on mode
-                table_name = 'form_future' if self.mode == 'inference' else 'form_history'
+                table_name = FORM_FEATURE_SCHEMA.table_for_mode(self.mode)
+                storage_columns = FORM_FEATURE_SCHEMA.storage_columns
+                columns_sql = ", ".join(storage_columns)
+                placeholders_sql = ", ".join(
+                    f"%({column})s" for column in storage_columns
+                )
                 
                 cur.executemany(f"""
                     INSERT INTO {table_name} (
-                        match_id, home_team_id, away_team_id, 
-                        home_name, away_name,
-                        home_team_form, away_team_form,
-                        draw_features
+                        {columns_sql}
                     )
                     VALUES (
-                        %(match_id)s, %(home_team_id)s, %(away_team_id)s,
-                        %(home_name)s, %(away_name)s,
-                        %(home_team_form)s, %(away_team_form)s,
-                        %(draw_features)s
+                        {placeholders_sql}
                     )
                     ON CONFLICT (match_id) DO UPDATE
                     SET home_team_form = EXCLUDED.home_team_form,
