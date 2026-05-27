@@ -3,6 +3,9 @@ fastapi
 uvicorn
 pydantic
 
+# Analyst Agent orchestration
+langchain-core
+
 # Database
 psycopg2-binary==2.9.9
 SQLAlchemy==2.0.25
@@ -106,4 +109,3 @@ tzdata==2024.1
 urllib3==2.1.0
 Werkzeug==3.0.1
 wrapt==1.14.1
-

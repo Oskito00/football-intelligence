@@ -1,11 +1,15 @@
 """Read-only Analyst Agent home for natural-language football questions.
 
-Curated Analyst Tools live here for v1 agent data access. Compatibility exports
-point at the legacy chatbot orchestrator until Analyst Agent internals are
-migrated into this package.
+The v1 Analyst Agent uses curated Analyst Tools for read-only data access.
+Compatibility exports keep legacy chatbot imports available during migration.
 """
 
 from football_intelligence._compat import LegacyExport, make_legacy_getattr
+from football_intelligence.analyst.agent import (
+    AnalystAgent,
+    AnalystAgentResponse,
+    AnalystToolCall,
+)
 from football_intelligence.analyst.tools import (
     ANALYST_TOOL_DEFINITIONS,
     AnalystFootballTools,
@@ -23,7 +27,10 @@ _LEGACY_EXPORTS = {
 
 __all__ = [
     "ANALYST_TOOL_DEFINITIONS",
+    "AnalystAgent",
+    "AnalystAgentResponse",
     "AnalystFootballTools",
+    "AnalystToolCall",
     "AnalystToolDefinition",
     *list(_LEGACY_EXPORTS),
 ]

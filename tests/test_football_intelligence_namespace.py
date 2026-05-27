@@ -52,8 +52,16 @@ def test_analyst_namespace_keeps_legacy_chatbot_import_compatible():
 def test_analyst_namespace_exposes_read_only_tools():
     from football_intelligence.analyst import (
         ANALYST_TOOL_DEFINITIONS,
+        AnalystAgent,
+        AnalystAgentResponse,
         AnalystFootballTools,
+        AnalystToolCall,
         AnalystToolDefinition,
+    )
+    from football_intelligence.analyst.agent import (
+        AnalystAgent as ModuleAnalystAgent,
+        AnalystAgentResponse as ModuleAnalystAgentResponse,
+        AnalystToolCall as ModuleAnalystToolCall,
     )
     from football_intelligence.analyst.tools import (
         ANALYST_TOOL_DEFINITIONS as ModuleAnalystToolDefinitions,
@@ -62,7 +70,10 @@ def test_analyst_namespace_exposes_read_only_tools():
     )
 
     assert ANALYST_TOOL_DEFINITIONS is ModuleAnalystToolDefinitions
+    assert AnalystAgent is ModuleAnalystAgent
+    assert AnalystAgentResponse is ModuleAnalystAgentResponse
     assert AnalystFootballTools is ModuleAnalystFootballTools
+    assert AnalystToolCall is ModuleAnalystToolCall
     assert AnalystToolDefinition is ModuleAnalystToolDefinition
 
 

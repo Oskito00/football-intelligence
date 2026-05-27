@@ -50,6 +50,15 @@ Every Analyst Tool returns a stable envelope:
 
 Tool data is converted to agent-safe Python values, including ISO strings for dates and datetimes. Analyst Tools call `ReadOnlyFootballQueries`; they do not expose arbitrary SQL or reach into legacy chatbot internals.
 
+The first read-only **Analyst Agent** also lives in `football_intelligence.analyst`:
+
+- `AnalystAgent.answer_question(question)` routes a **Natural-Language Football Question** through a planner, executes only curated Analyst Tools, and synthesizes the final answer.
+- `AnalystAgent.from_config(llm)` wires the configured read-only football queries to LangChain-backed planner and answer synthesis adapters.
+- Planned tool calls are checked against `AnalystFootballTools.definitions` before execution, so operational requests such as scraping, Prediction Refresh, arbitrary SQL, inference, or Model Training are refused by the agent boundary.
+- Answers that use Prediction data include a standard uncertainty note so model estimates are not presented as football facts.
+
+LangChain imports are isolated to the analyst agent module and are loaded only when the default LangChain adapters are constructed.
+
 Migration pattern:
 
 1. Keep existing import paths working while behavior moves gradually.
