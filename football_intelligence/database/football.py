@@ -22,6 +22,19 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol
 
+Row = Mapping[str, Any]
+Prediction = dict[str, Any]
+OddsByOutcome = dict[str, dict[str, Any]]
+AllBookmakerOddsByOutcome = dict[str, list[dict[str, Any]]]
+
+PREDICTED_RESULT_LABELS = {2: "Home Win", 1: "Draw", 0: "Away Win"}
+PROBABILITY_OUTCOMES = (
+    ("prob_home_win", "Home Win"),
+    ("prob_draw", "Draw"),
+    ("prob_away_win", "Away Win"),
+)
+RECENT_MATCH_LIMIT = 5
+
 
 class FootballQueryError(RuntimeError):
     """Raised when a read-only football query cannot be completed."""
@@ -30,10 +43,10 @@ class FootballQueryError(RuntimeError):
 class ReadOnlyQueryRunner(Protocol):
     """Small DB-API boundary used by the football query module."""
 
-    def fetch_one(self, query: str, params: Sequence[Any] = ()) -> Mapping[str, Any] | None:
+    def fetch_one(self, query: str, params: Sequence[Any] = ()) -> Row | None:
         """Run a read-only query and return one mapping row."""
 
-    def fetch_all(self, query: str, params: Sequence[Any] = ()) -> list[Mapping[str, Any]]:
+    def fetch_all(self, query: str, params: Sequence[Any] = ()) -> list[Row]:
         """Run a read-only query and return mapping rows."""
 
 
@@ -43,11 +56,11 @@ class PostgresReadOnlyRunner:
 
     connection_factory: Callable[[], Any]
 
-    def fetch_one(self, query: str, params: Sequence[Any] = ()) -> Mapping[str, Any] | None:
+    def fetch_one(self, query: str, params: Sequence[Any] = ()) -> Row | None:
         rows = self.fetch_all(query, params)
         return rows[0] if rows else None
 
-    def fetch_all(self, query: str, params: Sequence[Any] = ()) -> list[Mapping[str, Any]]:
+    def fetch_all(self, query: str, params: Sequence[Any] = ()) -> list[Row]:
         _ensure_read_only_query(query)
         conn = self.connection_factory()
         try:
@@ -88,7 +101,7 @@ class ReadOnlyFootballQueries:
 
         return cls(PostgresReadOnlyRunner(connect))
 
-    def get_match_prediction(self, match_id: int) -> dict[str, Any] | None:
+    def get_match_prediction(self, match_id: int) -> Prediction | None:
         """Return the latest Prediction for one match, or ``None`` when absent."""
         query = """
             SELECT
@@ -118,7 +131,7 @@ class ReadOnlyFootballQueries:
     def get_multiple_match_predictions(
         self,
         match_ids: Sequence[int],
-    ) -> dict[int, dict[str, Any]]:
+    ) -> dict[int, Prediction]:
         """Return latest Predictions keyed by match ID."""
         if not match_ids:
             return {}
@@ -144,7 +157,7 @@ class ReadOnlyFootballQueries:
         except Exception as exc:
             raise FootballQueryError(f"Error getting predictions: {exc}") from exc
 
-        predictions: dict[int, dict[str, Any]] = {}
+        predictions: dict[int, Prediction] = {}
         for row in rows:
             match_id = int(row["match_id"])
             if match_id not in predictions:
@@ -219,17 +232,7 @@ class ReadOnlyFootballQueries:
         if last_n_matches < 1:
             raise ValueError("last_n_matches must be greater than 0")
 
-        side_filter = ""
-        params: list[Any]
-        if at_home is True:
-            side_filter = "AND m.home_team_id = %s"
-            params = [team_id]
-        elif at_home is False:
-            side_filter = "AND m.away_team_id = %s"
-            params = [team_id]
-        else:
-            side_filter = "AND (m.home_team_id = %s OR m.away_team_id = %s)"
-            params = [team_id, team_id]
+        side_filter, params = _recent_form_side_filter(team_id, at_home)
 
         competition_filter = ""
         if competition_id:
@@ -280,7 +283,7 @@ class ReadOnlyFootballQueries:
         self,
         match_id: int,
         bet_type_id: int = 1,
-    ) -> dict[str, dict[str, Any]]:
+    ) -> OddsByOutcome:
         """Return best current odds by outcome for one match."""
         return self.get_best_odds_for_multiple_matches([match_id], bet_type_id).get(
             match_id,
@@ -291,19 +294,16 @@ class ReadOnlyFootballQueries:
         self,
         match_ids: Sequence[int],
         bet_type_id: int = 1,
-    ) -> dict[int, dict[str, dict[str, Any]]]:
+    ) -> dict[int, OddsByOutcome]:
         """Return best current odds keyed by match ID and outcome."""
-        return self._get_odds_for_matches(
-            match_ids,
-            bet_type_id=bet_type_id,
-            return_all_bookmakers=False,
-        )
+        rows = self._fetch_latest_odds_rows(match_ids, bet_type_id)
+        return _get_best_odds_from_rows(rows)
 
     def get_latest_match_odds(
         self,
         match_id: int,
         bet_type_id: int = 1,
-    ) -> dict[str, list[dict[str, Any]]]:
+    ) -> AllBookmakerOddsByOutcome:
         """Return latest odds from all bookmakers grouped by outcome."""
         return self.get_odds_for_multiple_matches(
             [match_id],
@@ -314,13 +314,10 @@ class ReadOnlyFootballQueries:
         self,
         match_ids: Sequence[int],
         bet_type_id: int = 1,
-    ) -> dict[int, dict[str, list[dict[str, Any]]]]:
+    ) -> dict[int, AllBookmakerOddsByOutcome]:
         """Return latest odds from all bookmakers keyed by match ID."""
-        return self._get_odds_for_matches(
-            match_ids,
-            bet_type_id=bet_type_id,
-            return_all_bookmakers=True,
-        )
+        rows = self._fetch_latest_odds_rows(match_ids, bet_type_id)
+        return _group_odds_by_match_and_outcome(rows)
 
     def analyze_matches_for_value(
         self,
@@ -406,14 +403,13 @@ class ReadOnlyFootballQueries:
             },
         }
 
-    def _get_odds_for_matches(
+    def _fetch_latest_odds_rows(
         self,
         match_ids: Sequence[int],
         bet_type_id: int,
-        return_all_bookmakers: bool,
-    ) -> dict[int, Any]:
+    ) -> list[Row]:
         if not match_ids:
-            return {}
+            return []
 
         query = f"""
             WITH latest_odds AS (
@@ -444,13 +440,9 @@ class ReadOnlyFootballQueries:
             ORDER BY match_id, bet_value, odds_value DESC
         """
         try:
-            rows = self._runner.fetch_all(query, tuple(match_ids) + (bet_type_id,))
+            return self._runner.fetch_all(query, tuple(match_ids) + (bet_type_id,))
         except Exception as exc:
             raise FootballQueryError(f"Error getting odds: {exc}") from exc
-
-        if return_all_bookmakers:
-            return _group_odds_by_match_and_outcome(rows)
-        return _get_best_odds_from_rows(rows)
 
 
 def _ensure_read_only_query(query: str) -> None:
@@ -463,18 +455,30 @@ def _placeholders(values: Sequence[Any]) -> str:
     return ",".join(["%s"] * len(values))
 
 
-def _map_prediction(row: Mapping[str, Any]) -> dict[str, Any]:
+def _recent_form_side_filter(
+    team_id: int,
+    at_home: bool | None,
+) -> tuple[str, list[Any]]:
+    if at_home is True:
+        return "AND m.home_team_id = %s", [team_id]
+    if at_home is False:
+        return "AND m.away_team_id = %s", [team_id]
+    return "AND (m.home_team_id = %s OR m.away_team_id = %s)", [team_id, team_id]
+
+
+def _map_prediction(row: Row) -> Prediction:
     probs = [
-        _number(row.get("prob_home_win"), 0),
-        _number(row.get("prob_draw"), 0),
-        _number(row.get("prob_away_win"), 0),
+        _number(row.get(probability_key), 0)
+        for probability_key, _ in PROBABILITY_OUTCOMES
     ]
-    result_mapping = {2: "Home Win", 1: "Draw", 0: "Away Win"}
     return {
         "match_id": row["match_id"],
         "home_team": row["home_team_name"],
         "away_team": row["away_team_name"],
-        "predicted_result": result_mapping.get(row.get("predicted_result"), "Unknown"),
+        "predicted_result": PREDICTED_RESULT_LABELS.get(
+            row.get("predicted_result"),
+            "Unknown",
+        ),
         "confidence": max(probs) if any(probs) else 0.5,
         "prob_home_win": probs[0],
         "prob_draw": probs[1],
@@ -484,7 +488,7 @@ def _map_prediction(row: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _map_upcoming_match(row: Mapping[str, Any]) -> dict[str, Any]:
+def _map_upcoming_match(row: Row) -> dict[str, Any]:
     return {
         "match_id": row["match_id"],
         "start_time": _isoformat(row.get("start_time")),
@@ -497,7 +501,7 @@ def _map_upcoming_match(row: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _map_recent_form(
-    rows: Sequence[Mapping[str, Any]],
+    rows: Sequence[Row],
     team_id: int,
     last_n_matches: int,
     competition_id: int | str | None,
@@ -512,16 +516,11 @@ def _map_recent_form(
         home_score = row["home_score"]
         away_score = row["away_score"]
         team_side = row["team_side"]
-
-        if home_score == away_score:
-            match_result = "Draw"
-            team_result = "Draw"
-        elif home_score > away_score:
-            match_result = "Home Win"
-            team_result = "Win" if team_side == "home" else "Loss"
-        else:
-            match_result = "Away Win"
-            team_result = "Win" if team_side == "away" else "Loss"
+        match_result, team_result = _classify_match_result(
+            home_score,
+            away_score,
+            team_side,
+        )
 
         if team_result == "Win":
             wins += 1
@@ -545,7 +544,11 @@ def _map_recent_form(
 
     total_matches = len(rows)
     first = rows[0]
-    team_name = first["home_team_name"] if first["team_side"] == "home" else first["away_team_name"]
+    team_name = (
+        first["home_team_name"]
+        if first["team_side"] == "home"
+        else first["away_team_name"]
+    )
     home_matches = [match for match in processed_matches if match["team_side"] == "home"]
     away_matches = [match for match in processed_matches if match["team_side"] == "away"]
     home_wins = sum(1 for match in home_matches if match["team_result"] == "Win")
@@ -590,15 +593,27 @@ def _map_recent_form(
                 "competition_id": competition_id,
                 "at_home": at_home,
             },
-            "recent_matches": processed_matches[:5],
+            "recent_matches": processed_matches[:RECENT_MATCH_LIMIT],
         },
     }
 
 
+def _classify_match_result(
+    home_score: int,
+    away_score: int,
+    team_side: str,
+) -> tuple[str, str]:
+    if home_score == away_score:
+        return "Draw", "Draw"
+    if home_score > away_score:
+        return "Home Win", "Win" if team_side == "home" else "Loss"
+    return "Away Win", "Win" if team_side == "away" else "Loss"
+
+
 def _group_odds_by_match_and_outcome(
-    rows: Sequence[Mapping[str, Any]],
-) -> dict[int, dict[str, list[dict[str, Any]]]]:
-    odds_by_match: dict[int, dict[str, list[dict[str, Any]]]] = {}
+    rows: Sequence[Row],
+) -> dict[int, AllBookmakerOddsByOutcome]:
+    odds_by_match: dict[int, AllBookmakerOddsByOutcome] = {}
     for row in rows:
         match_id = int(row["match_id"])
         bet_value = _normalize_bet_value(row["bet_value"])
@@ -614,9 +629,9 @@ def _group_odds_by_match_and_outcome(
 
 
 def _get_best_odds_from_rows(
-    rows: Sequence[Mapping[str, Any]],
-) -> dict[int, dict[str, dict[str, Any]]]:
-    odds_by_match: dict[int, dict[str, dict[str, Any]]] = {}
+    rows: Sequence[Row],
+) -> dict[int, OddsByOutcome]:
+    odds_by_match: dict[int, OddsByOutcome] = {}
     for row in rows:
         match_id = int(row["match_id"])
         bet_value = _normalize_bet_value(row["bet_value"])
@@ -646,7 +661,7 @@ def _normalize_bet_value(bet_value: str) -> str:
 
 def _analyze_betting_opportunity(
     prediction: Mapping[str, Any],
-    best_odds: Mapping[str, Mapping[str, Any]],
+    best_odds: OddsByOutcome,
     kelly_fraction: float,
     min_value_threshold: float,
 ) -> dict[str, Any]:
@@ -672,15 +687,11 @@ def _analyze_betting_opportunity(
 
 def _calculate_value_bets(
     prediction: Mapping[str, Any],
-    best_odds: Mapping[str, Mapping[str, Any]],
+    best_odds: OddsByOutcome,
     min_value_threshold: float,
 ) -> list[dict[str, Any]]:
     value_bets = []
-    for pred_key, odds_key in (
-        ("prob_home_win", "Home Win"),
-        ("prob_draw", "Draw"),
-        ("prob_away_win", "Away Win"),
-    ):
+    for pred_key, odds_key in PROBABILITY_OUTCOMES:
         if pred_key not in prediction or odds_key not in best_odds:
             continue
 
