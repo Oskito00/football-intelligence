@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import ExitStack
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
+
+
+DEFAULT_BATCH_SIZE = 1000
+FUTURE_PRUNE_DAYS = 2
+
+MatchRow = dict[str, Any]
+ManagerFactory = Callable[..., Any]
 
 
 class FeatureSetMode(Enum):
@@ -31,7 +38,7 @@ class FeaturePipelineResult:
 class FeaturePipelineDependencies:
     """Runtime dependencies used by the feature pipeline."""
 
-    get_matches: Callable[..., Sequence[dict[str, Any]]]
+    get_matches: Callable[..., Sequence[MatchRow]]
     update_processed_status: Callable[[Any, list[Any], list[bool], str], None]
     drop_historical_tables: Callable[[Any], None]
     create_historical_tables: Callable[[Any], None]
@@ -39,12 +46,12 @@ class FeaturePipelineDependencies:
     drop_future_tables: Callable[[Any], None]
     create_future_tables: Callable[[Any], None]
     prune_old_future_features: Callable[[Any, int], None]
-    match_info_manager: type
-    stage_of_season_manager: type
-    formation_manager: type
-    elo_manager: type
-    form_manager: type
-    h2h_manager: type
+    match_info_manager: ManagerFactory
+    stage_of_season_manager: ManagerFactory
+    formation_manager: ManagerFactory
+    elo_manager: ManagerFactory
+    form_manager: ManagerFactory
+    h2h_manager: ManagerFactory
 
 
 @dataclass(frozen=True)
@@ -123,7 +130,11 @@ _FUTURE_CONFIG = _FeatureSetConfig(
         "away_team_formation",
     ),
     where_clause="""
-            home_score IS NULL AND away_score IS NULL AND match_status = 'NS' AND start_time > NOW() AND start_time < NOW() + INTERVAL ' 7 days'
+            home_score IS NULL
+            AND away_score IS NULL
+            AND match_status = 'NS'
+            AND start_time > NOW()
+            AND start_time < NOW() + INTERVAL ' 7 days'
             AND match_id NOT IN (
                 SELECT match_id FROM processed_info
                 WHERE is_processed = true AND processing_mode = 'inference' AND with_formation = true
@@ -135,6 +146,17 @@ _FUTURE_CONFIG = _FeatureSetConfig(
 _CONFIG_BY_MODE = {
     FeatureSetMode.HISTORICAL: _HISTORICAL_CONFIG,
     FeatureSetMode.FUTURE: _FUTURE_CONFIG,
+}
+
+_FEATURE_SET_ALIASES = {
+    "historical": FeatureSetMode.HISTORICAL,
+    "historical_feature_set": FeatureSetMode.HISTORICAL,
+    "completed_matches": FeatureSetMode.HISTORICAL,
+    "training": FeatureSetMode.HISTORICAL,
+    "future": FeatureSetMode.FUTURE,
+    "future_feature_set": FeatureSetMode.FUTURE,
+    "upcoming_matches": FeatureSetMode.FUTURE,
+    "inference": FeatureSetMode.FUTURE,
 }
 
 
@@ -186,7 +208,7 @@ def run_feature_pipeline(
     feature_set: FeatureSetMode | str,
     *,
     dependencies: FeaturePipelineDependencies | None = None,
-    batch_size: int = 1000,
+    batch_size: int = DEFAULT_BATCH_SIZE,
 ) -> FeaturePipelineResult:
     """Run one feature pipeline mode through the shared lifecycle."""
     if batch_size < 1:
@@ -198,16 +220,8 @@ def run_feature_pipeline(
 
     _prepare_feature_set(conn, config, dependencies)
 
-    matches = list(
-        dependencies.get_matches(
-            conn,
-            select_str=config.select_str,
-            columns=list(config.columns),
-            from_clause=config.from_clause,
-            where_clause=config.where_clause,
-            order_by=config.order_by,
-        )
-    )
+    matches = _get_unprocessed_matches(conn, config, dependencies)
+    matches_found = len(matches)
 
     if not matches:
         print("No matches to process")
@@ -224,10 +238,9 @@ def run_feature_pipeline(
 
     matches_processed = 0
     batches_processed = 0
+    total_batches = ((matches_found - 1) // batch_size) + 1
 
-    for batch_index, start in enumerate(range(0, len(matches), batch_size), start=1):
-        batch = matches[start : start + batch_size]
-        total_batches = ((len(matches) - 1) // batch_size) + 1
+    for batch_index, batch in enumerate(_iter_batches(matches, batch_size), start=1):
         print(f"Processing {config.display_name} batch {batch_index} of {total_batches}")
         _process_batch(conn, batch, config, dependencies)
         matches_processed += len(batch)
@@ -236,7 +249,7 @@ def run_feature_pipeline(
     return FeaturePipelineResult(
         feature_set=mode,
         processing_mode=config.processing_mode,
-        matches_found=len(matches),
+        matches_found=matches_found,
         matches_processed=matches_processed,
         batches_processed=batches_processed,
     )
@@ -246,7 +259,7 @@ def build_historical_feature_set(
     conn: Any,
     *,
     dependencies: FeaturePipelineDependencies | None = None,
-    batch_size: int = 1000,
+    batch_size: int = DEFAULT_BATCH_SIZE,
 ) -> FeaturePipelineResult:
     """Build the Historical Feature Set from Completed Matches."""
     return run_feature_pipeline(
@@ -261,7 +274,7 @@ def build_future_feature_set(
     conn: Any,
     *,
     dependencies: FeaturePipelineDependencies | None = None,
-    batch_size: int = 1000,
+    batch_size: int = DEFAULT_BATCH_SIZE,
 ) -> FeaturePipelineResult:
     """Build the Future Feature Set from Upcoming Matches."""
     return run_feature_pipeline(
@@ -277,20 +290,35 @@ def _resolve_feature_set_mode(feature_set: FeatureSetMode | str) -> FeatureSetMo
         return feature_set
 
     normalized = feature_set.strip().lower().replace("-", "_")
-    aliases = {
-        "historical": FeatureSetMode.HISTORICAL,
-        "historical_feature_set": FeatureSetMode.HISTORICAL,
-        "completed_matches": FeatureSetMode.HISTORICAL,
-        "training": FeatureSetMode.HISTORICAL,
-        "future": FeatureSetMode.FUTURE,
-        "future_feature_set": FeatureSetMode.FUTURE,
-        "upcoming_matches": FeatureSetMode.FUTURE,
-        "inference": FeatureSetMode.FUTURE,
-    }
     try:
-        return aliases[normalized]
+        return _FEATURE_SET_ALIASES[normalized]
     except KeyError as exc:
         raise ValueError(f"Unknown feature set mode: {feature_set!r}") from exc
+
+
+def _get_unprocessed_matches(
+    conn: Any,
+    config: _FeatureSetConfig,
+    dependencies: FeaturePipelineDependencies,
+) -> list[MatchRow]:
+    return list(
+        dependencies.get_matches(
+            conn,
+            select_str=config.select_str,
+            columns=list(config.columns),
+            from_clause=config.from_clause,
+            where_clause=config.where_clause,
+            order_by=config.order_by,
+        )
+    )
+
+
+def _iter_batches(
+    matches: Sequence[MatchRow],
+    batch_size: int,
+) -> Iterator[Sequence[MatchRow]]:
+    for start in range(0, len(matches), batch_size):
+        yield matches[start : start + batch_size]
 
 
 def _prepare_feature_set(
@@ -302,16 +330,17 @@ def _prepare_feature_set(
         dependencies.drop_historical_tables(conn)
         dependencies.create_historical_tables(conn)
         print("Getting Completed Matches")
-    else:
-        dependencies.drop_future_tables(conn)
-        dependencies.create_future_tables(conn)
-        print("Pruning old future features...")
-        dependencies.prune_old_future_features(conn, days_threshold=2)
+        return
+
+    dependencies.drop_future_tables(conn)
+    dependencies.create_future_tables(conn)
+    print("Pruning old future features...")
+    dependencies.prune_old_future_features(conn, days_threshold=FUTURE_PRUNE_DAYS)
 
 
 def _process_batch(
     conn: Any,
-    batch: Sequence[dict[str, Any]],
+    batch: Sequence[MatchRow],
     config: _FeatureSetConfig,
     dependencies: FeaturePipelineDependencies,
 ) -> None:
