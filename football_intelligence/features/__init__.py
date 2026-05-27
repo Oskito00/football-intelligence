@@ -4,7 +4,7 @@ Compatibility exports map product-language names onto existing feature
 builders until the shared feature lifecycle is introduced.
 """
 
-from football_intelligence._compat import LegacyExport, resolve_legacy_export
+from football_intelligence._compat import LegacyExport, make_legacy_getattr
 
 _LEGACY_EXPORTS = {
     "build_historical_feature_set": LegacyExport(
@@ -22,7 +22,4 @@ _LEGACY_EXPORTS = {
 }
 
 __all__ = list(_LEGACY_EXPORTS)
-
-
-def __getattr__(name: str):
-    return resolve_legacy_export(_LEGACY_EXPORTS, name)
+__getattr__ = make_legacy_getattr(_LEGACY_EXPORTS)
