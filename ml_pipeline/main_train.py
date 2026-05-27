@@ -8,6 +8,7 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+from typing import Any, Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
@@ -15,13 +16,9 @@ from psycopg2.extras import RealDictCursor
 project_root = Path(__file__).parent.parent
 sys.path.append(str(project_root))
 
-# Import the database config from your existing config.py
 from config import get_config
 
-# Import the ML pipeline components
 from ml_pipeline.utils.config import config_manager
-from ml_pipeline.utils.io import model_io
-from ml_pipeline.training.train_result_model import train_result_model
 
 
 def setup_logging(ml_config: dict):
@@ -46,6 +43,8 @@ def setup_logging(ml_config: dict):
 
 def get_trainer(model_name: str):
     """Get the appropriate trainer function based on model name"""
+    from ml_pipeline.training.train_result_model import train_result_model
+
     trainers = {
         'result_model': train_result_model,
         'result_model_early': train_result_model,  # Early variant (no formations)
@@ -60,27 +59,30 @@ def get_trainer(model_name: str):
     return trainers[model_name]
 
 
-def main():
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description='Train ML models for football prediction')
     parser.add_argument('config', help='Name of the config file (without extension)')
     parser.add_argument('--dry-run', action='store_true', help='Run without saving model')
     parser.add_argument('--limit', type=int, help='Limit number of samples for testing')
-    
-    args = parser.parse_args()
-    
+    return parser
+
+
+def run_model_training(
+    config_name: str,
+    dry_run: bool = False,
+    limit: Optional[int] = None,
+) -> dict[str, Any]:
+    conn = None
     try:
-        # Load ML configuration
-        print(f"Loading ML configuration: {args.config}")
-        ml_config = config_manager.load_config(args.config)
+        print(f"Loading ML configuration: {config_name}")
+        ml_config = config_manager.load_config(config_name)
         
-        # Setup logging
         setup_logging(ml_config)
         logger = logging.getLogger(__name__)
-        logger.info(f"Starting training for {args.config}")
+        logger.info(f"Starting training for {config_name}")
         
-        # Get database connection using your existing config
         logger.info("Connecting to database")
-        db_config = get_config()  # This gets your database config
+        db_config = get_config()
         
         conn = psycopg2.connect(
             host=db_config.DB_HOST,
@@ -98,7 +100,7 @@ def main():
         trainer = get_trainer(model_name)
         
         # Run training
-        result = trainer(conn, ml_config, dry_run=args.dry_run, limit=args.limit)
+        result = trainer(conn, ml_config, dry_run=dry_run, limit=limit)
         
         if result['success']:
             logger.info("Training completed successfully!")
@@ -119,15 +121,22 @@ def main():
             logger.error("Training failed!")
             if 'error' in result:
                 logger.error(f"Error: {result['error']}")
-            sys.exit(1)
+        return result
             
     except Exception as e:
         logging.error(f"Training failed with error: {str(e)}")
         raise
     finally:
-        # Close database connection
-        if 'conn' in locals():
+        if conn is not None:
             conn.close()
+
+
+def main() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
+    result = run_model_training(args.config, dry_run=args.dry_run, limit=args.limit)
+    if not result['success']:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
