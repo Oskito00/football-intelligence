@@ -32,7 +32,7 @@ StepFactory = Callable[[Any, str, bool], Iterable[PredictionRefreshStep]]
 ConnectionFactory = Callable[[], Any]
 
 
-def create_database_connection():
+def create_database_connection() -> Any:
     """Create the database connection used by operational refresh steps."""
     import psycopg2
     from psycopg2.extras import RealDictCursor
@@ -117,7 +117,7 @@ def build_prediction_refresh_steps(
 
 def run_prediction_refresh(
     *,
-    connection=None,
+    connection: Any | None = None,
     connection_factory: ConnectionFactory = create_database_connection,
     model_config: str = DEFAULT_MODEL_CONFIG,
     include_odds: bool = True,
