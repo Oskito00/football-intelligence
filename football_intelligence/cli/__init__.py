@@ -11,5 +11,14 @@ _LEGACY_EXPORTS = {
     "run_legacy_analyst_console": LegacyExport("chatbot.main", "main"),
 }
 
-__all__ = list(_LEGACY_EXPORTS)
-__getattr__ = make_legacy_getattr(_LEGACY_EXPORTS)
+__all__ = ["prediction_refresh_main", *_LEGACY_EXPORTS]
+_legacy_getattr = make_legacy_getattr(_LEGACY_EXPORTS)
+
+
+def __getattr__(name: str) -> object:
+    if name == "prediction_refresh_main":
+        from football_intelligence.cli.prediction_refresh import main
+
+        return main
+
+    return _legacy_getattr(name)

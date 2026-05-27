@@ -1,19 +1,7 @@
-import psycopg2
-import time
-import os
-from datetime import datetime
 import sys 
 import logging
-from psycopg2.extras import RealDictCursor
 
-# Import your script functions
-from config import get_config
-from data_scraping.api_football.all_data.scrape_league_ids import get_all_leagues_on_api
-from data_scraping.api_football.current_season.current_seasons_scrape import scrape_current_seasons
-from data_processing.for_training.match_result_features import process_matches
-from data_processing.for_inferencing.match_result_features import process_future_matches
-from ml_pipeline.main_infer import main as infer_results
-from data_scraping.api_football.odds.scrape_future_match_odds import scrape_future_match_odds
+from football_intelligence.predictions.refresh import run_prediction_refresh
 
 # Set up logging
 logging.basicConfig(
@@ -36,35 +24,14 @@ def run_script(script_name, func):
         logger.error(f"Error in {script_name}: {str(e)}")
 
 def run_all_scripts():
-    """Run all scripts in sequence"""
-    config = get_config()
-    with psycopg2.connect(
-    host=config.DB_HOST,
-    database=config.DB_NAME,
-    user=config.DB_USER,
-    password=config.DB_PASSWORD,
-    cursor_factory=RealDictCursor
-    ) as conn:
-        scripts = [
-        ("League IDs Scraper", lambda: get_all_leagues_on_api(conn)),
-        ("Current Seasons Scraper", lambda: scrape_current_seasons()),
-        ("Training Data Processor", lambda: process_matches(conn)),
-        ("Future Matches Processor", lambda: process_future_matches(conn)),
-        ("Result Model Inference", lambda: infer_results_with_args(conn)),
-        ("Future Match Odds Scraper", lambda: scrape_future_match_odds(conn))
-    ]
-    
-        for script_name, func in scripts:
-            run_script(script_name, func)
+    """Run Prediction Refresh for scheduler compatibility."""
+    return run_prediction_refresh(logger=logger)
 
 def infer_results_with_args(conn):
-    """Wrapper to call infer_results with proper arguments"""
-    # Set up the arguments that main_infer.py expects
-    sys.argv = ['main_infer.py', 'result_model_early', '--mode', 'inference']
-    
-    # Import and call the main function with the connection
-    from ml_pipeline.main_infer import main
-    main(conn)
+    """Compatibility wrapper for callers that still use scheduler inference."""
+    from football_intelligence.predictions.refresh import run_result_model_inference
+
+    return run_result_model_inference(conn)
 
 def main():
     logger.info("🚀 Starting daily football prediction pipeline...")

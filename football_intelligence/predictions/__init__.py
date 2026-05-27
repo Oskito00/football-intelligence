@@ -1,6 +1,11 @@
-"""Prediction home for inference, evaluation, and Model Training workflows."""
+"""Prediction home for inference, Prediction Refresh, and Model Training."""
 
 from football_intelligence._compat import LegacyExport, make_legacy_getattr
+from football_intelligence.predictions.refresh import (
+    PredictionRefreshResult,
+    PredictionRefreshStep,
+    run_prediction_refresh,
+)
 
 _LEGACY_EXPORTS = {
     "run_prediction_inference": LegacyExport("ml_pipeline.main_infer", "main"),
@@ -14,5 +19,10 @@ _LEGACY_EXPORTS = {
     ),
 }
 
-__all__ = list(_LEGACY_EXPORTS)
+__all__ = [
+    "PredictionRefreshResult",
+    "PredictionRefreshStep",
+    "run_prediction_refresh",
+    *_LEGACY_EXPORTS,
+]
 __getattr__ = make_legacy_getattr(_LEGACY_EXPORTS)
