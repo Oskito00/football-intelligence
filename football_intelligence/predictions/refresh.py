@@ -67,10 +67,6 @@ def build_prediction_refresh_steps(
     include_odds: bool = True,
 ) -> list[PredictionRefreshStep]:
     """Build the current Prediction Refresh sequence around legacy behavior."""
-    from data_processing.for_inferencing.match_result_features import (
-        process_future_matches,
-    )
-    from data_processing.for_training.match_result_features import process_matches
     from data_scraping.api_football.all_data.scrape_league_ids import (
         get_all_leagues_on_api,
     )
@@ -79,6 +75,10 @@ def build_prediction_refresh_steps(
     )
     from data_scraping.api_football.odds.scrape_future_match_odds import (
         scrape_future_match_odds,
+    )
+    from football_intelligence.features import (
+        build_future_feature_set,
+        build_historical_feature_set,
     )
 
     steps = [
@@ -92,11 +92,11 @@ def build_prediction_refresh_steps(
         ),
         PredictionRefreshStep(
             "build Historical Feature Set",
-            lambda: process_matches(conn),
+            lambda: build_historical_feature_set(conn),
         ),
         PredictionRefreshStep(
             "build Future Feature Set",
-            lambda: process_future_matches(conn),
+            lambda: build_future_feature_set(conn),
         ),
         PredictionRefreshStep(
             "run Prediction inference",
