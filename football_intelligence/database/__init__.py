@@ -6,6 +6,11 @@ exports for operational workflows.
 """
 
 from football_intelligence._compat import LegacyExport, make_legacy_getattr
+from football_intelligence.database.football import (
+    FootballQueryError,
+    PostgresReadOnlyRunner,
+    ReadOnlyFootballQueries,
+)
 
 _LEGACY_EXPORTS = {
     "get_from_matches": LegacyExport(
@@ -19,5 +24,10 @@ _LEGACY_EXPORTS = {
     ),
 }
 
-__all__ = list(_LEGACY_EXPORTS)
+__all__ = [
+    "FootballQueryError",
+    "PostgresReadOnlyRunner",
+    "ReadOnlyFootballQueries",
+    *list(_LEGACY_EXPORTS),
+]
 __getattr__ = make_legacy_getattr(_LEGACY_EXPORTS)
