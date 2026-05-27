@@ -1,8 +1,8 @@
 """Command line interface for Football Intelligence operational workflows."""
 
 import argparse
-from collections.abc import Sequence
-from typing import Optional
+from collections.abc import Callable, Sequence
+from typing import Any, Optional
 
 
 CURRENT_RESULT_MODEL_CONFIG = "result_model_early"
@@ -19,7 +19,7 @@ def build_parser() -> argparse.ArgumentParser:
         "prediction-refresh",
         help="Run Prediction Refresh without training a new model.",
     )
-    prediction_refresh.set_defaults(handler=_handle_prediction_refresh)
+    prediction_refresh.set_defaults(command_handler=_handle_prediction_refresh)
 
     model_training = subcommands.add_parser(
         "model-training",
@@ -44,7 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         help="Limit the Historical Feature Set sample count for testing.",
     )
-    model_training.set_defaults(handler=_handle_model_training)
+    model_training.set_defaults(command_handler=_handle_model_training)
 
     return parser
 
@@ -52,7 +52,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    return args.handler(args)
+    command_handler: Callable[[argparse.Namespace], int] = args.command_handler
+    return command_handler(args)
 
 
 def _handle_model_training(args: argparse.Namespace) -> int:
@@ -75,7 +76,12 @@ def run_prediction_refresh() -> None:
     refresh()
 
 
-def run_model_training(config_name: str, *, dry_run: bool = False, limit: Optional[int] = None):
-    from ml_pipeline.main_train import run_model_training as train
+def run_model_training(
+    config_name: str,
+    *,
+    dry_run: bool = False,
+    limit: Optional[int] = None,
+) -> dict[str, Any]:
+    from ml_pipeline.main_train import run_model_training as train_model
 
-    return train(config_name, dry_run=dry_run, limit=limit)
+    return train_model(config_name, dry_run=dry_run, limit=limit)

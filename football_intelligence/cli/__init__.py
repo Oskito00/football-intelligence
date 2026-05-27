@@ -15,6 +15,6 @@ _LEGACY_EXPORTS = {
 
 __all__ = [
     "main",
-    *list(_LEGACY_EXPORTS),
+    *_LEGACY_EXPORTS,
 ]
 __getattr__ = make_legacy_getattr(_LEGACY_EXPORTS)

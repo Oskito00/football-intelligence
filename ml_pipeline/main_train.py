@@ -8,7 +8,7 @@ import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
@@ -16,10 +16,8 @@ from psycopg2.extras import RealDictCursor
 project_root = Path(__file__).parent.parent
 sys.path.append(str(project_root))
 
-# Import the database config from your existing config.py
 from config import get_config
 
-# Import the ML pipeline components
 from ml_pipeline.utils.config import config_manager
 
 
@@ -61,7 +59,7 @@ def get_trainer(model_name: str):
     return trainers[model_name]
 
 
-def build_parser():
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description='Train ML models for football prediction')
     parser.add_argument('config', help='Name of the config file (without extension)')
     parser.add_argument('--dry-run', action='store_true', help='Run without saving model')
@@ -69,21 +67,22 @@ def build_parser():
     return parser
 
 
-def run_model_training(config_name: str, dry_run: bool = False, limit: Optional[int] = None):
+def run_model_training(
+    config_name: str,
+    dry_run: bool = False,
+    limit: Optional[int] = None,
+) -> dict[str, Any]:
     conn = None
     try:
-        # Load ML configuration
         print(f"Loading ML configuration: {config_name}")
         ml_config = config_manager.load_config(config_name)
         
-        # Setup logging
         setup_logging(ml_config)
         logger = logging.getLogger(__name__)
         logger.info(f"Starting training for {config_name}")
         
-        # Get database connection using your existing config
         logger.info("Connecting to database")
-        db_config = get_config()  # This gets your database config
+        db_config = get_config()
         
         conn = psycopg2.connect(
             host=db_config.DB_HOST,
@@ -128,12 +127,11 @@ def run_model_training(config_name: str, dry_run: bool = False, limit: Optional[
         logging.error(f"Training failed with error: {str(e)}")
         raise
     finally:
-        # Close database connection
         if conn is not None:
             conn.close()
 
 
-def main():
+def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
     result = run_model_training(args.config, dry_run=args.dry_run, limit=args.limit)
