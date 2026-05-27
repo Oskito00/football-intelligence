@@ -1,10 +1,16 @@
 """Read-only Analyst Agent home for natural-language football questions.
 
-Compatibility exports point at the legacy chatbot orchestrator until Analyst
-Agent internals are migrated into this package.
+Curated Analyst Tools live here for v1 agent data access. Compatibility exports
+point at the legacy chatbot orchestrator until Analyst Agent internals are
+migrated into this package.
 """
 
 from football_intelligence._compat import LegacyExport, make_legacy_getattr
+from football_intelligence.analyst.tools import (
+    ANALYST_TOOL_DEFINITIONS,
+    AnalystFootballTools,
+    AnalystToolDefinition,
+)
 
 _LEGACY_EXPORTS = {
     "LegacyAnalystAgent": LegacyExport("chatbot.core.chatbot", "FootballChatbot"),
@@ -15,5 +21,10 @@ _LEGACY_EXPORTS = {
     "LegacyMemoryManager": LegacyExport("chatbot.core.memory_manager", "MemoryManager"),
 }
 
-__all__ = list(_LEGACY_EXPORTS)
+__all__ = [
+    "ANALYST_TOOL_DEFINITIONS",
+    "AnalystFootballTools",
+    "AnalystToolDefinition",
+    *list(_LEGACY_EXPORTS),
+]
 __getattr__ = make_legacy_getattr(_LEGACY_EXPORTS)
