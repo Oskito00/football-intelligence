@@ -12,7 +12,7 @@ def test_model_training_command_runs_current_result_model_with_arguments(monkeyp
                 "limit": limit,
             }
         )
-        return {"success": True, "model_path": "ml_pipeline/saved_models/result_model"}
+        return {"success": True, "model_path": "models/result_model"}
 
     monkeypatch.setattr(cli_main, "run_model_training", fake_run_model_training)
 

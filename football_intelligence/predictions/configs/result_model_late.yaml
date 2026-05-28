@@ -6,7 +6,7 @@ model:
   type: "classification"
   algorithm: "xgboost"  # xgboost, random_forest, logistic_regression
   variant: "late_prediction"
-  
+
   # Model hyperparameters
   hyperparameters:
     n_estimators: 120     # Slightly more trees since we have more features
@@ -21,12 +21,12 @@ data:
   feature_loader: "load_result_features"
   target_column: "result"
   match_id_column: "match_id"
-  
+
   # Feature requirements for this model variant
   feature_requirements:
     formations: true       # Formations required
     lineups: false        # Lineups not required yet
-    
+
   # Tables to use for features (includes formation_history)
   feature_tables:
     - "elo_history"
@@ -34,13 +34,13 @@ data:
     - "stage_of_season_history"
     - "formation_history"    # Include formations
     - "match_info_history"
-  
+
   # Filters
   filters:
     min_date: "2020-01-01"
     max_date: null
     leagues: null  # null means all leagues
-    
+
   # Train/test split
   test_size: 0.2
   validation_size: 0.1
@@ -52,7 +52,7 @@ preprocessing:
   scale_features: true
   handle_missing: true
   drop_missing_threshold: 0.5  # Drop columns with >50% missing values
-  
+
   # Feature engineering - include formation features
   feature_engineering:
     create_elo_differences: true
@@ -67,12 +67,12 @@ training:
     enabled: true
     folds: 5
     scoring: "accuracy"
-  
+
   early_stopping:
     enabled: true
     patience: 10
     metric: "accuracy"
-  
+
   class_weights: "balanced"  # Handle class imbalance
 
 # Evaluation configuration
@@ -83,7 +83,7 @@ evaluation:
     - "recall"
     - "f1"
     - "roc_auc"
-  
+
   # Additional evaluation settings
   confusion_matrix: true
   feature_importance: true
@@ -95,14 +95,14 @@ output:
   save_predictions: true
   save_feature_importance: true
   save_evaluation_report: true
-  
+
   # Paths (relative to project root)
-  model_dir: "ml_pipeline/saved_models"
+  model_dir: "models"
   predictions_dir: "data/predictions"
-  reports_dir: "ml_pipeline/reports"
+  reports_dir: "football_intelligence/predictions/reports"
 
 # Logging configuration
 logging:
   level: "INFO"
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-  file: "ml_pipeline/logs/result_model_late.log" 
+  file: "football_intelligence/predictions/logs/result_model_late.log"

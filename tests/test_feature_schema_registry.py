@@ -1,6 +1,6 @@
 from football_intelligence.features import FORM_FEATURE_SCHEMA, get_feature_schema
 from football_intelligence.features.construction.form_manager import FormManager
-from ml_pipeline.features.load_result_features import ResultFeatureLoader
+from football_intelligence.predictions import ResultFeatureLoader
 
 
 def test_form_feature_schema_centralizes_table_pair_and_loader_expectations():

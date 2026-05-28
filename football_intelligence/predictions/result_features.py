@@ -9,7 +9,7 @@ import numpy as np
 import json
 
 from football_intelligence.features.schema import FORM_FEATURE_SCHEMA
-from ml_pipeline.features.base_feature_loader import BaseFeatureLoader
+from football_intelligence.predictions.base_feature_loader import BaseFeatureLoader
 
 
 class ResultFeatureLoader(BaseFeatureLoader):

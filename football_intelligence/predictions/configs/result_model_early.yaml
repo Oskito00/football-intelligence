@@ -6,7 +6,7 @@ model:
   type: "classification"
   algorithm: "xgboost"  # xgboost, random_forest, logistic_regression
   variant: "early_prediction"
-  
+
   # Model hyperparameters
   hyperparameters:
     n_estimators: 100
@@ -21,12 +21,12 @@ data:
   feature_loader: "load_result_features"
   target_column: "result"
   match_id_column: "match_id"
-  
+
   # Feature requirements for this model variant
   feature_requirements:
     formations: false      # Formations not required
     lineups: false        # Lineups not required
-    
+
   # Tables to use for features (no formation_history)
   feature_tables:
     - "elo_history"
@@ -39,13 +39,13 @@ data:
     - "fatigue_history"
     - 'form_future'
     - 'h2h_future'
-  
+
   # Filters
   filters:
     min_date: null
     max_date: null
     leagues: null  # null means all leagues
-    
+
   # Train/test split
   test_size: 0.2
   validation_size: 0.1
@@ -57,7 +57,7 @@ preprocessing:
   scale_features: true
   handle_missing: true
   drop_missing_threshold: 0.5  # Drop columns with >50% missing values
-  
+
   # Feature engineering - no formation features
   feature_engineering:
     create_elo_differences: false
@@ -71,12 +71,12 @@ training:
     enabled: true
     folds: 5
     scoring: "neg_log_loss"
-  
+
   early_stopping:
     enabled: true
     patience: 10
     metric: "neg_log_loss"
-  
+
   class_weights: "balanced"  # Handle class imbalance
 
 # Evaluation configuration
@@ -89,7 +89,7 @@ evaluation:
     - "roc_auc"
     - "log_loss"
     - "neg_log_loss"
-  
+
   # Additional evaluation settings
   confusion_matrix: true
   feature_importance: true
@@ -101,14 +101,14 @@ output:
   save_predictions: true
   save_feature_importance: true
   save_evaluation_report: true
-  
+
   # Paths (relative to project root)
-  model_dir: "ml_pipeline/saved_models"
+  model_dir: "models"
   predictions_dir: "data/predictions"
-  reports_dir: "ml_pipeline/reports"
+  reports_dir: "football_intelligence/predictions/reports"
 
 # Logging configuration
 logging:
   level: "INFO"
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-  file: "ml_pipeline/logs/result_model_early.log" 
+  file: "football_intelligence/predictions/logs/result_model_early.log"

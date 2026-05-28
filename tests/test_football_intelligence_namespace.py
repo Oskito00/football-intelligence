@@ -17,7 +17,6 @@ LEGACY_ENTRYPOINTS = (
     ("chatbot.api", "app"),
     ("chatbot.main", "main"),
     ("scheduler.scheduler", "main"),
-    ("ml_pipeline.main_infer", "main"),
 )
 
 LEGACY_MODULE_ALIASES = (

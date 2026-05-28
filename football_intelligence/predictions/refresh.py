@@ -56,12 +56,14 @@ def create_database_connection() -> Any:
 
 
 def run_result_model_inference(conn, model_config: str = DEFAULT_MODEL_CONFIG) -> None:
-    """Run inference through the legacy entrypoint without leaking CLI argv."""
-    from ml_pipeline.main_infer import main as infer_results
+    """Run Prediction inference without leaking CLI argv."""
+    from football_intelligence.predictions.inference_entrypoint import (
+        main as infer_results,
+    )
 
     previous_argv = sys.argv[:]
     try:
-        sys.argv = ["main_infer.py", model_config, "--mode", "inference"]
+        sys.argv = ["prediction-inference", model_config, "--mode", "inference"]
         infer_results(conn)
     finally:
         sys.argv = previous_argv

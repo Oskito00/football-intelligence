@@ -87,14 +87,14 @@
       "save_predictions": true,
       "save_feature_importance": true,
       "save_evaluation_report": true,
-      "model_dir": "ml_pipeline/saved_models",
+      "model_dir": "models",
       "predictions_dir": "data/predictions",
-      "reports_dir": "ml_pipeline/reports"
+      "reports_dir": "football_intelligence/predictions/reports"
     },
     "logging": {
       "level": "INFO",
       "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-      "file": "ml_pipeline/logs/result_model_early.log"
+      "file": "football_intelligence/predictions/logs/result_model_early.log"
     }
   },
   "training_samples": 866799,

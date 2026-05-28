@@ -71,7 +71,7 @@ def _handle_prediction_refresh(args: argparse.Namespace) -> int:
 
 
 def run_prediction_refresh() -> None:
-    from scheduler.scheduler import main as refresh
+    from football_intelligence.predictions.refresh import run_prediction_refresh as refresh
 
     refresh()
 
@@ -82,6 +82,8 @@ def run_model_training(
     dry_run: bool = False,
     limit: Optional[int] = None,
 ) -> dict[str, Any]:
-    from ml_pipeline.main_train import run_model_training as train_model
+    from football_intelligence.predictions.model_training import (
+        run_model_training as train_model,
+    )
 
     return train_model(config_name, dry_run=dry_run, limit=limit)

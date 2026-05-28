@@ -1,28 +1,21 @@
 #!/usr/bin/env python3
-"""
-Main training entry point for the ML pipeline
-Loads configuration and dispatches to appropriate training logic
-"""
+"""Model Training entrypoint for Football Intelligence Predictions."""
 
 import argparse
 import logging
 import sys
-from pathlib import Path
 from typing import Any, Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-# Add project root to path (go up one level from ml_pipeline)
-project_root = Path(__file__).parent.parent
-sys.path.append(str(project_root))
-
 from config import get_config
-
-from ml_pipeline.utils.config import config_manager
+from football_intelligence.predictions.config import config_manager
 
 
 def setup_logging(ml_config: dict):
     """Setup logging based on ML config"""
+    from pathlib import Path
+
     log_config = ml_config.get('logging', {})
     level = getattr(logging, log_config.get('level', 'INFO').upper())
     format_str = log_config.get('format', '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -43,7 +36,7 @@ def setup_logging(ml_config: dict):
 
 def get_trainer(model_name: str):
     """Get the appropriate trainer function based on model name"""
-    from ml_pipeline.training.train_result_model import train_result_model
+    from football_intelligence.predictions.training import train_result_model
 
     trainers = {
         'result_model': train_result_model,
