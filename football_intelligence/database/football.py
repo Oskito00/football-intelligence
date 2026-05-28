@@ -22,7 +22,7 @@ import sqlite3
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Protocol
+from typing import Any, Protocol
 
 import pandas as pd
 from psycopg2.extras import execute_values
@@ -1745,7 +1745,11 @@ def get_from_standings(conn, select_str, columns, where_clause=None, order_by=No
     order_by_str = f'ORDER BY {order_by}' if order_by else ''
     limit_str = f'LIMIT {limit}' if limit else ''
 
-    cursor.execute(f'{select_str} {columns_str} FROM league_standings {where_clause_str} {order_by_str} {limit_str}', where_clause_args) if where_clause_args else cursor.execute(f'{select_str} {columns_str} FROM league_standings {where_clause_str} {order_by_str} {limit_str}')
+    query = f'{select_str} {columns_str} FROM league_standings {where_clause_str} {order_by_str} {limit_str}'
+    if where_clause_args:
+        cursor.execute(query, where_clause_args)
+    else:
+        cursor.execute(query)
     return cursor.fetchall()
 
 def load_from_postgres(
@@ -1815,7 +1819,7 @@ def update_processed_status(conn, match_ids, with_formation_flags, mode='trainin
     finally:
         cursor.close()
 
-def bulk_insert_formations(formations: List[Dict], conn):
+def bulk_insert_formations(formations: list[dict], conn):
     """
     Bulk insert formations dictionaries into SQL table.
 
@@ -1824,9 +1828,8 @@ def bulk_insert_formations(formations: List[Dict], conn):
                    - match_id (str)
                    - home_team_formation (str)
                    - away_team_formation (str)
-        db_path: Path to SQLite database
+        conn: Database connection
     """
-    # Create table if not exists
     create_table_sql = """
     CREATE TABLE IF NOT EXISTS formations (
         match_id TEXT PRIMARY KEY,
@@ -1835,7 +1838,6 @@ def bulk_insert_formations(formations: List[Dict], conn):
     )
     """
 
-    # Insert/ignore existing
     insert_sql = """
     INSERT INTO formations
         (match_id, home_team_formation, away_team_formation)
@@ -1846,7 +1848,6 @@ def bulk_insert_formations(formations: List[Dict], conn):
         away_team_formation = EXCLUDED.away_team_formation;
     """
 
-    # Prepare data
     data = [
         (f['match_id'], f['home_team_formation'], f['away_team_formation'])
         for f in formations
@@ -1859,7 +1860,7 @@ def bulk_insert_formations(formations: List[Dict], conn):
 
     print(f"Inserted/updated {len(data)} formations")
 
-def bulk_insert_odds(conn, odds_records: List[Dict[str, Any]]) -> int:
+def bulk_insert_odds(conn, odds_records: list[dict[str, Any]]) -> int:
     """Bulk insert odds records using execute_values for better performance"""
     if not odds_records:
         return 0
@@ -1867,9 +1868,6 @@ def bulk_insert_odds(conn, odds_records: List[Dict[str, Any]]) -> int:
     cursor = conn.cursor()
 
     try:
-        from psycopg2.extras import execute_values
-
-        # Prepare the data as tuples
         values = [
             (
                 record['match_id'],
@@ -1904,8 +1902,8 @@ def bulk_insert_odds(conn, odds_records: List[Dict[str, Any]]) -> int:
         cursor.close()
         return 0
 
-def get_future_matches_with_odds(conn) -> List[int]:
-    """Get match IDs for future matches that have odds available within next 14 days"""
+def get_future_matches_with_odds(conn) -> list[int]:
+    """Get match IDs for upcoming matches that have odds in the next 7 days."""
     cursor = conn.cursor()
 
     query = """
