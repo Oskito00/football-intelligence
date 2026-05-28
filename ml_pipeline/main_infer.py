@@ -15,7 +15,7 @@ from psycopg2.extras import RealDictCursor
 from config import get_config
 from ml_pipeline.inference.infer_result_model import infer_result_model
 from ml_pipeline.utils.config import config_manager
-from utils.database.create_tables import create_match_result_predictions_table
+from football_intelligence.database import create_match_result_predictions_table
 
 
 # Add project root to path

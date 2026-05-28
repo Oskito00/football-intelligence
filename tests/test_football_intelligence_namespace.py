@@ -95,15 +95,6 @@ def test_legacy_module_aliases_keep_old_import_paths_compatible(
     assert alias_module is canonical_module
 
 
-def test_legacy_database_helper_wrapper_keeps_old_import_path_compatible():
-    from utils.database.get_and_set_functions import get_from_matches
-    from utils.database_helpers.get_and_set_functions import (
-        get_from_matches as legacy_get_from_matches,
-    )
-
-    assert legacy_get_from_matches is get_from_matches
-
-
 def test_database_namespace_exposes_read_only_football_queries():
     from football_intelligence.database import (
         FootballQueryError,

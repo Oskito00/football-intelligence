@@ -1,7 +1,7 @@
 from datetime import time
 import time
 import psycopg2
-from utils.database.get_and_set_functions import get_from_matches
+from football_intelligence.database import get_from_matches
 
 def process_matches_to_history(conn, batch_size=1000):
     """Saves matches into an easier to query table.

@@ -14,9 +14,11 @@ import requests
 from psycopg2.extras import RealDictCursor
 
 from config import get_config
-from utils.database.create_tables import create_odds_table
-from utils.database.get_and_set_functions import get_future_matches_with_odds
-from utils.database.postgresql import upsert_records
+from football_intelligence.database import (
+    create_odds_table,
+    get_future_matches_with_odds,
+    upsert_records,
+)
 from utils.formatting.time import datetime_string_converter
 
 

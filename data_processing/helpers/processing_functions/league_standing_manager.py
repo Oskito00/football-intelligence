@@ -1,4 +1,4 @@
-from utils.database_helpers.get_and_set_functions import get_from_matches, get_from_standings
+from football_intelligence.database import get_from_matches, get_from_standings
 from data_processing.helpers.league_standings.league_standings import find_team_standing, save_to_standings_history, upsert_into_standings
 
 

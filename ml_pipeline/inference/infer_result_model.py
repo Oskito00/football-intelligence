@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 
-from utils.database.postgresql import save_predictions_to_db
+from football_intelligence.database import save_predictions_to_db
 from ml_pipeline.features.load_result_features import ResultFeatureLoader
 from ml_pipeline.utils.io import model_io
 

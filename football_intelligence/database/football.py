@@ -17,10 +17,17 @@ backend errors from valid no-result lookups.
 
 from __future__ import annotations
 
+import logging
+import sqlite3
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Any, Protocol
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Protocol
+
+import pandas as pd
+from psycopg2.extras import execute_values
+
+from football_intelligence.features.schema import FORM_FEATURE_SCHEMA
 
 Row = Mapping[str, Any]
 Prediction = dict[str, Any]
@@ -776,4 +783,1457 @@ __all__ = [
     "FootballQueryError",
     "PostgresReadOnlyRunner",
     "ReadOnlyFootballQueries",
+    "bulk_insert_formations",
+    "bulk_insert_odds",
+    "combine_stats",
+    "create_future_tables",
+    "create_match_result_predictions_table",
+    "create_odds_table",
+    "create_tables",
+    "dict_to_sqlite",
+    "drop_future_tables",
+    "drop_tables",
+    "get_from_matches",
+    "get_from_standings",
+    "get_future_matches_with_odds",
+    "get_latest_predictions",
+    "load_from_postgres",
+    "prune_all_future_features",
+    "prune_old_future_features",
+    "save_predictions_to_db",
+    "update_processed_status",
+    "upsert_records",
 ]
+
+
+# Active football persistence and database support
+# This section preserves the active product database helper behavior that used
+# to live under utils.database.
+
+def create_tables(conn):
+    """Creates tables of use to processing functions"""
+    create_team_match_history_table(conn)
+    create_counter_table(conn)
+    create_elo_history_table(conn)
+    create_club_elo_rating_table(conn)
+    create_league_elo_table(conn)
+    create_nation_elo_table(conn)
+    create_continent_elo_table(conn)
+    create_match_info_table(conn)
+    create_stage_of_season_table(conn)
+    # create_league_standings_table(conn)
+    # create_league_standings_history_table(conn)
+    create_formation_history_table(conn)
+    create_form_history_table(conn)
+    create_form_matches_cache_table(conn)
+    create_processed_info_table(conn)
+    create_h2h_tables(conn)
+
+def create_match_result_predictions_table(conn):
+    cursor = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS match_result_predictions (
+        match_id INTEGER PRIMARY KEY,
+        predicted_result INTEGER,
+        start_time TIMESTAMP,
+        home_team_name TEXT,
+        away_team_name TEXT,
+        prob_home_win REAL,
+        prob_draw REAL,
+        prob_away_win REAL,
+        model_type TEXT,  -- 'basic' or 'with_formation'
+        prediction_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    conn.commit()
+    cursor.close()
+
+def create_processed_info_table(conn):
+    """Creates table to track processing status of matches"""
+    with conn.cursor() as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS processed_info (
+                match_id BIGINT PRIMARY KEY,
+                is_processed BOOLEAN DEFAULT FALSE,
+                with_formation BOOLEAN DEFAULT FALSE,
+                processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                processing_mode VARCHAR(20) DEFAULT 'training',
+                FOREIGN KEY (match_id) REFERENCES matches(match_id)
+            )
+        """)
+
+def create_future_tables(conn):
+    """Creates tables of use to processing functions"""
+    create_elo_future_table(conn)
+    create_stage_of_season_future_table(conn)
+    create_match_info_future_table(conn)
+    create_league_standings_future_table(conn)
+    create_formation_future_table(conn)
+    create_h2h_future_table(conn)
+    create_form_future_table(conn)
+
+def create_form_future_table(conn):
+    """Creates table to store processed form match data"""
+    _create_form_feature_table(conn, FORM_FEATURE_SCHEMA.table_for_mode("inference"))
+
+def create_h2h_future_table(conn):
+    """Creates table to store processed H2H match data"""
+    with conn.cursor() as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS h2h_future (
+                match_id INTEGER PRIMARY KEY,
+                h2h_draws_last_3 FLOAT,
+                h2h_draws_last_5 FLOAT,
+                h2h_draws_last_10 FLOAT,
+                h2h_home_wins_last_3 FLOAT,
+                h2h_home_wins_last_5 FLOAT,
+                h2h_home_wins_last_10 FLOAT,
+                h2h_away_wins_last_3 FLOAT,
+                h2h_away_wins_last_5 FLOAT,
+                h2h_away_wins_last_10 FLOAT,
+                h2h_avg_total_goals FLOAT,
+                h2h_avg_goal_diff FLOAT,
+                h2h_home_goals_avg_last_3 FLOAT,
+                h2h_home_goals_avg_last_5 FLOAT,
+                h2h_home_goals_avg_last_10 FLOAT,
+                h2h_away_goals_avg_last_3 FLOAT,
+                h2h_away_goals_avg_last_5 FLOAT,
+                h2h_away_goals_avg_last_10 FLOAT,
+                h2h_both_teams_scored_rate FLOAT,
+                h2h_zero_goal_rate FLOAT,
+                raw_h2h_matches JSONB
+            )
+        """)
+
+def create_stage_of_season_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS stage_of_season_history (
+            match_id INTEGER,
+            start_time TIMESTAMP,
+            season_start_date TIMESTAMP,
+            season_end_date TIMESTAMP,
+            stage_of_season REAL,
+            stage_of_season_category TEXT
+        )
+    """)
+    conn.commit()
+    cursor.close()
+
+def create_formation_history_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS formation_history (
+            match_id INTEGER,
+            start_time TIMESTAMP,
+            home_team_formation TEXT,
+            away_team_formation TEXT
+        )
+    """)
+    conn.commit()
+    cursor.close()
+
+def create_formation_future_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS formation_future (
+            match_id INTEGER,
+            start_time TIMESTAMP,
+            home_team_formation TEXT,
+            away_team_formation TEXT
+        )
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_formation_future_start_time
+        ON formation_future(start_time)
+    """)
+    conn.commit()
+    cursor.close()
+
+def create_stage_of_season_future_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS stage_of_season_future (
+            match_id INTEGER,
+            start_time TIMESTAMP,
+            season_start_date TIMESTAMP,
+            season_end_date TIMESTAMP,
+            stage_of_season REAL,
+            stage_of_season_category TEXT
+        )
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_stage_of_season_future_start_time
+        ON stage_of_season_future(start_time)
+    """)
+    conn.commit()
+    cursor.close()
+
+def create_elo_future_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS elo_future (
+            match_id INTEGER,
+            start_time TIMESTAMP,
+            home_team_id INTEGER,
+            away_team_id INTEGER,
+            home_team_name TEXT,
+            away_team_name TEXT,
+            k_draw_parameter REAL,
+            eta_home_advantage REAL,
+
+            -- HOME TEAM ELO RATINGS
+            home_team_nation_elo_K5 INTEGER,
+            home_team_nation_elo_K10 INTEGER,
+            home_team_nation_elo_K20 INTEGER,
+            home_team_nation_elo_K30 INTEGER,
+            home_team_nation_elo_K40 INTEGER,
+            home_team_nation_elo_K80 INTEGER,
+            home_team_league_domestic_elo_K5 INTEGER,
+            home_team_league_domestic_elo_K10 INTEGER,
+            home_team_league_domestic_elo_K20 INTEGER,
+            home_team_league_domestic_elo_K30 INTEGER,
+            home_team_league_domestic_elo_K40 INTEGER,
+            home_team_league_domestic_elo_K80 INTEGER,
+            home_team_league_continental_elo_K5 INTEGER,
+            home_team_league_continental_elo_K10 INTEGER,
+            home_team_league_continental_elo_K20 INTEGER,
+            home_team_league_continental_elo_K30 INTEGER,
+            home_team_league_continental_elo_K40 INTEGER,
+            home_team_league_continental_elo_K80 INTEGER,
+            home_team_league_intercontinental_elo_K5 INTEGER,
+            home_team_league_intercontinental_elo_K10 INTEGER,
+            home_team_league_intercontinental_elo_K20 INTEGER,
+            home_team_league_intercontinental_elo_K30 INTEGER,
+            home_team_league_intercontinental_elo_K40 INTEGER,
+            home_team_league_intercontinental_elo_K80 INTEGER,
+            home_team_continent_elo_K5 INTEGER,
+            home_team_continent_elo_K10 INTEGER,
+            home_team_continent_elo_K20 INTEGER,
+            home_team_continent_elo_K30 INTEGER,
+            home_team_continent_elo_K40 INTEGER,
+            home_team_continent_elo_K80 INTEGER,
+            home_team_elo_home_matches_K5 INTEGER,
+            home_team_elo_home_matches_K10 INTEGER,
+            home_team_elo_home_matches_K20 INTEGER,
+            home_team_elo_home_matches_K30 INTEGER,
+            home_team_elo_home_matches_K40 INTEGER,
+            home_team_elo_home_matches_K80 INTEGER,
+            home_team_elo_away_matches_K5 INTEGER,
+            home_team_elo_away_matches_K10 INTEGER,
+            home_team_elo_away_matches_K20 INTEGER,
+            home_team_elo_away_matches_K30 INTEGER,
+            home_team_elo_away_matches_K40 INTEGER,
+            home_team_elo_away_matches_K80 INTEGER,
+            home_team_elo_K5 INTEGER,
+            home_team_elo_K10 INTEGER,
+            home_team_elo_K20 INTEGER,
+            home_team_elo_K30 INTEGER,
+            home_team_elo_K40 INTEGER,
+            home_team_elo_K80 INTEGER,
+            home_team_elo_domestic_K5 INTEGER,
+            home_team_elo_domestic_K10 INTEGER,
+            home_team_elo_domestic_K20 INTEGER,
+            home_team_elo_domestic_K30 INTEGER,
+            home_team_elo_domestic_K40 INTEGER,
+            home_team_elo_domestic_K80 INTEGER,
+            home_team_elo_intraleague_K5 INTEGER,
+            home_team_elo_intraleague_K10 INTEGER,
+            home_team_elo_intraleague_K20 INTEGER,
+            home_team_elo_intraleague_K30 INTEGER,
+            home_team_elo_intraleague_K40 INTEGER,
+            home_team_elo_intraleague_K80 INTEGER,
+            home_team_elo_international_K5 INTEGER,
+            home_team_elo_international_K10 INTEGER,
+            home_team_elo_international_K20 INTEGER,
+            home_team_elo_international_K30 INTEGER,
+            home_team_elo_international_K40 INTEGER,
+            home_team_elo_international_K80 INTEGER,
+
+
+            -- AWAY TEAM ELO RATINGS
+            away_team_nation_elo_K5 INTEGER,
+            away_team_nation_elo_K10 INTEGER,
+            away_team_nation_elo_K20 INTEGER,
+            away_team_nation_elo_K30 INTEGER,
+            away_team_nation_elo_K40 INTEGER,
+            away_team_nation_elo_K80 INTEGER,
+            away_team_league_domestic_elo_K5 INTEGER,
+            away_team_league_domestic_elo_K10 INTEGER,
+            away_team_league_domestic_elo_K20 INTEGER,
+            away_team_league_domestic_elo_K30 INTEGER,
+            away_team_league_domestic_elo_K40 INTEGER,
+            away_team_league_domestic_elo_K80 INTEGER,
+            away_team_league_continental_elo_K5 INTEGER,
+            away_team_league_continental_elo_K10 INTEGER,
+            away_team_league_continental_elo_K20 INTEGER,
+            away_team_league_continental_elo_K30 INTEGER,
+            away_team_league_continental_elo_K40 INTEGER,
+            away_team_league_continental_elo_K80 INTEGER,
+            away_team_league_intercontinental_elo_K5 INTEGER,
+            away_team_league_intercontinental_elo_K10 INTEGER,
+            away_team_league_intercontinental_elo_K20 INTEGER,
+            away_team_league_intercontinental_elo_K30 INTEGER,
+            away_team_league_intercontinental_elo_K40 INTEGER,
+            away_team_league_intercontinental_elo_K80 INTEGER,
+            away_team_continent_elo_K5 INTEGER,
+            away_team_continent_elo_K10 INTEGER,
+            away_team_continent_elo_K20 INTEGER,
+            away_team_continent_elo_K30 INTEGER,
+            away_team_continent_elo_K40 INTEGER,
+            away_team_continent_elo_K80 INTEGER,
+            away_team_elo_home_matches_K5 INTEGER,
+            away_team_elo_home_matches_K10 INTEGER,
+            away_team_elo_home_matches_K20 INTEGER,
+            away_team_elo_home_matches_K30 INTEGER,
+            away_team_elo_home_matches_K40 INTEGER,
+            away_team_elo_home_matches_K80 INTEGER,
+            away_team_elo_away_matches_K5 INTEGER,
+            away_team_elo_away_matches_K10 INTEGER,
+            away_team_elo_away_matches_K20 INTEGER,
+            away_team_elo_away_matches_K30 INTEGER,
+            away_team_elo_away_matches_K40 INTEGER,
+            away_team_elo_away_matches_K80 INTEGER,
+            away_team_elo_K5 INTEGER,
+            away_team_elo_K10 INTEGER,
+            away_team_elo_K20 INTEGER,
+            away_team_elo_K30 INTEGER,
+            away_team_elo_K40 INTEGER,
+            away_team_elo_K80 INTEGER,
+            away_team_elo_domestic_K5 INTEGER,
+            away_team_elo_domestic_K10 INTEGER,
+            away_team_elo_domestic_K20 INTEGER,
+            away_team_elo_domestic_K30 INTEGER,
+            away_team_elo_domestic_K40 INTEGER,
+            away_team_elo_domestic_K80 INTEGER,
+            away_team_elo_intraleague_K5 INTEGER,
+            away_team_elo_intraleague_K10 INTEGER,
+            away_team_elo_intraleague_K20 INTEGER,
+            away_team_elo_intraleague_K30 INTEGER,
+            away_team_elo_intraleague_K40 INTEGER,
+            away_team_elo_intraleague_K80 INTEGER,
+            away_team_elo_international_K5 INTEGER,
+            away_team_elo_international_K10 INTEGER,
+            away_team_elo_international_K20 INTEGER,
+            away_team_elo_international_K30 INTEGER,
+            away_team_elo_international_K40 INTEGER,
+            away_team_elo_international_K80 INTEGER
+        )
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_elo_future_start_time
+        ON elo_future(start_time)
+    """)
+    conn.commit()
+    cursor.close()
+
+def create_elo_history_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS elo_history (
+            match_id INTEGER,
+            start_time TIMESTAMP,
+            home_team_id INTEGER,
+            away_team_id INTEGER,
+            home_team_name TEXT,
+            away_team_name TEXT,
+            k_draw_parameter REAL,
+            eta_home_advantage REAL,
+
+            -- HOME TEAM ELO RATINGS
+            home_team_nation_elo_K5 INTEGER,
+            home_team_nation_elo_K10 INTEGER,
+            home_team_nation_elo_K20 INTEGER,
+            home_team_nation_elo_K30 INTEGER,
+            home_team_nation_elo_K40 INTEGER,
+            home_team_nation_elo_K80 INTEGER,
+            home_team_league_domestic_elo_K5 INTEGER,
+            home_team_league_domestic_elo_K10 INTEGER,
+            home_team_league_domestic_elo_K20 INTEGER,
+            home_team_league_domestic_elo_K30 INTEGER,
+            home_team_league_domestic_elo_K40 INTEGER,
+            home_team_league_domestic_elo_K80 INTEGER,
+            home_team_league_continental_elo_K5 INTEGER,
+            home_team_league_continental_elo_K10 INTEGER,
+            home_team_league_continental_elo_K20 INTEGER,
+            home_team_league_continental_elo_K30 INTEGER,
+            home_team_league_continental_elo_K40 INTEGER,
+            home_team_league_continental_elo_K80 INTEGER,
+            home_team_league_intercontinental_elo_K5 INTEGER,
+            home_team_league_intercontinental_elo_K10 INTEGER,
+            home_team_league_intercontinental_elo_K20 INTEGER,
+            home_team_league_intercontinental_elo_K30 INTEGER,
+            home_team_league_intercontinental_elo_K40 INTEGER,
+            home_team_league_intercontinental_elo_K80 INTEGER,
+            home_team_continent_elo_K5 INTEGER,
+            home_team_continent_elo_K10 INTEGER,
+            home_team_continent_elo_K20 INTEGER,
+            home_team_continent_elo_K30 INTEGER,
+            home_team_continent_elo_K40 INTEGER,
+            home_team_continent_elo_K80 INTEGER,
+            home_team_elo_home_matches_K5 INTEGER,
+            home_team_elo_home_matches_K10 INTEGER,
+            home_team_elo_home_matches_K20 INTEGER,
+            home_team_elo_home_matches_K30 INTEGER,
+            home_team_elo_home_matches_K40 INTEGER,
+            home_team_elo_home_matches_K80 INTEGER,
+            home_team_elo_away_matches_K5 INTEGER,
+            home_team_elo_away_matches_K10 INTEGER,
+            home_team_elo_away_matches_K20 INTEGER,
+            home_team_elo_away_matches_K30 INTEGER,
+            home_team_elo_away_matches_K40 INTEGER,
+            home_team_elo_away_matches_K80 INTEGER,
+            home_team_elo_K5 INTEGER,
+            home_team_elo_K10 INTEGER,
+            home_team_elo_K20 INTEGER,
+            home_team_elo_K30 INTEGER,
+            home_team_elo_K40 INTEGER,
+            home_team_elo_K80 INTEGER,
+            home_team_elo_domestic_K5 INTEGER,
+            home_team_elo_domestic_K10 INTEGER,
+            home_team_elo_domestic_K20 INTEGER,
+            home_team_elo_domestic_K30 INTEGER,
+            home_team_elo_domestic_K40 INTEGER,
+            home_team_elo_domestic_K80 INTEGER,
+            home_team_elo_intraleague_K5 INTEGER,
+            home_team_elo_intraleague_K10 INTEGER,
+            home_team_elo_intraleague_K20 INTEGER,
+            home_team_elo_intraleague_K30 INTEGER,
+            home_team_elo_intraleague_K40 INTEGER,
+            home_team_elo_intraleague_K80 INTEGER,
+            home_team_elo_international_K5 INTEGER,
+            home_team_elo_international_K10 INTEGER,
+            home_team_elo_international_K20 INTEGER,
+            home_team_elo_international_K30 INTEGER,
+            home_team_elo_international_K40 INTEGER,
+            home_team_elo_international_K80 INTEGER,
+
+            -- AWAY TEAM ELO RATINGS
+            away_team_nation_elo_K5 INTEGER,
+            away_team_nation_elo_K10 INTEGER,
+            away_team_nation_elo_K20 INTEGER,
+            away_team_nation_elo_K30 INTEGER,
+            away_team_nation_elo_K40 INTEGER,
+            away_team_nation_elo_K80 INTEGER,
+            away_team_league_domestic_elo_K5 INTEGER,
+            away_team_league_domestic_elo_K10 INTEGER,
+            away_team_league_domestic_elo_K20 INTEGER,
+            away_team_league_domestic_elo_K30 INTEGER,
+            away_team_league_domestic_elo_K40 INTEGER,
+            away_team_league_domestic_elo_K80 INTEGER,
+            away_team_league_continental_elo_K5 INTEGER,
+            away_team_league_continental_elo_K10 INTEGER,
+            away_team_league_continental_elo_K20 INTEGER,
+            away_team_league_continental_elo_K30 INTEGER,
+            away_team_league_continental_elo_K40 INTEGER,
+            away_team_league_continental_elo_K80 INTEGER,
+            away_team_league_intercontinental_elo_K5 INTEGER,
+            away_team_league_intercontinental_elo_K10 INTEGER,
+            away_team_league_intercontinental_elo_K20 INTEGER,
+            away_team_league_intercontinental_elo_K30 INTEGER,
+            away_team_league_intercontinental_elo_K40 INTEGER,
+            away_team_league_intercontinental_elo_K80 INTEGER,
+            away_team_continent_elo_K5 INTEGER,
+            away_team_continent_elo_K10 INTEGER,
+            away_team_continent_elo_K20 INTEGER,
+            away_team_continent_elo_K30 INTEGER,
+            away_team_continent_elo_K40 INTEGER,
+            away_team_continent_elo_K80 INTEGER,
+            away_team_elo_home_matches_K5 INTEGER,
+            away_team_elo_home_matches_K10 INTEGER,
+            away_team_elo_home_matches_K20 INTEGER,
+            away_team_elo_home_matches_K30 INTEGER,
+            away_team_elo_home_matches_K40 INTEGER,
+            away_team_elo_home_matches_K80 INTEGER,
+            away_team_elo_away_matches_K5 INTEGER,
+            away_team_elo_away_matches_K10 INTEGER,
+            away_team_elo_away_matches_K20 INTEGER,
+            away_team_elo_away_matches_K30 INTEGER,
+            away_team_elo_away_matches_K40 INTEGER,
+            away_team_elo_away_matches_K80 INTEGER,
+            away_team_elo_K5 INTEGER,
+            away_team_elo_K10 INTEGER,
+            away_team_elo_K20 INTEGER,
+            away_team_elo_K30 INTEGER,
+            away_team_elo_K40 INTEGER,
+            away_team_elo_K80 INTEGER,
+            away_team_elo_domestic_K5 INTEGER,
+            away_team_elo_domestic_K10 INTEGER,
+            away_team_elo_domestic_K20 INTEGER,
+            away_team_elo_domestic_K30 INTEGER,
+            away_team_elo_domestic_K40 INTEGER,
+            away_team_elo_domestic_K80 INTEGER,
+            away_team_elo_intraleague_K5 INTEGER,
+            away_team_elo_intraleague_K10 INTEGER,
+            away_team_elo_intraleague_K20 INTEGER,
+            away_team_elo_intraleague_K30 INTEGER,
+            away_team_elo_intraleague_K40 INTEGER,
+            away_team_elo_intraleague_K80 INTEGER,
+            away_team_elo_international_K5 INTEGER,
+            away_team_elo_international_K10 INTEGER,
+            away_team_elo_international_K20 INTEGER,
+            away_team_elo_international_K30 INTEGER,
+            away_team_elo_international_K40 INTEGER,
+            away_team_elo_international_K80 INTEGER,
+
+            -- MATCH RESULT
+            home_team_score INTEGER,
+            away_team_score INTEGER
+        )
+    """)
+    conn.commit()
+    cursor.close()
+
+def create_club_elo_rating_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS club_elo_ratings (
+            team_id INTEGER PRIMARY KEY,
+            team_name TEXT,
+            elo_home_matches_K5 INTEGER,
+            elo_home_matches_K10 INTEGER,
+            elo_home_matches_K20 INTEGER,
+            elo_home_matches_K30 INTEGER,
+            elo_home_matches_K40 INTEGER,
+            elo_home_matches_K80 INTEGER,
+            elo_away_matches_K5 INTEGER,
+            elo_away_matches_K10 INTEGER,
+            elo_away_matches_K20 INTEGER,
+            elo_away_matches_K30 INTEGER,
+            elo_away_matches_K40 INTEGER,
+            elo_away_matches_K80 INTEGER,
+            elo_K5 INTEGER,
+            elo_K10 INTEGER,
+            elo_K20 INTEGER,
+            elo_K30 INTEGER,
+            elo_K40 INTEGER,
+            elo_K80 INTEGER,
+            elo_domestic_K5 INTEGER,
+            elo_domestic_K10 INTEGER,
+            elo_domestic_K20 INTEGER,
+            elo_domestic_K30 INTEGER,
+            elo_domestic_K40 INTEGER,
+            elo_domestic_K80 INTEGER,
+            elo_intraleague_K5 INTEGER,
+            elo_intraleague_K10 INTEGER,
+            elo_intraleague_K20 INTEGER,
+            elo_intraleague_K30 INTEGER,
+            elo_intraleague_K40 INTEGER,
+            elo_intraleague_K80 INTEGER,
+            elo_international_K5 INTEGER,
+            elo_international_K10 INTEGER,
+            elo_international_K20 INTEGER,
+            elo_international_K30 INTEGER,
+            elo_international_K40 INTEGER,
+            elo_international_K80 INTEGER
+        )
+    """)
+    conn.commit()
+    cursor.close()
+
+def create_league_elo_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS league_elo_ratings (
+            league_id INTEGER PRIMARY KEY,
+            league_domestic_elo_K5 INTEGER,
+            league_domestic_elo_K10 INTEGER,
+            league_domestic_elo_K20 INTEGER,
+            league_domestic_elo_K30 INTEGER,
+            league_domestic_elo_K40 INTEGER,
+            league_domestic_elo_K80 INTEGER,
+            league_continental_elo_K5 INTEGER,
+            league_continental_elo_K10 INTEGER,
+            league_continental_elo_K20 INTEGER,
+            league_continental_elo_K30 INTEGER,
+            league_continental_elo_K40 INTEGER,
+            league_continental_elo_K80 INTEGER,
+            league_intercontinental_elo_K5 INTEGER,
+            league_intercontinental_elo_K10 INTEGER,
+            league_intercontinental_elo_K20 INTEGER,
+            league_intercontinental_elo_K30 INTEGER,
+            league_intercontinental_elo_K40 INTEGER,
+            league_intercontinental_elo_K80 INTEGER
+        )
+    """)
+    conn.commit()
+    cursor.close()
+
+def create_nation_elo_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS nation_elo_ratings (
+            nation_name TEXT PRIMARY KEY,
+            nation_elo_K5 INTEGER,
+            nation_elo_K10 INTEGER,
+            nation_elo_K20 INTEGER,
+            nation_elo_K30 INTEGER,
+            nation_elo_K40 INTEGER,
+            nation_elo_K80 INTEGER
+        )
+    """)
+    conn.commit()
+    cursor.close()
+
+#MAIN COMPETITION
+def create_team_main_competition_table(conn):
+    """Create a table to store the main competition and country for each team"""
+    cursor = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS team_main_competition (
+        team_id INTEGER PRIMARY KEY,
+        team_name TEXT,
+        main_competition_id INTEGER,
+        main_competition_name TEXT,
+        main_competition_country TEXT,
+        match_count INTEGER
+    )
+    ''')
+    conn.commit()
+
+#MATCH HISTORY
+def create_team_match_history_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS TeamMatchHistory (
+            team_id      INTEGER,
+            match_id     INTEGER,
+            start_time   TIMESTAMP,
+            competition_season_name TEXT,
+            competition_id TEXT,
+            competition_name TEXT,
+            competition_country TEXT,
+            goals_scored INT,
+            goals_conceded INT,
+            result       VARCHAR(4),  -- 'win', 'loss', 'draw'
+            is_home      INTEGER,     -- 0 for away, 1 for home
+            is_intraleague_match INTEGER,
+            is_domestic_cup_match INTEGER,
+            is_continental_cup_match INTEGER,
+            PRIMARY KEY (team_id, match_id)
+        )
+    """)
+    conn.commit()
+    cursor.close()
+
+#COUNTER FOR ALL MATCH RESULTS
+def create_counter_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS counter_table (
+            competition_id TEXT,
+            home_wins FLOAT,
+            draw_wins FLOAT,
+            away_wins FLOAT,
+            count INTEGER,
+            last_updated TEXT,
+            PRIMARY KEY (competition_id)
+        )
+    """)
+    conn.commit()
+    cursor.close()
+
+#MATCH INFO
+def create_match_info_table(conn):
+    cursor = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS match_info_history (
+        match_id INTEGER,
+        start_time TIMESTAMP,
+        competition_season_name TEXT,
+        competition_id TEXT,
+        competition_name TEXT,
+        competition_country TEXT,
+        home_team_name TEXT,
+        away_team_name TEXT,
+        PRIMARY KEY (match_id, competition_id)
+    )
+    ''')
+    conn.commit()
+    cursor.close()
+
+def create_match_info_future_table(conn):
+    cursor = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS match_info_future (
+        match_id INTEGER,
+        start_time TIMESTAMP,
+        competition_season_name TEXT,
+        competition_id TEXT,
+        competition_name TEXT,
+        competition_country TEXT,
+        home_team_name TEXT,
+        away_team_name TEXT,
+        PRIMARY KEY (match_id, competition_id)
+    )
+    ''')
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_match_info_future_start_time
+        ON match_info_future(start_time)
+    """)
+    conn.commit()
+    cursor.close()
+
+#LEAGUE STANDINGS
+def create_league_standings_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS league_standings (
+            team_id INTEGER,
+            competition_season_id TEXT,
+            matches_played INTEGER,
+            wins INTEGER,
+            draws INTEGER,
+            losses INTEGER,
+            goals_for INTEGER,
+            goals_against INTEGER,
+            goal_difference INTEGER,
+            points INTEGER,
+            PRIMARY KEY (team_id, competition_season_id)
+        )
+    """)
+    conn.commit()
+    cursor.close()
+
+def create_league_standings_history_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS league_standings_history (
+            match_id INTEGER,
+            home_standing INTEGER,
+            home_matches_played INTEGER,
+            home_wins INTEGER,
+            home_draws INTEGER,
+            home_losses INTEGER,
+            home_goals_for INTEGER,
+            home_goals_against INTEGER,
+            home_goal_difference INTEGER,
+            home_points INTEGER,
+            away_standing INTEGER,
+            away_matches_played INTEGER,
+            away_wins INTEGER,
+            away_draws INTEGER,
+            away_losses INTEGER,
+            away_goals_for INTEGER,
+            away_goals_against INTEGER,
+            away_goal_difference INTEGER,
+            away_points INTEGER
+        )
+    """)
+    conn.commit()
+    cursor.close()
+
+def create_league_standings_future_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS league_standings_future (
+            match_id INTEGER,
+            start_time TIMESTAMP,
+            home_standing INTEGER,
+            home_matches_played INTEGER,
+            home_wins INTEGER,
+            home_draws INTEGER,
+            home_losses INTEGER,
+            home_goals_for INTEGER,
+            home_goals_against INTEGER,
+            home_goal_difference INTEGER,
+            home_points INTEGER,
+            away_standing INTEGER,
+            away_matches_played INTEGER,
+            away_wins INTEGER,
+            away_draws INTEGER,
+            away_losses INTEGER,
+            away_goals_for INTEGER,
+            away_goals_against INTEGER,
+            away_goal_difference INTEGER,
+            away_points INTEGER
+        )
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_league_standings_future_start_time
+        ON league_standings_future(start_time)
+    """)
+    conn.commit()
+    cursor.close()
+
+def create_odds_table(conn):
+    """Create the odds table if it doesn't exist"""
+    cursor = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS odds (
+        id SERIAL PRIMARY KEY,
+        match_id INTEGER NOT NULL,
+        bookmaker_id INTEGER NOT NULL,
+        bookmaker_name TEXT NOT NULL,
+        bet_type_id INTEGER NOT NULL,
+        bet_type_name TEXT NOT NULL,
+        bet_value TEXT NOT NULL,
+        odds_value DECIMAL(10,2) NOT NULL,
+        retrieved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        api_last_updated TIMESTAMP
+    )
+    ''')
+
+    # Create index for faster queries
+    cursor.execute('''
+    CREATE INDEX IF NOT EXISTS idx_odds_match_id
+    ON odds(match_id)
+    ''')
+
+    cursor.execute('''
+    CREATE INDEX IF NOT EXISTS idx_odds_retrieved_at
+    ON odds(retrieved_at)
+    ''')
+
+    conn.commit()
+    cursor.close()
+
+def create_form_history_table(conn):
+    """Creates table to store form history for each match"""
+    _create_form_feature_table(conn, FORM_FEATURE_SCHEMA.table_for_mode("training"))
+
+
+def _create_form_feature_table(conn, table_name):
+    columns_sql = ",\n                ".join(FORM_FEATURE_SCHEMA.ddl_columns())
+    with conn.cursor() as cur:
+        cur.execute(f"""
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                {columns_sql}
+            )
+        """)
+
+def create_form_matches_cache_table(conn):
+    """Creates table to store processed form match data"""
+    with conn.cursor() as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS form_matches_cache (
+                match_id INTEGER PRIMARY KEY,
+                start_time TIMESTAMP,
+                home_team_id INTEGER,
+                away_team_id INTEGER,
+                home_name VARCHAR(255),
+                away_name VARCHAR(255),
+                home_score INTEGER,
+                away_score INTEGER,
+                home_team_elo INTEGER,
+                away_team_elo INTEGER,
+                home_team_international_elo INTEGER,
+                away_team_international_elo INTEGER
+            )
+        """)
+        # Add indexes for faster queries
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_form_matches_home_team
+            ON form_matches_cache(home_team_id)
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_form_matches_away_team
+            ON form_matches_cache(away_team_id)
+        """)
+
+def create_h2h_tables(conn):
+    """Creates tables for H2H stats and history"""
+    with conn.cursor() as cur:
+        # Create h2h_stats table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS h2h_stats (
+                team_pair_id SERIAL PRIMARY KEY,
+                team1_id INTEGER,
+                team2_id INTEGER,
+                team1_name TEXT,
+                team2_name TEXT,
+                total_matches INTEGER DEFAULT 0,
+                team1_wins INTEGER DEFAULT 0,
+                team2_wins INTEGER DEFAULT 0,
+                draws INTEGER DEFAULT 0,
+                team1_goals INTEGER DEFAULT 0,
+                team2_goals INTEGER DEFAULT 0,
+                recent_matches JSONB,  -- Array of last 10 matches with timestamps
+                last_updated TIMESTAMP,
+                UNIQUE(team1_id, team2_id)
+            )
+        """)
+
+        # Create h2h_history table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS h2h_history (
+                match_id INTEGER PRIMARY KEY,
+                h2h_draws_last_3 FLOAT,
+                h2h_draws_last_5 FLOAT,
+                h2h_draws_last_10 FLOAT,
+                h2h_home_wins_last_3 FLOAT,
+                h2h_home_wins_last_5 FLOAT,
+                h2h_home_wins_last_10 FLOAT,
+                h2h_away_wins_last_3 FLOAT,
+                h2h_away_wins_last_5 FLOAT,
+                h2h_away_wins_last_10 FLOAT,
+                h2h_avg_total_goals FLOAT,
+                h2h_avg_goal_diff FLOAT,
+                h2h_home_goals_avg_last_3 FLOAT,
+                h2h_home_goals_avg_last_5 FLOAT,
+                h2h_home_goals_avg_last_10 FLOAT,
+                h2h_away_goals_avg_last_3 FLOAT,
+                h2h_away_goals_avg_last_5 FLOAT,
+                h2h_away_goals_avg_last_10 FLOAT,
+                h2h_both_teams_scored_rate FLOAT,
+                h2h_zero_goal_rate FLOAT,
+                raw_h2h_matches JSONB
+            )
+        """)
+
+        # Add indexes for faster lookups
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_h2h_stats_team_pair
+            ON h2h_stats(team1_id, team2_id)
+        """)
+
+def create_continent_elo_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS continent_elo_ratings (
+            continent_name TEXT PRIMARY KEY,
+            continent_elo_K5 INTEGER,
+            continent_elo_K10 INTEGER,
+            continent_elo_K20 INTEGER,
+            continent_elo_K30 INTEGER,
+            continent_elo_K40 INTEGER,
+            continent_elo_K80 INTEGER
+        )
+    """)
+    conn.commit()
+    cursor.close()
+
+def get_from_matches(conn, select_str, columns, where_clause=None, from_clause=None, order_by=None, limit=None, where_clause_args=None):
+    """A dynamic function that gets data from the matches table.
+
+    Args:
+        conn (sqlite3.Connection): The database connection.
+        columns (list): The columns to select.
+        where_clause (str): The WHERE clause to filter the data.
+        order_by (str): The ORDER BY clause to sort the data.
+        limit (int): The LIMIT clause to limit the number of rows returned.
+    """
+    cursor = conn.cursor()
+
+    columns_str = ', '.join(columns)
+    select_str = f'{select_str} ' if select_str else ''
+    where_clause_str = f'WHERE {where_clause}' if where_clause else ''
+    from_clause_str = f'FROM {from_clause}' if from_clause else 'FROM matches'
+    order_by_str = f'ORDER BY {order_by}' if order_by else ''
+    limit_str = f'LIMIT {limit}' if limit else ''
+
+    cursor.execute(f'{select_str} {columns_str} {from_clause_str} {where_clause_str} {order_by_str} {limit_str}')
+    return cursor.fetchall()
+
+def get_from_standings(conn, select_str, columns, where_clause=None, order_by=None, limit=None, where_clause_args=None):
+    """A dynamic function that gets data from the standings table.
+
+    Args:
+        conn (sqlite3.Connection): The database connection.
+        columns (list): The columns to select.
+        where_clause (str): The WHERE clause to filter the data.
+        order_by (str): The ORDER BY clause to sort the data.
+        limit (int): The LIMIT clause to limit the number of rows returned.
+    """
+    cursor = conn.cursor()
+
+    columns_str = ', '.join(columns)
+    select_str = f'{select_str} ' if select_str else ''
+    where_clause_str = f'WHERE {where_clause}' if where_clause else ''
+    order_by_str = f'ORDER BY {order_by}' if order_by else ''
+    limit_str = f'LIMIT {limit}' if limit else ''
+
+    cursor.execute(f'{select_str} {columns_str} FROM league_standings {where_clause_str} {order_by_str} {limit_str}', where_clause_args) if where_clause_args else cursor.execute(f'{select_str} {columns_str} FROM league_standings {where_clause_str} {order_by_str} {limit_str}')
+    return cursor.fetchall()
+
+def load_from_postgres(
+    engine,
+    table: str,
+    select: str = "*",
+    where: str = None,
+    drop_columns: list[str] = None,
+    limit: int = None
+) -> pd.DataFrame:
+    """
+    Load data from any PostgreSQL table using SQLAlchemy with flexible SELECT/WHERE/LIMIT clauses.
+    Mostly used for loading data for training.
+    #TODO: Use this function instead of the ones above
+
+    Args:
+        table (str): Table name to query.
+        select (str): Comma-separated column list or "*" (default).
+        where (str): Optional WHERE clause (without 'WHERE').
+        drop_columns (list): List of column names to drop.
+        limit (int): Optional LIMIT clause.
+
+    Returns:
+        pd.DataFrame: Resulting dataframe.
+    """
+    print(f"Loading data from {table}")
+    query = f"SELECT {select} FROM {table}"
+    if where:
+        query += f" WHERE {where}"
+    if limit:
+        query += f" LIMIT {limit}"
+
+    df = pd.read_sql_query(query, engine)
+
+    if drop_columns:
+        df.drop(columns=drop_columns, inplace=True, errors='ignore')
+
+    return df
+
+def update_processed_status(conn, match_ids, with_formation_flags, mode='training'):
+    """Update processing status for processed matches"""
+    cursor = conn.cursor()
+    try:
+        # Prepare data for bulk update
+        update_data = [
+            (match_id, True, with_formation, mode)
+            for match_id, with_formation in zip(match_ids, with_formation_flags)
+        ]
+
+        cursor.executemany('''
+            INSERT INTO processed_info (match_id, is_processed, with_formation, processing_mode)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (match_id) DO UPDATE SET
+                is_processed = EXCLUDED.is_processed,
+                with_formation = EXCLUDED.with_formation,
+                processing_mode = EXCLUDED.processing_mode,
+                processed_at = CURRENT_TIMESTAMP
+        ''', update_data)
+
+        conn.commit()
+        print(f"Updated processing status for {len(match_ids)} matches")
+
+    except Exception as e:
+        print(f"Error updating processed status: {str(e)}")
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+
+def bulk_insert_formations(formations: List[Dict], conn):
+    """
+    Bulk insert formations dictionaries into SQL table.
+
+    Args:
+        formations: List of dicts with keys:
+                   - match_id (str)
+                   - home_team_formation (str)
+                   - away_team_formation (str)
+        db_path: Path to SQLite database
+    """
+    # Create table if not exists
+    create_table_sql = """
+    CREATE TABLE IF NOT EXISTS formations (
+        match_id TEXT PRIMARY KEY,
+        home_team_formation TEXT,
+        away_team_formation TEXT
+    )
+    """
+
+    # Insert/ignore existing
+    insert_sql = """
+    INSERT INTO formations
+        (match_id, home_team_formation, away_team_formation)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (match_id)
+        DO UPDATE SET
+        home_team_formation = EXCLUDED.home_team_formation,
+        away_team_formation = EXCLUDED.away_team_formation;
+    """
+
+    # Prepare data
+    data = [
+        (f['match_id'], f['home_team_formation'], f['away_team_formation'])
+        for f in formations
+    ]
+
+    cursor = conn.cursor()
+    cursor.execute(create_table_sql)
+    cursor.executemany(insert_sql, data)
+    conn.commit()
+
+    print(f"Inserted/updated {len(data)} formations")
+
+def bulk_insert_odds(conn, odds_records: List[Dict[str, Any]]) -> int:
+    """Bulk insert odds records using execute_values for better performance"""
+    if not odds_records:
+        return 0
+
+    cursor = conn.cursor()
+
+    try:
+        from psycopg2.extras import execute_values
+
+        # Prepare the data as tuples
+        values = [
+            (
+                record['match_id'],
+                record['bookmaker_id'],
+                record['bookmaker_name'],
+                record['bet_type_id'],
+                record['bet_type_name'],
+                record['bet_value'],
+                record['odds_value'],
+                record['api_last_updated']
+            )
+            for record in odds_records
+        ]
+
+        insert_query = """
+        INSERT INTO odds (
+            match_id, bookmaker_id, bookmaker_name, bet_type_id,
+            bet_type_name, bet_value, odds_value, api_last_updated
+        ) VALUES %s
+        """
+
+        execute_values(cursor, insert_query, values, page_size=1000)
+        conn.commit()
+
+        rows_inserted = len(values)
+        cursor.close()
+        return rows_inserted
+
+    except Exception as e:
+        print(f"Error bulk inserting odds: {str(e)}")
+        conn.rollback()
+        cursor.close()
+        return 0
+
+def get_future_matches_with_odds(conn) -> List[int]:
+    """Get match IDs for future matches that have odds available within next 14 days"""
+    cursor = conn.cursor()
+
+    query = """
+    SELECT match_id
+    FROM matches
+    WHERE has_odds = TRUE
+    AND home_score IS NULL
+    AND away_score IS NULL
+    AND start_time > NOW()
+    AND start_time <= NOW() + INTERVAL '7 days'
+    ORDER BY start_time ASC
+    """
+
+    cursor.execute(query)
+    # Handle both RealDictCursor (dictionaries) and regular cursor (tuples)
+    rows = cursor.fetchall()
+    if rows and isinstance(rows[0], dict):
+        # RealDictCursor returns dictionaries
+        match_ids = [row['match_id'] for row in rows]
+    else:
+        # Regular cursor returns tuples
+        match_ids = [row[0] for row in rows]
+
+    cursor.close()
+
+    return match_ids
+
+def drop_tables(conn):
+    """Drops all processing tables"""
+    table_names = [
+        # 'teammatchhistory',
+        # 'counter_table',
+        # 'elo_history',
+        # 'club_elo_ratings',
+        # 'league_elo_ratings',
+        # 'nation_elo_ratings',
+        # 'continent_elo_ratings',
+        # 'match_info_history',
+        # 'stage_of_season_history',
+        # 'form_history',
+        # 'form_matches_cache',
+        # 'h2h_history',
+        # 'h2h_stats',
+        # 'processed_info'
+
+        # 'fatigue_history',
+        # 'league_standings',
+        # 'league_standings_history',
+        # 'formations',
+    ]
+
+    with conn.cursor() as cur:
+        for table in reversed(table_names):
+            cur.execute(f"DROP TABLE IF EXISTS {table} CASCADE")
+        conn.commit()
+
+def drop_future_tables(conn):
+    """Drops all future processing tables"""
+    table_names = [
+        # 'elo_future',
+        # 'stage_of_season_future',
+        # 'match_info_future',
+        # 'league_standings_future',
+        # 'formation_future',
+        # 'form_future',
+        # 'h2h_future',
+    ]
+    with conn.cursor() as cur:
+        for table in reversed(table_names):
+            cur.execute(f"DROP TABLE IF EXISTS {table} CASCADE")
+        conn.commit()
+
+def prune_old_future_features(conn, days_threshold=1):
+    """
+    Remove future features for matches that are more than X days in the past
+    """
+    cutoff_time = datetime.now() - timedelta(days=days_threshold)
+
+    future_tables = [
+        'elo_future',
+        'formation_future',
+        'stage_of_season_future',
+        'match_info_future',
+        #TODO: Add start time to these fields so that we can prune them
+        # 'form_future',
+        # 'h2h_future',
+    ]
+
+    cursor = conn.cursor()
+    total_deleted = 0
+
+    try:
+        for table in future_tables:
+            cursor.execute(f"""
+                DELETE FROM {table}
+                WHERE start_time < %s
+            """, (cutoff_time,))
+
+            deleted_count = cursor.rowcount
+            total_deleted += deleted_count
+            print(f"Deleted {deleted_count} old records from {table}")
+
+        # Also clean up processed_info for inference mode
+        cursor.execute("""
+            DELETE FROM processed_info
+            WHERE processing_mode = 'inference'
+            AND match_id IN (
+                SELECT match_id FROM matches
+                WHERE start_time < %s
+            )
+        """, (cutoff_time,))
+
+        deleted_processed = cursor.rowcount
+        print(f"Deleted {deleted_processed} old processed_info records")
+
+        conn.commit()
+        print(f"Total deleted: {total_deleted} feature records + {deleted_processed} processed records")
+
+    except Exception as e:
+        print(f"Error pruning old features: {str(e)}")
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+
+def prune_all_future_features(conn):
+    """
+    Nuclear option: Delete ALL future features (for weekly cleanup)
+    """
+    future_tables = [
+        'elo_future',
+        'formation_future',
+        'stage_of_season_future',
+        'match_info_future'
+    ]
+
+    cursor = conn.cursor()
+    total_deleted = 0
+
+    try:
+        for table in future_tables:
+            cursor.execute(f"DELETE FROM {table}")
+            deleted_count = cursor.rowcount
+            total_deleted += deleted_count
+            print(f"Deleted all {deleted_count} records from {table}")
+
+        # Clean up processed_info for inference mode
+        cursor.execute("DELETE FROM processed_info WHERE processing_mode = 'inference'")
+        deleted_processed = cursor.rowcount
+
+        conn.commit()
+        print(f"Total deleted: {total_deleted} feature records + {deleted_processed} processed records")
+
+    except Exception as e:
+        print(f"Error pruning all features: {str(e)}")
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+
+
+def upsert_records(conn, table_name, records, conflict_keys, batch_size=1000):
+    if not records:
+        return
+
+    columns = records[0].keys()
+    update_columns = [col for col in columns if col not in conflict_keys]
+
+    insert_query = f"""
+        INSERT INTO {table_name} ({', '.join(columns)})
+        VALUES %s
+        ON CONFLICT ({', '.join(conflict_keys)}) DO UPDATE SET
+        {', '.join([f"{col} = EXCLUDED.{col}" for col in update_columns])}
+    """
+
+    def batched(iterable, n):
+        for i in range(0, len(iterable), n):
+            yield iterable[i:i + n]
+
+    with conn.cursor() as cursor:
+        for batch in batched(records, batch_size):
+            values = [tuple(record[col] for col in columns) for record in batch]
+            execute_values(cursor, insert_query, values)
+        conn.commit()
+
+    print(f"Upserted {len(records)} records into {table_name}")
+
+def save_predictions_to_db(conn, predictions_df, model_type='basic'):
+    """
+    Save match predictions to the database
+
+    Args:
+        conn: Database connection
+        predictions_df: DataFrame with predictions
+        model_type: 'basic' or 'with_formation'
+    """
+    logger = logging.getLogger(__name__)
+
+    try:
+        # Ensure the table exists
+        create_match_result_predictions_table(conn)
+
+        # Add model_type if not already present
+        if 'model_type' not in predictions_df.columns:
+            predictions_df = predictions_df.copy()
+            predictions_df['model_type'] = model_type
+
+        # Ensure we have the required columns
+        required_columns = [
+            'match_id', 'predicted_result', 'start_time',
+            'home_team_name', 'away_team_name',
+            'prob_home_win', 'prob_draw', 'prob_away_win',
+            'model_type', 'prediction_timestamp'
+        ]
+
+        # Check if all required columns exist
+        missing_columns = [col for col in required_columns if col not in predictions_df.columns]
+        if missing_columns:
+            logger.warning(f"Missing columns: {missing_columns}")
+            # Add missing columns with default values
+            for col in missing_columns:
+                if col == 'prediction_timestamp':
+                    predictions_df[col] = datetime.now()
+                else:
+                    predictions_df[col] = None
+
+        # Convert DataFrame to records
+        records = predictions_df[required_columns].to_dict('records')
+
+        # Use existing upsert function
+        upsert_records(
+            conn=conn,
+            table_name='match_result_predictions',
+            records=records,
+            conflict_keys=['match_id']
+        )
+
+        logger.info(f"Successfully saved {len(records)} predictions with model_type='{model_type}'")
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to save predictions to database: {str(e)}")
+        return False
+
+def get_latest_predictions(conn, limit=None):
+    """
+    Get latest predictions from database
+
+    Args:
+        conn: Database connection
+        limit: Optional limit on number of records
+
+    Returns:
+        List of prediction records
+    """
+    cursor = conn.cursor()
+
+    query = """
+        SELECT
+            match_id, predicted_result, start_time,
+            home_team_name, away_team_name,
+            prob_home_win, prob_draw, prob_away_win,
+            model_type, prediction_timestamp
+        FROM match_result_predictions
+        ORDER BY start_time ASC
+    """
+
+    if limit:
+        query += f" LIMIT {limit}"
+
+    cursor.execute(query)
+    columns = [desc[0] for desc in cursor.description]
+    results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+    cursor.close()
+
+    return results
+
+def dict_to_sqlite(conn, table_name, data_dicts, batch_size=1000):
+    """Insert a list of dictionaries into a SQLite table with match_id as INTEGER."""
+    if not data_dicts:
+        return
+
+    cursor = conn.cursor()
+
+    # Create table with proper types
+    first = data_dicts[0]
+    columns = []
+
+    for k in first.keys():
+        col_type = "INTEGER" if k == "match_id" else "TEXT"
+        columns.append(f'"{k}" {col_type}')
+
+    columns_sql = ", ".join(columns)
+    cursor.execute(f'CREATE TABLE IF NOT EXISTS {table_name} ({columns_sql})')
+
+    # Prepare insert statement
+    placeholders = ', '.join(['?'] * len(first))  # Use '?' for SQLite
+    columns_str = ', '.join(f'"{k}"' for k in first.keys())
+    sql = f'INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders})'
+
+    # Ensure match_id is int before insertion
+    for d in data_dicts:
+        if "match_id" in d and d["match_id"] is not None:
+            d["match_id"] = int(d["match_id"])
+
+    # Batch insert
+    for i in range(0, len(data_dicts), batch_size):
+        batch = data_dicts[i:i+batch_size]
+        try:
+            cursor.executemany(sql, [tuple(d.values()) for d in batch])
+            conn.commit()
+        except sqlite3.IntegrityError as e:
+            print(f"Skipping duplicate in batch {i//batch_size}: {str(e)}")
+            conn.rollback()
+
+def combine_stats(match_id, home_stats, away_stats):
+    """A helper function to combine two dictionaries, prefix the data by either home_ or away_ and add match_id as the first key"""
+    # Ensure match_id is first
+    combined = {'match_id': match_id}
+
+    # Add home stats
+    combined.update(
+        {f'home_{k}': v for k, v in home_stats.items()}
+    )
+
+    # Add away stats
+    combined.update(
+        {f'away_{k}': v for k, v in away_stats.items()}
+    )
+
+    return combined

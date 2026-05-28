@@ -177,13 +177,15 @@ def default_feature_pipeline_dependencies() -> FeaturePipelineDependencies:
     from data_processing.helpers.processing_functions.stage_of_season_manager import (
         StageOfSeasonManager,
     )
-    from utils.database.clean_tables import drop_future_tables, drop_tables
-    from utils.database.create_tables import create_future_tables, create_tables
-    from utils.database.get_and_set_functions import (
+    from football_intelligence.database import (
+        create_future_tables,
+        create_tables,
+        drop_future_tables,
+        drop_tables,
         get_from_matches,
+        prune_old_future_features,
         update_processed_status,
     )
-    from utils.database.prune_future_features import prune_old_future_features
 
     return FeaturePipelineDependencies(
         get_matches=get_from_matches,

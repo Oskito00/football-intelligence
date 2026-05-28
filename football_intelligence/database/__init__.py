@@ -1,33 +1,53 @@
-"""Database access home for football data queries and mutations.
+"""Database access home for football data queries and mutations."""
 
-The Analyst Agent should depend on read-only interfaces here as they are
-introduced; existing mutation helpers remain available through compatibility
-exports for operational workflows.
-"""
-
-from football_intelligence._compat import LegacyExport, make_legacy_getattr
 from football_intelligence.database.football import (
     FootballQueryError,
     PostgresReadOnlyRunner,
     ReadOnlyFootballQueries,
+    bulk_insert_formations,
+    bulk_insert_odds,
+    combine_stats,
+    create_future_tables,
+    create_match_result_predictions_table,
+    create_odds_table,
+    create_tables,
+    dict_to_sqlite,
+    drop_future_tables,
+    drop_tables,
+    get_from_matches,
+    get_from_standings,
+    get_future_matches_with_odds,
+    get_latest_predictions,
+    load_from_postgres,
+    prune_all_future_features,
+    prune_old_future_features,
+    save_predictions_to_db,
+    update_processed_status,
+    upsert_records,
 )
-
-_LEGACY_EXPORTS = {
-    "get_from_matches": LegacyExport(
-        "utils.database.get_and_set_functions",
-        "get_from_matches",
-    ),
-    "upsert_records": LegacyExport("utils.database.postgresql", "upsert_records"),
-    "create_match_result_predictions_table": LegacyExport(
-        "utils.database.create_tables",
-        "create_match_result_predictions_table",
-    ),
-}
 
 __all__ = [
     "FootballQueryError",
     "PostgresReadOnlyRunner",
     "ReadOnlyFootballQueries",
-    *list(_LEGACY_EXPORTS),
+    "bulk_insert_formations",
+    "bulk_insert_odds",
+    "combine_stats",
+    "create_future_tables",
+    "create_match_result_predictions_table",
+    "create_odds_table",
+    "create_tables",
+    "dict_to_sqlite",
+    "drop_future_tables",
+    "drop_tables",
+    "get_from_matches",
+    "get_from_standings",
+    "get_future_matches_with_odds",
+    "get_latest_predictions",
+    "load_from_postgres",
+    "prune_all_future_features",
+    "prune_old_future_features",
+    "save_predictions_to_db",
+    "update_processed_status",
+    "upsert_records",
 ]
-__getattr__ = make_legacy_getattr(_LEGACY_EXPORTS)
