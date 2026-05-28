@@ -1,8 +1,13 @@
+from pathlib import Path
+
 from football_intelligence.ingestion import (
     SourceDataIngestion,
     default_source_data_provider,
 )
 from football_intelligence.ingestion.api_football import ApiFootballSourceDataProvider
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class RecordingProvider:
@@ -51,3 +56,12 @@ def test_ingestion_namespace_keeps_source_data_functions_compatible():
     assert ingestion.get_all_leagues_on_api is api_football.get_all_leagues_on_api
     assert ingestion.scrape_current_seasons is api_football.scrape_current_seasons
     assert ingestion.scrape_future_match_odds is api_football.scrape_future_match_odds
+
+
+def test_old_data_scraping_source_files_are_deleted_after_ingestion_migration():
+    deleted_paths = [
+        PROJECT_ROOT / "data_scraping",
+        PROJECT_ROOT / "football_intelligence" / "_compat.py",
+    ]
+
+    assert [path for path in deleted_paths if path.exists()] == []
