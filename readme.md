@@ -27,11 +27,7 @@ architecture.
   python -m football_intelligence.cli model-training
   ```
 
-Heroku, Docker, cron, or another host can run those same commands. The existing
-Heroku scheduler files are one runner kept for migration compatibility; they
-should not be treated as the conceptual owner of **Prediction Refresh**,
+Heroku, Docker, cron, or another host can run those same commands. Deployment
+files in this repository point runtime jobs at the Football Intelligence CLI so
+they do not become the conceptual owner of **Prediction Refresh**,
 **Model Training**, or the **Match Intelligence Lifecycle**.
-
-Follow-up work can add Docker-native or host-specific entrypoints and remove
-legacy Heroku scheduler files after callers have moved to the CLI commands.
-That cleanup is intentionally outside this documentation slice.

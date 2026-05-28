@@ -13,10 +13,6 @@ MIGRATION_HOMES = (
     "football_intelligence.cli",
 )
 
-LEGACY_ENTRYPOINTS = (
-    ("scheduler.scheduler", "main"),
-)
-
 LEGACY_MODULE_ALIASES = (
     ("helpers.parsing_helpers.list", "utils.parsing.list"),
 )
@@ -71,13 +67,6 @@ def test_analyst_namespace_exposes_read_only_tools():
     assert AnalystToolDefinition is ModuleAnalystToolDefinition
 
 
-@pytest.mark.parametrize(("module_name", "attribute_name"), LEGACY_ENTRYPOINTS)
-def test_legacy_entrypoint_imports_still_work(module_name, attribute_name):
-    module = importlib.import_module(module_name)
-
-    assert hasattr(module, attribute_name)
-
-
 @pytest.mark.parametrize(("alias_name", "canonical_name"), LEGACY_MODULE_ALIASES)
 def test_legacy_module_aliases_keep_old_import_paths_compatible(
     alias_name,
@@ -104,3 +93,10 @@ def test_database_namespace_exposes_read_only_football_queries():
     assert FootballQueryError is ModuleFootballQueryError
     assert PostgresReadOnlyRunner is ModulePostgresReadOnlyRunner
     assert ReadOnlyFootballQueries is ModuleReadOnlyFootballQueries
+
+
+def test_cli_namespace_does_not_export_legacy_scheduler_compatibility():
+    import football_intelligence.cli as cli
+
+    assert "run_legacy_prediction_refresh" not in cli.__all__
+    assert not hasattr(cli, "run_legacy_prediction_refresh")

@@ -14,16 +14,16 @@ Use these package homes for new code:
 
 ## Deployment boundary
 
-The durable operational interface is the CLI, not any host-specific scheduler
+The durable operational interface is the CLI, not any host-specific trigger
 file:
 
 - **Prediction Refresh**: `python -m football_intelligence.cli prediction-refresh`
 - **Model Training**: `python -m football_intelligence.cli model-training`
 
-Heroku, Docker, cron, or another runtime can invoke those commands. Existing
-Heroku scheduler files are compatibility runners during migration, not the
-conceptual owner of **Prediction Refresh**, **Model Training**, or the
-**Match Intelligence Lifecycle**.
+Heroku, Docker, cron, or another runtime can invoke those commands. Deployment
+files in this repository point runtime jobs at the Football Intelligence CLI
+instead of compatibility runners, so they are not the conceptual owner of
+**Prediction Refresh**, **Model Training**, or the **Match Intelligence Lifecycle**.
 
 Initial read-only football queries live in `football_intelligence.database`:
 

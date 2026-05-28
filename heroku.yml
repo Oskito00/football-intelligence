@@ -5,7 +5,8 @@ setup:
 build:
   docker:
     web: Dockerfile.web
-    scheduler: Dockerfile.scheduler
+    prediction-refresh: Dockerfile.operations
+    model-training: Dockerfile.operations
 
 release:
   command:
@@ -14,3 +15,5 @@ release:
 
 run:
   web: python -m uvicorn football_intelligence.api:app --host 0.0.0.0 --port $PORT
+  prediction-refresh: python -m football_intelligence.cli prediction-refresh
+  model-training: python -m football_intelligence.cli model-training

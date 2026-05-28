@@ -21,10 +21,27 @@ services:
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
 
-  scheduler:
+  prediction-refresh:
+    profiles:
+      - operations
     build:
       context: .
-      dockerfile: scheduler/Dockerfile
+      dockerfile: Dockerfile.operations
+    command: python -m football_intelligence.cli prediction-refresh
+    environment:
+      - DB_HOST=host.docker.internal
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - API_FOOTBALL_KEY=${API_FOOTBALL_KEY}
+
+  model-training:
+    profiles:
+      - operations
+    build:
+      context: .
+      dockerfile: Dockerfile.operations
+    command: python -m football_intelligence.cli model-training
     environment:
       - DB_HOST=host.docker.internal
       - DB_NAME=${DB_NAME}

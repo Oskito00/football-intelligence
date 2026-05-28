@@ -145,18 +145,3 @@ def test_prediction_refresh_cli_invokes_application_workflow(monkeypatch, capsys
     assert exit_code == 0
     assert calls == [("result_model_late", False)]
     assert "Prediction Refresh completed: 2 steps run" in capsys.readouterr().out
-
-
-def test_scheduler_path_delegates_to_prediction_refresh(monkeypatch):
-    from scheduler import scheduler
-
-    calls = []
-
-    def fake_run_prediction_refresh(*, logger):
-        calls.append(logger)
-        return "refresh-result"
-
-    monkeypatch.setattr(scheduler, "run_prediction_refresh", fake_run_prediction_refresh)
-
-    assert scheduler.run_all_scripts() == "refresh-result"
-    assert calls == [scheduler.logger]
