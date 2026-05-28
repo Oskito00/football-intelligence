@@ -6,24 +6,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from football_intelligence._compat import LegacyExport, make_legacy_getattr
-
-
-_SOURCE_DATA_EXPORTS = {
-    "get_all_leagues_on_api": LegacyExport(
-        "football_intelligence.ingestion.api_football",
-        "get_all_leagues_on_api",
-    ),
-    "scrape_current_seasons": LegacyExport(
-        "football_intelligence.ingestion.api_football",
-        "scrape_current_seasons",
-    ),
-    "scrape_future_match_odds": LegacyExport(
-        "football_intelligence.ingestion.api_football",
-        "scrape_future_match_odds",
-    ),
-}
-
 
 @dataclass(frozen=True)
 class SourceDataIngestionStep:
@@ -85,6 +67,4 @@ __all__ = [
     "SourceDataIngestionStep",
     "SourceDataProvider",
     "default_source_data_provider",
-    *_SOURCE_DATA_EXPORTS,
 ]
-__getattr__ = make_legacy_getattr(_SOURCE_DATA_EXPORTS)

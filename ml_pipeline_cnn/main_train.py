@@ -10,7 +10,7 @@ import logging
 import argparse
 from typing import Dict, Any
 
-# Add parent directory to path to import from ml_pipeline
+# Add parent directory so this out-of-scope experiment can import repo modules.
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import get_config
@@ -86,4 +86,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main() 
+    main()

@@ -67,11 +67,13 @@ The existing chat API contract is served from `football_intelligence.api`:
 - API conversation memory keeps recent user and assistant messages for follow-up context; reset clears that memory.
 - The API delegates answers to the read-only **Analyst Agent**, so it does not expose Prediction Refresh, Model Training, ingestion, arbitrary SQL, or other operational capabilities.
 
-Migration pattern:
+Migration status:
 
-1. Add product-language interfaces in this namespace before changing callers.
-2. Use lazy compatibility exports only as temporary bridges to legacy modules.
-3. Move real implementation into these package homes in follow-up issues, then delete the bridge export when no callers need it.
+1. Active product behavior is owned by `football_intelligence.*` modules.
+2. New callers should use the product-level interfaces above instead of
+   implementation-era package names.
+3. `ml_pipeline_cnn` remains an out-of-scope experiment unless future product
+   usage is proven.
 
 ## Feature schema registry
 
