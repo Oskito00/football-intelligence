@@ -41,6 +41,10 @@ COMPOSE_CONFIGS = (
     ROOT / "docker-compose.dev.yml",
     ROOT / "docker-compose.prod.yml",
 )
+RETIRED_ENTRYPOINT_PATHS = (
+    ROOT / "scheduler",
+    ROOT / "Dockerfile.scheduler",
+)
 
 
 @pytest.mark.parametrize(("document_path", "heading"), DEPLOYMENT_DOCUMENTS)
@@ -48,7 +52,7 @@ def test_documentation_describes_cli_first_deployment_boundary(
     document_path,
     heading,
 ):
-    document = document_path.read_text(encoding="utf-8")
+    document = read_text(document_path)
 
     assert heading in document
 
@@ -57,17 +61,11 @@ def test_documentation_describes_cli_first_deployment_boundary(
 
 
 def test_deployment_configs_use_football_intelligence_operational_entrypoints():
-    web_dockerfile = (ROOT / "Dockerfile.web").read_text(encoding="utf-8")
-    operations_dockerfile = (ROOT / "Dockerfile.operations").read_text(
-        encoding="utf-8"
-    )
-    heroku_config = (ROOT / "heroku.yml").read_text(encoding="utf-8")
-    compose_configs = [
-        config.read_text(encoding="utf-8") for config in COMPOSE_CONFIGS
-    ]
-    combined_config = "\n".join(
-        config.read_text(encoding="utf-8") for config in DEPLOYMENT_CONFIGS
-    )
+    web_dockerfile = read_text(ROOT / "Dockerfile.web")
+    operations_dockerfile = read_text(ROOT / "Dockerfile.operations")
+    heroku_config = read_text(ROOT / "heroku.yml")
+    compose_configs = [read_text(path) for path in COMPOSE_CONFIGS]
+    combined_config = "\n".join(read_text(path) for path in DEPLOYMENT_CONFIGS)
 
     assert WEB_API_ENTRYPOINT in web_dockerfile
     assert "football_intelligence.cli" in operations_dockerfile
@@ -82,29 +80,35 @@ def test_deployment_configs_use_football_intelligence_operational_entrypoints():
 
 
 def test_retired_scheduler_package_and_entrypoint_files_are_deleted():
-    retired_paths = (
-        ROOT / "scheduler",
-        ROOT / "Dockerfile.scheduler",
-    )
+    existing_retired_paths = [path for path in RETIRED_ENTRYPOINT_PATHS if path.exists()]
 
-    assert [path for path in retired_paths if path.exists()] == []
+    assert existing_retired_paths == []
 
 
 def test_active_runtime_imports_do_not_reference_retired_scheduler_paths():
+    assert find_retired_scheduler_imports() == []
+
+
+def read_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+def find_retired_scheduler_imports() -> list[tuple[Path, str]]:
     offenders = []
 
     for path in (ROOT / "football_intelligence").rglob("*.py"):
-        if "__pycache__" in path.parts:
-            continue
-
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        tree = ast.parse(read_text(path), filename=str(path))
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    if alias.name == "scheduler" or alias.name.startswith("scheduler."):
+                    if is_retired_scheduler_module(alias.name):
                         offenders.append((path.relative_to(ROOT), alias.name))
             elif isinstance(node, ast.ImportFrom) and node.module:
-                if node.module == "scheduler" or node.module.startswith("scheduler."):
+                if is_retired_scheduler_module(node.module):
                     offenders.append((path.relative_to(ROOT), node.module))
 
-    assert offenders == []
+    return offenders
+
+
+def is_retired_scheduler_module(module_name: str) -> bool:
+    return module_name == "scheduler" or module_name.startswith("scheduler.")

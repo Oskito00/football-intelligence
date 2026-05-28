@@ -15,4 +15,4 @@ def __getattr__(name: str) -> object:
 
         return main
 
-    raise AttributeError(f"module has no attribute {name!r}")
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

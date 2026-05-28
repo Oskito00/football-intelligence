@@ -21,9 +21,10 @@ file:
 - **Model Training**: `python -m football_intelligence.cli model-training`
 
 Heroku, Docker, cron, or another runtime can invoke those commands. Deployment
-files in this repository point runtime jobs at the Football Intelligence CLI
-instead of compatibility runners, so they are not the conceptual owner of
-**Prediction Refresh**, **Model Training**, or the **Match Intelligence Lifecycle**.
+files in this repository are runtime wiring only; they invoke the Football
+Intelligence CLI instead of compatibility runners, so they are not the
+conceptual owner of **Prediction Refresh**, **Model Training**, or the
+**Match Intelligence Lifecycle**.
 
 Initial read-only football queries live in `football_intelligence.database`:
 

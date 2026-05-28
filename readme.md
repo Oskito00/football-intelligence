@@ -28,6 +28,6 @@ architecture.
   ```
 
 Heroku, Docker, cron, or another host can run those same commands. Deployment
-files in this repository point runtime jobs at the Football Intelligence CLI so
-they do not become the conceptual owner of **Prediction Refresh**,
-**Model Training**, or the **Match Intelligence Lifecycle**.
+files in this repository are runtime wiring only; they invoke the Football
+Intelligence CLI so they do not become the conceptual owner of
+**Prediction Refresh**, **Model Training**, or the **Match Intelligence Lifecycle**.
