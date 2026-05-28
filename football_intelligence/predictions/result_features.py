@@ -3,10 +3,8 @@ Feature loader for result prediction model
 Loads and combines features from multiple tables for match outcome prediction
 """
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict
 import pandas as pd
-import numpy as np
-import json
 
 from football_intelligence.features.schema import FORM_FEATURE_SCHEMA
 from football_intelligence.predictions.base_feature_loader import BaseFeatureLoader
@@ -31,15 +29,14 @@ class ResultFeatureLoader(BaseFeatureLoader):
         super().__init__(conn, config)
         self.mode = mode
         
-        # Set table names based on mode
         if mode == 'inference':
             self.elo_table = 'elo_future'
-            self.formation_table = 'formation_future'  # If it exists
+            self.formation_table = 'formation_future'
             self.stage_table = 'stage_of_season_future'
             self.match_info_table = 'match_info_future'
             self.form_history_table = FORM_FEATURE_SCHEMA.table_for_mode(mode)
             self.h2h_table = 'h2h_future'
-        else:  # training mode
+        else:
             self.elo_table = 'elo_history'
             self.formation_table = 'formation_history'
             self.stage_table = 'stage_of_season_history'
@@ -62,9 +59,8 @@ class ResultFeatureLoader(BaseFeatureLoader):
             self.h2h_table
         ]
         
-        # Add formation_history only if formations are required
         if self.feature_requirements.get('formations', False):
-            base_tables.append('formation_history')
+            base_tables.append(self.formation_table)
             
         return base_tables
     

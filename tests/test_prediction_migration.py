@@ -44,6 +44,19 @@ def test_prediction_namespace_owns_inference_training_and_feature_loading():
     assert ResultFeatureLoader.__module__.startswith("football_intelligence.predictions")
 
 
+def test_formation_inference_validates_future_feature_table():
+    loader = ResultFeatureLoader(
+        object(),
+        {"feature_requirements": {"formations": True}},
+        mode="inference",
+    )
+
+    required_tables = loader.get_required_tables()
+
+    assert "formation_future" in required_tables
+    assert "formation_history" not in required_tables
+
+
 def test_prediction_refresh_runs_product_inference_entrypoint(monkeypatch):
     from football_intelligence.predictions import refresh
     from football_intelligence.predictions import inference_entrypoint

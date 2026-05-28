@@ -7,7 +7,6 @@ from typing import Dict, Any
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-import numpy as np
 
 from football_intelligence.predictions.base_model import BaseModel
 

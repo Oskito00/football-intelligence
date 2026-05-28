@@ -5,7 +5,6 @@ Inference logic for football result prediction model
 import logging
 from typing import Dict, Any, Optional
 import pandas as pd
-import numpy as np
 from datetime import datetime
 
 from football_intelligence.database import save_predictions_to_db
@@ -67,10 +66,7 @@ def infer_result_model(conn, config: Dict[str, Any],
             where_clause = f"eh.match_id = {match_id}"
             logger.info(f"Running inference for specific match_id: {match_id}")
         elif where_clause is None:
-            if mode == 'inference':
-                where_clause = "1=1"  # For inference, process all available future data
-            else:
-                where_clause = "1=1"  # For training mode on historical data
+            where_clause = "1=1"
 
         features = feature_loader.load_features(where_clause=where_clause, limit=limit)
         if match_id is not None:
@@ -218,7 +214,7 @@ def infer_result_model(conn, config: Dict[str, Any],
 
         # Prepare sample predictions for logging
         sample_predictions = []
-        for i, row in results_df.head(10).iterrows():
+        for _, row in results_df.head(10).iterrows():
             sample = {
                 'match_id': row['match_id'],
                 'prediction': row['predicted_result']
