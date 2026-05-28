@@ -8,6 +8,10 @@ from football_intelligence.ingestion.api_football import ApiFootballSourceDataPr
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+REMOVED_SOURCE_DATA_PATHS = (
+    PROJECT_ROOT / "data_scraping",
+    PROJECT_ROOT / "football_intelligence" / "_compat.py",
+)
 
 
 class RecordingProvider:
@@ -58,10 +62,6 @@ def test_ingestion_namespace_keeps_source_data_functions_compatible():
     assert ingestion.scrape_future_match_odds is api_football.scrape_future_match_odds
 
 
-def test_old_data_scraping_source_files_are_deleted_after_ingestion_migration():
-    deleted_paths = [
-        PROJECT_ROOT / "data_scraping",
-        PROJECT_ROOT / "football_intelligence" / "_compat.py",
-    ]
-
-    assert [path for path in deleted_paths if path.exists()] == []
+def test_old_source_data_ingestion_paths_are_deleted_after_migration():
+    for path in REMOVED_SOURCE_DATA_PATHS:
+        assert not path.exists()
