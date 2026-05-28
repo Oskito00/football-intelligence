@@ -5,9 +5,11 @@ from football_intelligence.ingestion import (
     default_source_data_provider,
 )
 from football_intelligence.ingestion.api_football import ApiFootballSourceDataProvider
+from tests.import_audit import find_imports_matching, is_module_or_child
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+FOOTBALL_INTELLIGENCE_PACKAGE = PROJECT_ROOT / "football_intelligence"
 REMOVED_SOURCE_DATA_PATHS = (
     PROJECT_ROOT / "data_scraping",
     PROJECT_ROOT / "football_intelligence" / "_compat.py",
@@ -53,15 +55,34 @@ def test_default_source_data_provider_is_api_football_adapter():
     assert isinstance(default_source_data_provider(), ApiFootballSourceDataProvider)
 
 
-def test_ingestion_namespace_keeps_source_data_functions_compatible():
+def test_ingestion_namespace_only_exports_product_level_interfaces():
     from football_intelligence import ingestion
-    from football_intelligence.ingestion import api_football
 
-    assert ingestion.get_all_leagues_on_api is api_football.get_all_leagues_on_api
-    assert ingestion.scrape_current_seasons is api_football.scrape_current_seasons
-    assert ingestion.scrape_future_match_odds is api_football.scrape_future_match_odds
+    assert "get_all_leagues_on_api" not in ingestion.__all__
+    assert "scrape_current_seasons" not in ingestion.__all__
+    assert "scrape_future_match_odds" not in ingestion.__all__
+    assert not hasattr(ingestion, "get_all_leagues_on_api")
+    assert not hasattr(ingestion, "scrape_current_seasons")
+    assert not hasattr(ingestion, "scrape_future_match_odds")
 
 
-def test_old_source_data_ingestion_paths_are_deleted_after_migration():
+def test_removed_source_data_compatibility_paths_are_deleted_after_migration():
     for path in REMOVED_SOURCE_DATA_PATHS:
         assert not path.exists()
+
+
+def test_active_runtime_imports_do_not_use_retired_source_data_paths():
+    offenders = find_imports_matching(
+        FOOTBALL_INTELLIGENCE_PACKAGE,
+        _is_retired_source_data_module,
+        PROJECT_ROOT,
+    )
+
+    assert offenders == []
+
+
+def _is_retired_source_data_module(module_name):
+    return is_module_or_child(module_name, "data_scraping") or is_module_or_child(
+        module_name,
+        "football_intelligence._compat",
+    )

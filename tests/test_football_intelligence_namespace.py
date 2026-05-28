@@ -1,8 +1,12 @@
 import importlib
+from pathlib import Path
 
 import pytest
 
+from tests.import_audit import find_imports_matching, is_module_or_child
 
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MIGRATION_HOMES = (
     "football_intelligence.analyst",
     "football_intelligence.ingestion",
@@ -13,8 +17,16 @@ MIGRATION_HOMES = (
     "football_intelligence.cli",
 )
 
-LEGACY_MODULE_ALIASES = (
-    ("helpers.parsing_helpers.list", "utils.parsing.list"),
+ACTIVE_RUNTIME_ROOTS = (
+    PROJECT_ROOT / "football_intelligence",
+)
+PROHIBITED_IMPLEMENTATION_MODULES = (
+    "data_scraping",
+    "data_processing",
+    "ml_pipeline",
+    "utils.database",
+    "chatbot",
+    "scheduler",
 )
 
 
@@ -67,17 +79,6 @@ def test_analyst_namespace_exposes_read_only_tools():
     assert AnalystToolDefinition is ModuleAnalystToolDefinition
 
 
-@pytest.mark.parametrize(("alias_name", "canonical_name"), LEGACY_MODULE_ALIASES)
-def test_legacy_module_aliases_keep_old_import_paths_compatible(
-    alias_name,
-    canonical_name,
-):
-    alias_module = importlib.import_module(alias_name)
-    canonical_module = importlib.import_module(canonical_name)
-
-    assert alias_module is canonical_module
-
-
 def test_database_namespace_exposes_read_only_football_queries():
     from football_intelligence.database import (
         FootballQueryError,
@@ -100,3 +101,29 @@ def test_cli_namespace_does_not_export_legacy_scheduler_compatibility():
 
     assert "run_legacy_prediction_refresh" not in cli.__all__
     assert not hasattr(cli, "run_legacy_prediction_refresh")
+
+
+def test_active_runtime_imports_only_use_product_namespace_for_migrated_areas():
+    offenders = find_imports_matching(
+        ACTIVE_RUNTIME_ROOTS,
+        _is_prohibited_implementation_module,
+        PROJECT_ROOT,
+    )
+
+    assert offenders == []
+
+
+def test_remaining_experiment_source_is_outside_active_runtime_audit():
+    assert (PROJECT_ROOT / "ml_pipeline_cnn" / "main_train.py").exists()
+    assert PROJECT_ROOT / "ml_pipeline_cnn" not in ACTIVE_RUNTIME_ROOTS
+
+
+def test_retired_helper_alias_package_is_deleted():
+    assert not (PROJECT_ROOT / "helpers" / "parsing_helpers").exists()
+
+
+def _is_prohibited_implementation_module(module_name):
+    return any(
+        is_module_or_child(module_name, prohibited)
+        for prohibited in PROHIBITED_IMPLEMENTATION_MODULES
+    )

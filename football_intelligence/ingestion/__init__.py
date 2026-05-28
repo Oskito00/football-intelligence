@@ -6,12 +6,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from football_intelligence.ingestion.api_football import (
-    get_all_leagues_on_api,
-    scrape_current_seasons,
-    scrape_future_match_odds,
-)
-
 
 @dataclass(frozen=True)
 class SourceDataIngestionStep:
@@ -73,7 +67,4 @@ __all__ = [
     "SourceDataIngestionStep",
     "SourceDataProvider",
     "default_source_data_provider",
-    "get_all_leagues_on_api",
-    "scrape_current_seasons",
-    "scrape_future_match_odds",
 ]

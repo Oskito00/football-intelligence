@@ -1,8 +1,8 @@
 """Read-only football query interfaces for Analyst Tool consumers.
 
-The public methods in this module intentionally return legacy-compatible
-Python dictionaries while hiding SQL and connection handling behind an
-injectable read-only runner. These contracts are stable for Analyst Tools:
+The public methods in this module return stable Python dictionaries while
+hiding SQL and connection handling behind an injectable read-only runner.
+These contracts are stable for Analyst Tools:
 
 - ``get_match_prediction`` returns one Prediction dictionary or ``None``.
 - ``get_multiple_match_predictions`` returns ``{match_id: prediction}``.
@@ -806,9 +806,8 @@ __all__ = [
 ]
 
 
-# Active football persistence and database support
-# This section preserves the active product database helper behavior that used
-# to live under utils.database.
+# Active football persistence and database support used by the Match
+# Intelligence Lifecycle and prediction workflows.
 
 def create_tables(conn):
     """Creates tables of use to processing functions"""

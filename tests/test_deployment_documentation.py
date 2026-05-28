@@ -1,7 +1,8 @@
-import ast
 from pathlib import Path
 
 import pytest
+
+from tests.import_audit import find_imports_matching, is_module_or_child
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -94,21 +95,12 @@ def read_text(path: Path) -> str:
 
 
 def find_retired_scheduler_imports() -> list[tuple[Path, str]]:
-    offenders = []
-
-    for path in (ROOT / "football_intelligence").rglob("*.py"):
-        tree = ast.parse(read_text(path), filename=str(path))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    if is_retired_scheduler_module(alias.name):
-                        offenders.append((path.relative_to(ROOT), alias.name))
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                if is_retired_scheduler_module(node.module):
-                    offenders.append((path.relative_to(ROOT), node.module))
-
-    return offenders
+    return find_imports_matching(
+        ROOT / "football_intelligence",
+        is_retired_scheduler_module,
+        ROOT,
+    )
 
 
 def is_retired_scheduler_module(module_name: str) -> bool:
-    return module_name == "scheduler" or module_name.startswith("scheduler.")
+    return is_module_or_child(module_name, "scheduler")

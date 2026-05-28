@@ -53,7 +53,7 @@ class ApiFootballSourceDataProvider:
 
 
 def fetch_with_retry(url, headers, payload=None, max_retries=2, timeout=4):
-    """Fetch API data with the legacy retry behavior."""
+    """Fetch API-Football data with retry handling."""
     attempt = 0
     while attempt < max_retries:
         try:

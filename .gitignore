@@ -1,4 +1,7 @@
 .env
+.venv-sandcastle/
+__pycache__/
+*.py[cod]
 *.sqlite
 *.csv
 *.log
