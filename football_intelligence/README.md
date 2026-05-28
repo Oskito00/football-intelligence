@@ -48,7 +48,7 @@ Every Analyst Tool returns a stable envelope:
 {"success": bool, "tool": str, "error": dict | None, "data": object | None}
 ```
 
-Tool data is converted to agent-safe Python values, including ISO strings for dates and datetimes. Analyst Tools call `ReadOnlyFootballQueries`; they do not expose arbitrary SQL or reach into legacy chatbot internals.
+Tool data is converted to agent-safe Python values, including ISO strings for dates and datetimes. Analyst Tools call `ReadOnlyFootballQueries`; they do not expose arbitrary SQL or reach into retired implementation internals.
 
 The first read-only **Analyst Agent** also lives in `football_intelligence.analyst`:
 

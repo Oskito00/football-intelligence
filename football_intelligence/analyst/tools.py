@@ -1,7 +1,7 @@
 """Curated read-only Analyst Tools for football questions.
 
-The Analyst Agent should call this module instead of arbitrary SQL or legacy
-chatbot functions. Each tool returns the same stable result envelope:
+The Analyst Agent should call this module instead of arbitrary SQL or retired
+implementation-era functions. Each tool returns the same stable result envelope:
 
 ``{"success": bool, "tool": str, "error": dict | None, "data": object | None}``
 """
