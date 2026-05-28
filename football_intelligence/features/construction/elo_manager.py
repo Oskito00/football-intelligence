@@ -1,5 +1,5 @@
 import math
-import psycopg2
+
 from football_intelligence.features.construction.continent_mapping import (
     COUNTRY_TO_CONTINENT,
 )

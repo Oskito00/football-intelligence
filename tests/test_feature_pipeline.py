@@ -1,3 +1,4 @@
+import ast
 from pathlib import Path
 
 import pytest
@@ -149,10 +150,30 @@ def test_feature_set_construction_no_longer_imports_data_processing():
     offenders = [
         path.relative_to(PROJECT_ROOT)
         for path in feature_files
-        if "data_processing" in path.read_text()
+        if _imports_data_processing(path)
     ]
 
     assert offenders == []
+
+
+def _imports_data_processing(path):
+    module = ast.parse(path.read_text())
+
+    for node in ast.walk(module):
+        if isinstance(node, ast.Import):
+            if any(_is_data_processing_module(alias.name) for alias in node.names):
+                return True
+        elif isinstance(node, ast.ImportFrom) and _is_data_processing_module(node.module):
+            return True
+
+    return False
+
+
+def _is_data_processing_module(module_name):
+    if module_name is None:
+        return False
+
+    return module_name == "data_processing" or module_name.startswith("data_processing.")
 
 
 def test_old_data_processing_feature_files_are_deleted():
