@@ -59,8 +59,7 @@ The first read-only **Analyst Agent** also lives in `football_intelligence.analy
 
 LangChain imports are isolated to the analyst agent module and are loaded only when the default LangChain adapters are constructed.
 
-The existing chat API contract is served from `football_intelligence.api` and
-kept compatible through `chatbot.api`:
+The existing chat API contract is served from `football_intelligence.api`:
 
 - `POST /api/chat` still accepts `{"text": "..."}` and returns `{"response": "..."}`.
 - `POST /api/reset` still returns `{"message": "Conversation reset successfully"}`.
@@ -69,10 +68,9 @@ kept compatible through `chatbot.api`:
 
 Migration pattern:
 
-1. Keep existing import paths working while behavior moves gradually.
-2. Add product-language interfaces in this namespace before changing callers.
-3. Use lazy compatibility exports only as temporary bridges to legacy modules.
-4. Move real implementation into these package homes in follow-up issues, then delete the bridge export when no callers need it.
+1. Add product-language interfaces in this namespace before changing callers.
+2. Use lazy compatibility exports only as temporary bridges to legacy modules.
+3. Move real implementation into these package homes in follow-up issues, then delete the bridge export when no callers need it.
 
 ## Feature schema registry
 

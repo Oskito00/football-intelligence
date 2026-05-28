@@ -269,4 +269,3 @@ def _groq_message_role(message: Any) -> str:
 
 
 app = create_app()
-legacy_chat_api_app = app

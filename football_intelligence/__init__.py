@@ -1,7 +1,6 @@
 """Product namespace for the Football Intelligence Agent migration.
 
-Existing implementation-era packages remain importable while follow-up slices
-move behavior into this namespace behind stable product concepts.
+Active product behavior lives in this namespace behind stable product concepts.
 """
 
 PRODUCT_NAME = "Football Intelligence Agent"

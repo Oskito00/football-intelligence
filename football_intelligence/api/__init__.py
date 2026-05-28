@@ -6,7 +6,6 @@ from football_intelligence.api.server import (
     Message,
     app,
     create_app,
-    legacy_chat_api_app,
 )
 
 __all__ = [
@@ -15,5 +14,4 @@ __all__ = [
     "Message",
     "app",
     "create_app",
-    "legacy_chat_api_app",
 ]

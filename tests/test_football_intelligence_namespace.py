@@ -14,8 +14,6 @@ MIGRATION_HOMES = (
 )
 
 LEGACY_ENTRYPOINTS = (
-    ("chatbot.api", "app"),
-    ("chatbot.main", "main"),
     ("scheduler.scheduler", "main"),
 )
 
@@ -37,11 +35,12 @@ def test_football_intelligence_namespace_exposes_migration_homes(module_name):
     assert module.__doc__
 
 
-def test_analyst_namespace_keeps_legacy_chatbot_import_compatible():
-    from chatbot.core.chatbot import FootballChatbot
-    from football_intelligence.analyst import LegacyAnalystAgent
+def test_analyst_namespace_does_not_export_legacy_chatbot_compatibility():
+    import football_intelligence.analyst as analyst
 
-    assert LegacyAnalystAgent is FootballChatbot
+    assert "LegacyAnalystAgent" not in analyst.__all__
+    assert "LegacyFunctionDispatcher" not in analyst.__all__
+    assert "LegacyMemoryManager" not in analyst.__all__
 
 
 def test_analyst_namespace_exposes_read_only_tools():
