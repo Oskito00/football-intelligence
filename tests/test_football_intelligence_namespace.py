@@ -21,10 +21,6 @@ LEGACY_ENTRYPOINTS = (
 )
 
 LEGACY_MODULE_ALIASES = (
-    (
-        "helpers.data_processing.processing_functions.elo_manager",
-        "data_processing.helpers.processing_functions.elo_manager",
-    ),
     ("helpers.parsing_helpers.list", "utils.parsing.list"),
 )
 

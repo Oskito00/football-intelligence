@@ -1,5 +1,5 @@
 from football_intelligence.features import FORM_FEATURE_SCHEMA, get_feature_schema
-from data_processing.helpers.processing_functions.form_manager import FormManager
+from football_intelligence.features.construction.form_manager import FormManager
 from ml_pipeline.features.load_result_features import ResultFeatureLoader
 
 

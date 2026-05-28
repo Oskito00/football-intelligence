@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from data_processing.helpers.processing_functions.elo_manager import EloManager
+from football_intelligence.features.construction.elo_manager import EloManager
 
 
 @pytest.fixture
@@ -70,17 +70,17 @@ def sample_matches():
     ]
 
 
-@patch('data_processing.helpers.processing_functions.elo_manager.get_bulk_entity_elos')
-@patch('data_processing.helpers.processing_functions.elo_manager.get_counts')
-@patch('data_processing.helpers.processing_functions.elo_manager.calculate_elo_ratings')
-@patch('data_processing.helpers.processing_functions.elo_manager.build_elo_history_record')
-@patch('data_processing.helpers.processing_functions.elo_manager.save_elo_history_bulk')
-@patch('data_processing.helpers.processing_functions.elo_manager.save_updated_elos_bulk')
-@patch('data_processing.helpers.processing_functions.elo_manager.save_updated_counts')
-@patch('data_processing.helpers.processing_functions.elo_manager.extract_team_ids')
-@patch('data_processing.helpers.processing_functions.elo_manager.extract_nation_names')
-@patch('data_processing.helpers.processing_functions.elo_manager.extract_league_ids')
-@patch('data_processing.helpers.processing_functions.elo_manager.extract_competition_ids')
+@patch('football_intelligence.features.construction.elo_manager.get_bulk_entity_elos')
+@patch('football_intelligence.features.construction.elo_manager.get_counts')
+@patch('football_intelligence.features.construction.elo_manager.calculate_elo_ratings')
+@patch('football_intelligence.features.construction.elo_manager.build_elo_history_record')
+@patch('football_intelligence.features.construction.elo_manager.save_elo_history_bulk')
+@patch('football_intelligence.features.construction.elo_manager.save_updated_elos_bulk')
+@patch('football_intelligence.features.construction.elo_manager.save_updated_counts')
+@patch('football_intelligence.features.construction.elo_manager.extract_team_ids')
+@patch('football_intelligence.features.construction.elo_manager.extract_nation_names')
+@patch('football_intelligence.features.construction.elo_manager.extract_league_ids')
+@patch('football_intelligence.features.construction.elo_manager.extract_competition_ids')
 def test_elomanager_process_match(
     mock_extract_competition_ids,
     mock_extract_league_ids,

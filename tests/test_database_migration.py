@@ -8,7 +8,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 ACTIVE_RUNTIME_FILES = (
     PROJECT_ROOT / "football_intelligence",
-    PROJECT_ROOT / "data_processing" / "helpers" / "processing_functions",
     PROJECT_ROOT / "ml_pipeline" / "main_infer.py",
     PROJECT_ROOT / "ml_pipeline" / "inference" / "infer_result_model.py",
 )

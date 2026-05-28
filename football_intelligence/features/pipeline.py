@@ -162,19 +162,19 @@ _FEATURE_SET_ALIASES = {
 
 def default_feature_pipeline_dependencies() -> FeaturePipelineDependencies:
     """Build the production dependency bundle for the feature pipeline."""
-    from data_processing.helpers.processing_functions.elo_manager import EloManager
-    from data_processing.helpers.processing_functions.form_manager import FormManager
-    from data_processing.helpers.processing_functions.formation_manager import (
+    from football_intelligence.features.construction.elo_manager import EloManager
+    from football_intelligence.features.construction.form_manager import FormManager
+    from football_intelligence.features.construction.formation_manager import (
         FormationManager,
     )
-    from data_processing.helpers.processing_functions.h2h_manager import H2HManager
-    from data_processing.helpers.processing_functions.match_history import (
+    from football_intelligence.features.construction.h2h_manager import H2HManager
+    from football_intelligence.features.construction.match_history import (
         process_matches_to_history,
     )
-    from data_processing.helpers.processing_functions.match_info_manager import (
+    from football_intelligence.features.construction.match_info_manager import (
         MatchInfoManager,
     )
-    from data_processing.helpers.processing_functions.stage_of_season_manager import (
+    from football_intelligence.features.construction.stage_of_season_manager import (
         StageOfSeasonManager,
     )
     from football_intelligence.database import (

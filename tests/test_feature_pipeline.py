@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from football_intelligence.features import (
@@ -5,6 +7,9 @@ from football_intelligence.features import (
     FeatureSetMode,
     run_feature_pipeline,
 )
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class RecordingManager:
@@ -132,3 +137,30 @@ def test_shared_feature_pipeline_runs_historical_and_future_modes(
     assert result.processing_mode == processing_mode
     assert result.matches_processed == 2
     assert queries
+
+
+def test_feature_set_construction_no_longer_imports_data_processing():
+    feature_files = sorted(
+        path
+        for path in (PROJECT_ROOT / "football_intelligence" / "features").rglob("*.py")
+        if "__pycache__" not in path.parts
+    )
+
+    offenders = [
+        path.relative_to(PROJECT_ROOT)
+        for path in feature_files
+        if "data_processing" in path.read_text()
+    ]
+
+    assert offenders == []
+
+
+def test_old_data_processing_feature_files_are_deleted():
+    deleted_paths = [
+        PROJECT_ROOT / "data_processing" / "for_training" / "match_result_features.py",
+        PROJECT_ROOT / "data_processing" / "for_inferencing" / "match_result_features.py",
+        PROJECT_ROOT / "data_processing" / "helpers",
+        PROJECT_ROOT / "helpers" / "data_processing",
+    ]
+
+    assert [path for path in deleted_paths if path.exists()] == []
