@@ -1,4 +1,3 @@
-import ast
 from pathlib import Path
 
 from football_intelligence.ingestion import (
@@ -6,6 +5,7 @@ from football_intelligence.ingestion import (
     default_source_data_provider,
 )
 from football_intelligence.ingestion.api_football import ApiFootballSourceDataProvider
+from tests.import_audit import find_imports_matching, is_module_or_child
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -68,24 +68,14 @@ def test_retired_source_data_ingestion_package_is_deleted():
 
 
 def test_active_runtime_imports_do_not_use_retired_source_data_paths():
-    offenders = []
-
-    for path in FOOTBALL_INTELLIGENCE_PACKAGE.rglob("*.py"):
-        if "__pycache__" in path.parts:
-            continue
-
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    if _is_retired_source_data_module(alias.name):
-                        offenders.append((path.relative_to(PROJECT_ROOT), alias.name))
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                if _is_retired_source_data_module(node.module):
-                    offenders.append((path.relative_to(PROJECT_ROOT), node.module))
+    offenders = find_imports_matching(
+        FOOTBALL_INTELLIGENCE_PACKAGE,
+        _is_retired_source_data_module,
+        PROJECT_ROOT,
+    )
 
     assert offenders == []
 
 
 def _is_retired_source_data_module(module_name):
-    return module_name == "data_scraping" or module_name.startswith("data_scraping.")
+    return is_module_or_child(module_name, "data_scraping")

@@ -1,5 +1,6 @@
-import ast
 from pathlib import Path
+
+from tests.import_audit import find_imports_matching, is_module_or_child
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -18,33 +19,16 @@ COMPOSE_CONFIGS = (
 )
 
 
-def _python_files(path):
-    return sorted(
-        child for child in path.rglob("*.py") if "__pycache__" not in child.parts
-    )
-
-
-def _imported_modules(path):
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                yield alias.name
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            yield node.module
-
-
 def _is_retired_chatbot_module(module):
-    return module == "chatbot" or module.startswith("chatbot.")
+    return is_module_or_child(module, "chatbot")
 
 
 def test_football_intelligence_imports_do_not_use_retired_chatbot_paths():
-    offenders = []
-
-    for path in _python_files(FOOTBALL_INTELLIGENCE_PACKAGE):
-        for module in _imported_modules(path):
-            if _is_retired_chatbot_module(module):
-                offenders.append((path.relative_to(PROJECT_ROOT), module))
+    offenders = find_imports_matching(
+        FOOTBALL_INTELLIGENCE_PACKAGE,
+        _is_retired_chatbot_module,
+        PROJECT_ROOT,
+    )
 
     assert offenders == []
 

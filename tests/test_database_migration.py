@@ -1,7 +1,7 @@
-import ast
 from pathlib import Path
 
 from football_intelligence.database import get_from_matches, upsert_records
+from tests.import_audit import find_imports_matching, is_module_or_child
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -21,47 +21,27 @@ DELETED_DATABASE_HELPER_PATHS = (
 )
 
 
-def _python_files(path):
-    if path.is_file():
-        return [path]
-    return sorted(
-        child
-        for child in path.rglob("*.py")
-        if "__pycache__" not in child.parts
-    )
-
-
-def _imported_modules(path):
-    tree = ast.parse(path.read_text(), filename=str(path))
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                yield alias.name
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            yield node.module
-
-
 def test_database_namespace_owns_active_persistence_helpers():
     assert get_from_matches.__module__ == "football_intelligence.database.football"
     assert upsert_records.__module__ == "football_intelligence.database.football"
 
 
 def test_active_runtime_imports_do_not_use_deleted_database_paths():
-    offenders = []
-
-    for root in ACTIVE_RUNTIME_FILES:
-        for path in _python_files(root):
-            for module in _imported_modules(path):
-                if module == "utils.database" or module.startswith("utils.database."):
-                    offenders.append((path.relative_to(PROJECT_ROOT), module))
-                if (
-                    module == "utils.database_helpers"
-                    or module.startswith("utils.database_helpers.")
-                ):
-                    offenders.append((path.relative_to(PROJECT_ROOT), module))
+    offenders = find_imports_matching(
+        ACTIVE_RUNTIME_FILES,
+        _is_deleted_database_module,
+        PROJECT_ROOT,
+    )
 
     assert offenders == []
 
 
 def test_migrated_old_database_helper_files_are_deleted():
     assert [path for path in DELETED_DATABASE_HELPER_PATHS if path.exists()] == []
+
+
+def _is_deleted_database_module(module_name: str) -> bool:
+    return any(
+        is_module_or_child(module_name, package_name)
+        for package_name in ("utils.database", "utils.database_helpers")
+    )

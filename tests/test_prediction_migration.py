@@ -1,4 +1,3 @@
-import ast
 import sys
 from pathlib import Path
 
@@ -11,29 +10,10 @@ from football_intelligence.predictions import (
     run_prediction_inference,
     train_result_model,
 )
+from tests.import_audit import find_imports_matching, is_module_or_child
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
-
-def _python_files(path):
-    if path.is_file():
-        return [path]
-    return sorted(
-        child
-        for child in path.rglob("*.py")
-        if "__pycache__" not in child.parts
-    )
-
-
-def _imported_modules(path):
-    tree = ast.parse(path.read_text(), filename=str(path))
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                yield alias.name
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            yield node.module
 
 
 def test_prediction_namespace_owns_inference_training_and_feature_loading():
@@ -97,20 +77,23 @@ def test_prediction_configs_and_saved_models_use_product_paths():
 
 
 def test_active_prediction_runtime_no_longer_imports_ml_pipeline():
-    offenders = []
     active_roots = (
         PROJECT_ROOT / "football_intelligence",
         PROJECT_ROOT / "tests",
     )
 
-    for root in active_roots:
-        for path in _python_files(root):
-            for module in _imported_modules(path):
-                if module == "ml_pipeline" or module.startswith("ml_pipeline."):
-                    offenders.append((path.relative_to(PROJECT_ROOT), module))
+    offenders = find_imports_matching(
+        active_roots,
+        _is_retired_ml_pipeline_module,
+        PROJECT_ROOT,
+    )
 
     assert offenders == []
 
 
 def test_migrated_old_prediction_pipeline_files_are_deleted():
     assert not (PROJECT_ROOT / "ml_pipeline").exists()
+
+
+def _is_retired_ml_pipeline_module(module_name: str) -> bool:
+    return is_module_or_child(module_name, "ml_pipeline")

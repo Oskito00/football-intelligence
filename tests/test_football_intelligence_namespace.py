@@ -1,8 +1,9 @@
-import ast
 import importlib
 from pathlib import Path
 
 import pytest
+
+from tests.import_audit import find_imports_matching, is_module_or_child
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -103,16 +104,11 @@ def test_cli_namespace_does_not_export_legacy_scheduler_compatibility():
 
 
 def test_active_runtime_imports_only_use_product_namespace_for_migrated_areas():
-    offenders = []
-
-    for root in ACTIVE_RUNTIME_ROOTS:
-        for path in root.rglob("*.py"):
-            if "__pycache__" in path.parts:
-                continue
-
-            for module_name in _imported_modules(path):
-                if _is_prohibited_implementation_module(module_name):
-                    offenders.append((path.relative_to(PROJECT_ROOT), module_name))
+    offenders = find_imports_matching(
+        ACTIVE_RUNTIME_ROOTS,
+        _is_prohibited_implementation_module,
+        PROJECT_ROOT,
+    )
 
     assert offenders == []
 
@@ -126,18 +122,8 @@ def test_retired_helper_alias_package_is_deleted():
     assert not (PROJECT_ROOT / "helpers" / "parsing_helpers").exists()
 
 
-def _imported_modules(path):
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                yield alias.name
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            yield node.module
-
-
 def _is_prohibited_implementation_module(module_name):
     return any(
-        module_name == prohibited or module_name.startswith(f"{prohibited}.")
+        is_module_or_child(module_name, prohibited)
         for prohibited in PROHIBITED_IMPLEMENTATION_MODULES
     )
