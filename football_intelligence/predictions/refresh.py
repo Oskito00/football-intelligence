@@ -8,6 +8,12 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Any
 
+from football_intelligence.features import (
+    build_future_feature_set,
+    build_historical_feature_set,
+)
+from football_intelligence.ingestion import SourceDataIngestion
+
 
 DEFAULT_MODEL_CONFIG = "result_model_early"
 
@@ -66,29 +72,12 @@ def build_prediction_refresh_steps(
     model_config: str = DEFAULT_MODEL_CONFIG,
     include_odds: bool = True,
 ) -> list[PredictionRefreshStep]:
-    """Build the current Prediction Refresh sequence around legacy behavior."""
-    from data_scraping.api_football.all_data.scrape_league_ids import (
-        get_all_leagues_on_api,
-    )
-    from data_scraping.api_football.current_season.current_seasons_scrape import (
-        scrape_current_seasons,
-    )
-    from data_scraping.api_football.odds.scrape_future_match_odds import (
-        scrape_future_match_odds,
-    )
-    from football_intelligence.features import (
-        build_future_feature_set,
-        build_historical_feature_set,
-    )
-
+    """Build the current Prediction Refresh sequence."""
+    source_data_ingestion = SourceDataIngestion()
     steps = [
-        PredictionRefreshStep(
-            "refresh league catalogue",
-            lambda: get_all_leagues_on_api(conn),
-        ),
-        PredictionRefreshStep(
-            "refresh current match data",
-            scrape_current_seasons,
+        *(
+            PredictionRefreshStep(step.name, step.action)
+            for step in source_data_ingestion.match_data_steps(conn)
         ),
         PredictionRefreshStep(
             "build Historical Feature Set",
@@ -105,10 +94,11 @@ def build_prediction_refresh_steps(
     ]
 
     if include_odds:
+        odds_step = source_data_ingestion.odds_step(conn)
         steps.append(
             PredictionRefreshStep(
-                "refresh odds",
-                lambda: scrape_future_match_odds(conn),
+                odds_step.name,
+                odds_step.action,
             )
         )
 
