@@ -42,3 +42,12 @@ def test_source_data_ingestion_workflow_delegates_to_provider_without_api_calls(
 
 def test_default_source_data_provider_is_api_football_adapter():
     assert isinstance(default_source_data_provider(), ApiFootballSourceDataProvider)
+
+
+def test_ingestion_namespace_keeps_source_data_functions_compatible():
+    from football_intelligence import ingestion
+    from football_intelligence.ingestion import api_football
+
+    assert ingestion.get_all_leagues_on_api is api_football.get_all_leagues_on_api
+    assert ingestion.scrape_current_seasons is api_football.scrape_current_seasons
+    assert ingestion.scrape_future_match_odds is api_football.scrape_future_match_odds

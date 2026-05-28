@@ -7,6 +7,7 @@ import os
 import time
 from collections import defaultdict
 from datetime import datetime
+from typing import Any
 
 import psycopg2
 import requests
@@ -39,13 +40,13 @@ TARGET_BOOKMAKERS = [3, 6, 7, 8, 12]
 class ApiFootballSourceDataProvider:
     """Provider adapter that preserves the existing API-Football ingestion behavior."""
 
-    def refresh_league_catalogue(self, conn):
+    def refresh_league_catalogue(self, conn: Any) -> None:
         get_all_leagues_on_api(conn)
 
-    def refresh_current_match_data(self):
+    def refresh_current_match_data(self) -> None:
         scrape_current_seasons()
 
-    def refresh_match_odds(self, conn):
+    def refresh_match_odds(self, conn: Any) -> None:
         scrape_future_match_odds(conn)
 
 
