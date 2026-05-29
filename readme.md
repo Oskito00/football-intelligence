@@ -53,6 +53,7 @@ cp .env.example .env
 The example file uses safe local placeholders:
 
 ```dotenv
+ENV=dev
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=football_intelligence
@@ -61,6 +62,7 @@ DB_PASSWORD=football
 DATABASE_URL=postgresql+psycopg2://football:football@localhost:5432/football_intelligence
 API_FOOTBALL_KEY=
 GROQ_API_KEY=
+GROQ_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
 VITE_API_URL=http://localhost:5000
 ```
 
@@ -88,7 +90,8 @@ Start the read-only API:
 python -m uvicorn football_intelligence.api:app --host 0.0.0.0 --port 5000
 ```
 
-Build and run the dashboard in another shell:
+Install dashboard dependencies, verify the build, and start the dashboard in
+another shell:
 
 ```bash
 cd frontend

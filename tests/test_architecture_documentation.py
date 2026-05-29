@@ -57,7 +57,9 @@ def test_public_readme_documents_code_only_onboarding_path():
             "code-only Football Intelligence repository",
             "No real match data, odds data, database dumps, generated training datasets, or trained model artifacts are shipped",
             "cp .env.example .env",
+            "ENV=dev",
             "DATABASE_URL=postgresql+psycopg2://football:football@localhost:5432/football_intelligence",
+            "GROQ_MODEL=meta-llama/llama-4-scout-17b-16e-instruct",
             "make db-setup",
             "Run **Database Setup** before **Source Data Ingestion**, **Prediction Refresh**, or **Model Training**",
             "python -m uvicorn football_intelligence.api:app --host 0.0.0.0 --port 5000",
@@ -82,6 +84,7 @@ def test_env_example_documents_safe_local_defaults():
             "DATABASE_URL=postgresql+psycopg2://football:football@localhost:5432/football_intelligence",
             "API_FOOTBALL_KEY=",
             "GROQ_API_KEY=",
+            "GROQ_MODEL=meta-llama/llama-4-scout-17b-16e-instruct",
             "VITE_API_URL=http://localhost:5000",
         ),
     )
