@@ -11,6 +11,10 @@
     setup_command?: string;
   };
 
+  type ApiErrorPayload = {
+    detail?: string | SetupRequiredDetail;
+  };
+
   class ApiRequestError extends Error {
     status: number;
     setupRequired: SetupRequiredDetail | null;
@@ -186,8 +190,23 @@
   let errorMessage = "";
   let setupRequired: SetupRequiredDetail | null = null;
 
+  const isSetupRequiredDetail = (detail: unknown): detail is SetupRequiredDetail => {
+    if (!detail || typeof detail !== "object") {
+      return false;
+    }
+
+    const candidate = detail as Record<string, unknown>;
+    return (
+      candidate.code === "setup_required" &&
+      typeof candidate.message === "string"
+    );
+  };
+
+  const errorMessageFrom = (error: unknown, fallback: string) =>
+    error instanceof Error ? error.message : fallback;
+
   const requestError = async (response: Response, surface: string) => {
-    let payload: { detail?: string | SetupRequiredDetail } | null = null;
+    let payload: ApiErrorPayload | null = null;
 
     try {
       payload = await response.json();
@@ -195,12 +214,12 @@
       payload = null;
     }
 
-    if (
-      payload &&
-      typeof payload.detail === "object" &&
-      payload.detail?.code === "setup_required"
-    ) {
-      return new ApiRequestError(payload.detail.message, response.status, payload.detail);
+    if (isSetupRequiredDetail(payload?.detail)) {
+      return new ApiRequestError(
+        payload.detail.message,
+        response.status,
+        payload.detail,
+      );
     }
 
     const detail = typeof payload?.detail === "string" ? payload.detail : null;
@@ -269,8 +288,7 @@
       if (error instanceof ApiRequestError && error.setupRequired) {
         matchDetailError = error.setupRequired.message;
       } else {
-        matchDetailError =
-          error instanceof Error ? error.message : "Match Detail is unavailable.";
+        matchDetailError = errorMessageFrom(error, "Match Detail is unavailable.");
       }
     } finally {
       matchDetailLoading = false;
@@ -295,8 +313,7 @@
       if (error instanceof ApiRequestError && error.setupRequired) {
         setupRequired = error.setupRequired;
       } else {
-        errorMessage =
-          error instanceof Error ? error.message : "Prediction Board is unavailable.";
+        errorMessage = errorMessageFrom(error, "Prediction Board is unavailable.");
       }
     } finally {
       loading = false;

@@ -37,6 +37,8 @@ Prediction = dict[str, Any]
 OddsByOutcome = dict[str, dict[str, Any]]
 AllBookmakerOddsByOutcome = dict[str, list[dict[str, Any]]]
 
+SETUP_REQUIRED_CODE = "setup_required"
+DATABASE_SETUP_COMMAND = "python -m football_intelligence.cli db setup"
 PREDICTED_RESULT_LABELS = {2: "Home Win", 1: "Draw", 0: "Away Win"}
 PROBABILITY_OUTCOMES = (
     ("prob_home_win", "Home Win"),
@@ -135,8 +137,8 @@ class FootballQueryError(RuntimeError):
 class DatabaseSetupRequiredError(FootballQueryError):
     """Raised when read-only access finds required schema is missing."""
 
-    code = "setup_required"
-    setup_command = "python -m football_intelligence.cli db setup"
+    code = SETUP_REQUIRED_CODE
+    setup_command = DATABASE_SETUP_COMMAND
 
     def __init__(self, detail: str):
         super().__init__(
@@ -228,7 +230,10 @@ class ReadOnlyFootballQueries:
         try:
             row = self._runner.fetch_one(query, (match_id,))
         except Exception as exc:
-            raise _query_error(f"Error getting prediction for match {match_id}", exc) from exc
+            raise _query_error(
+                f"Error getting prediction for match {match_id}",
+                exc,
+            ) from exc
 
         return _map_prediction(row) if row else None
 
@@ -512,7 +517,10 @@ class ReadOnlyFootballQueries:
         try:
             rows = self._runner.fetch_all(query, tuple(match_ids))
         except Exception as exc:
-            raise _query_error("Error getting odds freshness for Prediction Board", exc) from exc
+            raise _query_error(
+                "Error getting odds freshness for Prediction Board",
+                exc,
+            ) from exc
 
         return {
             int(row["match_id"]): {
