@@ -21,6 +21,24 @@ REQUIRED_HANDBOOK_TERMS = (
     "`scrape` is shortcut slang for **Source Data Ingestion**",
     "`make tonight`",
 )
+VALUE_BACKTEST_COMMAND = "python -m football_intelligence.cli value-backtest"
+REQUIRED_VALUE_BACKTEST_TERMS = (
+    VALUE_BACKTEST_COMMAND,
+    "100 became X",
+    "--kelly-fraction 0.25",
+    "--min-expected-value 0.05",
+    "--odds-mode best",
+    "--odds-mode average",
+    "**Paper Stakes** are hypothetical research stakes, not betting advice",
+    "profitable historical result is evidence to inspect, not proof of future profitability",
+    "retained **Predictions**",
+    "true prediction-snapshot history",
+    "calibration diagnostics",
+    "Brier score",
+    "log loss",
+    "prediction snapshots",
+    "walk-forward analysis",
+)
 
 
 def test_makefile_shortcuts_are_documented_operational_commands():
@@ -39,6 +57,14 @@ def test_command_handbook_uses_product_language_and_shortcuts():
 
     for target in EXPECTED_MAKE_SHORTCUTS:
         assert f"`make {target}`" in handbook
+
+
+def test_command_handbook_documents_value_backtest_usage_and_limits():
+    handbook = read_text(ROOT / "COMMANDS.md")
+    normalized_handbook = " ".join(handbook.split())
+
+    for term in REQUIRED_VALUE_BACKTEST_TERMS:
+        assert " ".join(term.split()) in normalized_handbook
 
 
 def read_text(path: Path) -> str:

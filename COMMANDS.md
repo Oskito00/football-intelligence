@@ -46,4 +46,60 @@ python -m football_intelligence.cli status
 python -m football_intelligence.cli board today
 python -m football_intelligence.cli value-picks
 python -m football_intelligence.cli value-picks --today
+python -m football_intelligence.cli value-backtest
 ```
+
+## Value Backtest
+
+Run a **Value Backtest** when you want the research answer to: "If the
+starting bankroll was 100, what did it become after replaying historical
+**Market Value Signals**?" The default command starts with 100 and the report
+headline answers the 100 became X question directly:
+
+```bash
+python -m football_intelligence.cli value-backtest
+```
+
+Default strategy:
+
+- Starting bankroll is 100.
+- Kelly fraction is 1.0, meaning full Kelly.
+- Minimum expected value is 0, so every positive-Kelly **Market Value Signal**
+  can qualify.
+- Multiple qualifying outcomes in the same **Completed Match** can each receive
+  a **Paper Stake**.
+- Prediction timing is strict: retained **Predictions** must be before kickoff.
+- **Backtest Odds Mode** is `best`, meaning the simulation uses the highest
+  available pre-kickoff bookmaker odds for each outcome.
+
+Use these comparison runs to inspect whether the historical result survives
+more conservative assumptions:
+
+```bash
+python -m football_intelligence.cli value-backtest --kelly-fraction 0.25
+python -m football_intelligence.cli value-backtest --min-expected-value 0.05
+python -m football_intelligence.cli value-backtest --odds-mode best
+python -m football_intelligence.cli value-backtest --odds-mode average
+```
+
+**Backtest Odds Mode** controls how historical pre-kickoff odds are selected.
+`best` assumes the highest available price across retained bookmaker odds;
+`average` uses the average available price and is a more conservative robustness
+check.
+
+Interpret the report as research output. **Paper Stakes** are hypothetical
+research stakes, not betting advice, real-money recommendations, or proof that
+the model should be followed with cash. A profitable historical result is
+evidence to inspect, not proof of future profitability. Compare the headline
+bankroll, ROI, drawdown, bankroll peak and trough, skipped-match counts, and
+individual **Paper Stake** audit rows before drawing conclusions.
+
+The v1 limitation is the retained-prediction data model. This **Value Backtest**
+uses retained **Predictions** per **Completed Match**; if old predictions were
+overwritten, it may not reconstruct every historical prediction revision. That
+is different from a true prediction-snapshot history, where every prediction
+available at each historical decision time would be stored and replayed.
+
+Future extensions should keep this distinction visible while adding stronger
+diagnostics such as calibration diagnostics, Brier score, log loss, prediction
+snapshots, and walk-forward analysis.
