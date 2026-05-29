@@ -1,4 +1,10 @@
 <script lang="ts">
+  type DashboardWarning = {
+    code?: string;
+    severity?: string;
+    message: string;
+  };
+
   type Prediction = {
     predicted_result: string;
     confidence: number | null;
@@ -34,6 +40,7 @@
     away_team: string;
     competition: string;
     country: string;
+    competition_id?: number | null;
     prediction: Prediction | null;
     odds_freshness: OddsFreshness;
     market_value_signals: MarketValueSignal[];
@@ -42,6 +49,7 @@
   type PredictionBoard = {
     title: string;
     date: string;
+    generated_at?: string;
     window: {
       starts_at: string;
       ends_at: string;
@@ -54,7 +62,7 @@
       market_value_signal_count: number;
     };
     matches: BoardMatch[];
-    warnings: { code: string; severity: string; message: string }[];
+    warnings: DashboardWarning[];
     empty_state: string | null;
   };
 
@@ -67,7 +75,7 @@
       team_name: string;
       elo: number | null;
     }[];
-    warnings: { message: string }[];
+    warnings: DashboardWarning[];
   };
 
   const API_URL = import.meta.env.VITE_API_URL || "";
@@ -77,22 +85,35 @@
   let loading = true;
   let errorMessage = "";
 
+  const fetchPredictionBoard = async () => {
+    const response = await fetch(`${API_URL}/api/board/today`);
+
+    if (!response.ok) {
+      throw new Error(`Prediction Board request failed with ${response.status}`);
+    }
+
+    return (await response.json()) as PredictionBoard;
+  };
+
+  const fetchFootballDataStatus = async () => {
+    const response = await fetch(`${API_URL}/api/status`);
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return (await response.json()) as FootballDataStatus;
+  };
+
   const loadDashboard = async () => {
     loading = true;
     errorMessage = "";
 
     try {
-      const [boardResponse, statusResponse] = await Promise.all([
-        fetch(`${API_URL}/api/board/today`),
-        fetch(`${API_URL}/api/status`),
+      [board, status] = await Promise.all([
+        fetchPredictionBoard(),
+        fetchFootballDataStatus(),
       ]);
-
-      if (!boardResponse.ok) {
-        throw new Error(`Prediction Board request failed with ${boardResponse.status}`);
-      }
-
-      board = await boardResponse.json();
-      status = statusResponse.ok ? await statusResponse.json() : null;
     } catch (error) {
       board = null;
       status = null;

@@ -183,12 +183,13 @@ def render_football_data_status(status: FootballDataStatusRenderable) -> str:
 
 def render_prediction_board(board: PredictionBoardRenderable) -> str:
     data = board.to_dict()
+    window = data["window"]
     summary = data["summary"]
     lines = [
         f"{data['title']} - {data['date']}",
         (
-            f"Window: {data['window']['starts_at']} to "
-            f"{data['window']['ends_at']} ({data['window']['timezone']})"
+            f"Window: {window['starts_at']} to {window['ends_at']} "
+            f"({window['timezone']})"
         ),
         (
             "Summary: "
@@ -239,13 +240,12 @@ def _render_prediction_board_match(match: Mapping[str, Any]) -> list[str]:
     else:
         lines.append("    Odds Freshness: missing")
 
-    if match["market_value_signals"]:
-        for signal in match["market_value_signals"]:
-            lines.append(
-                "    Market Value Signal: "
-                f"{signal['outcome']} edge {_format_percentage(signal['edge'])}; "
-                f"Paper Stake {_format_number(signal['paper_stake_percentage'])}%"
-            )
+    for signal in match["market_value_signals"]:
+        lines.append(
+            "    Market Value Signal: "
+            f"{signal['outcome']} edge {_format_percentage(signal['edge'])}; "
+            f"Paper Stake {_format_number(signal['paper_stake_percentage'])}%"
+        )
     return lines
 
 

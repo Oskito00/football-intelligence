@@ -8,6 +8,12 @@ from datetime import datetime, time, timedelta
 from typing import Any, Protocol
 
 
+BOARD_TITLE = "Prediction Board"
+EMPTY_BOARD_MESSAGE = (
+    "No remaining Upcoming Matches are scheduled for today's local-date window."
+)
+
+
 class PredictionBoardQueries(Protocol):
     """Read-only facts required to build a Prediction Board."""
 
@@ -51,18 +57,20 @@ class PredictionBoard:
     def to_dict(self) -> dict[str, Any]:
         """Return deterministic API-ready Python values."""
         signals_by_match = _signals_by_match(self.value_signals)
-        match_cards = [
-            _match_card(
-                match,
-                prediction=self.predictions.get(int(match["match_id"])),
-                odds_freshness=self.odds_freshness.get(int(match["match_id"])),
-                value_signals=signals_by_match.get(int(match["match_id"]), []),
+        match_cards = []
+        for match in self.matches:
+            match_id = int(match["match_id"])
+            match_cards.append(
+                _match_card(
+                    match,
+                    prediction=self.predictions.get(match_id),
+                    odds_freshness=self.odds_freshness.get(match_id),
+                    value_signals=signals_by_match.get(match_id, []),
+                )
             )
-            for match in self.matches
-        ]
-        warnings = _warnings_for_match_cards(match_cards)
+
         return {
-            "title": "Prediction Board",
+            "title": BOARD_TITLE,
             "date": self.date,
             "generated_at": _isoformat(self.generated_at),
             "window": {
@@ -70,26 +78,10 @@ class PredictionBoard:
                 "ends_at": _isoformat(self.ends_at),
                 "timezone": "local",
             },
-            "summary": {
-                "upcoming_match_count": len(match_cards),
-                "matches_with_predictions": sum(
-                    1 for match in match_cards if match["prediction"] is not None
-                ),
-                "matches_with_odds": sum(
-                    1 for match in match_cards if match["odds_freshness"]["has_odds"]
-                ),
-                "market_value_signal_count": sum(
-                    len(match["market_value_signals"]) for match in match_cards
-                ),
-            },
+            "summary": _summary_for_match_cards(match_cards),
             "matches": match_cards,
-            "warnings": warnings,
-            "empty_state": (
-                "No remaining Upcoming Matches are scheduled for today's "
-                "local-date window."
-                if not match_cards
-                else None
-            ),
+            "warnings": _warnings_for_match_cards(match_cards),
+            "empty_state": EMPTY_BOARD_MESSAGE if not match_cards else None,
         }
 
 
@@ -115,6 +107,7 @@ class PredictionBoardService:
     def today(self) -> PredictionBoard:
         """Return today's remaining local-date Prediction Board."""
         now = self._now_factory()
+        date = now.date().isoformat()
         starts_at = now
         ends_at = datetime.combine(
             now.date() + timedelta(days=1),
@@ -126,28 +119,24 @@ class PredictionBoardService:
             ends_at=ends_at,
         )
         match_ids = [int(match["match_id"]) for match in matches]
-        if not match_ids:
-            return PredictionBoard(
-                date=now.date().isoformat(),
-                generated_at=now,
-                starts_at=starts_at,
-                ends_at=ends_at,
-                matches=[],
-                predictions={},
-                odds_freshness={},
-                value_signals=[],
-            )
+        predictions: Mapping[int, Mapping[str, Any]] = {}
+        odds_freshness: Mapping[int, Mapping[str, Any]] = {}
+        value_signals: Sequence[Mapping[str, Any]] = []
+        if match_ids:
+            value_analysis = self._queries.analyze_matches_for_value(match_ids)
+            predictions = self._queries.get_multiple_match_predictions(match_ids)
+            odds_freshness = self._queries.get_odds_freshness_for_matches(match_ids)
+            value_signals = value_analysis.get("all_value_bets", [])
 
-        value_analysis = self._queries.analyze_matches_for_value(match_ids)
         return PredictionBoard(
-            date=now.date().isoformat(),
+            date=date,
             generated_at=now,
             starts_at=starts_at,
             ends_at=ends_at,
             matches=matches,
-            predictions=self._queries.get_multiple_match_predictions(match_ids),
-            odds_freshness=self._queries.get_odds_freshness_for_matches(match_ids),
-            value_signals=value_analysis.get("all_value_bets", []),
+            predictions=predictions,
+            odds_freshness=odds_freshness,
+            value_signals=value_signals,
         )
 
 
@@ -191,12 +180,11 @@ def _normalize_prediction(prediction: Mapping[str, Any] | None) -> dict[str, Any
 
 
 def _normalize_odds_freshness(odds: Mapping[str, Any] | None) -> dict[str, Any]:
+    odds = odds or {}
     return {
         "has_odds": bool(odds),
-        "latest_retrieved_at": _isoformat((odds or {}).get("latest_retrieved_at")),
-        "latest_api_last_updated": _isoformat(
-            (odds or {}).get("latest_api_last_updated")
-        ),
+        "latest_retrieved_at": _isoformat(odds.get("latest_retrieved_at")),
+        "latest_api_last_updated": _isoformat(odds.get("latest_api_last_updated")),
     }
 
 
@@ -226,27 +214,50 @@ def _signals_by_match(
     return grouped
 
 
+def _summary_for_match_cards(
+    match_cards: Sequence[Mapping[str, Any]],
+) -> dict[str, int]:
+    return {
+        "upcoming_match_count": len(match_cards),
+        "matches_with_predictions": sum(
+            1 for match in match_cards if match["prediction"] is not None
+        ),
+        "matches_with_odds": sum(
+            1 for match in match_cards if match["odds_freshness"]["has_odds"]
+        ),
+        "market_value_signal_count": sum(
+            len(match["market_value_signals"]) for match in match_cards
+        ),
+    }
+
+
 def _warnings_for_match_cards(
     match_cards: Sequence[Mapping[str, Any]],
 ) -> list[dict[str, str]]:
     warnings = []
     if any(match["prediction"] is None for match in match_cards):
         warnings.append(
-            {
-                "code": "missing_predictions",
-                "severity": "warning",
-                "message": "Some Upcoming Matches do not have Predictions.",
-            }
+            _warning(
+                "missing_predictions",
+                "Some Upcoming Matches do not have Predictions.",
+            )
         )
     if any(not match["odds_freshness"]["has_odds"] for match in match_cards):
         warnings.append(
-            {
-                "code": "missing_odds",
-                "severity": "warning",
-                "message": "Some Upcoming Matches do not have odds freshness.",
-            }
+            _warning(
+                "missing_odds",
+                "Some Upcoming Matches do not have odds freshness.",
+            )
         )
     return warnings
+
+
+def _warning(code: str, message: str) -> dict[str, str]:
+    return {
+        "code": code,
+        "severity": "warning",
+        "message": message,
+    }
 
 
 def _number_or_none(value: Any) -> float | None:
