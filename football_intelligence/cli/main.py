@@ -23,6 +23,19 @@ class PredictionBoardRenderable(Protocol):
         """Return display-ready Prediction Board data."""
 
 
+class MarketValueSignalRenderable(Protocol):
+    def to_dict(self) -> dict[str, Any]:
+        """Return display-ready Market Value Signal scan data."""
+
+
+class MarketValueSignalServiceLike(Protocol):
+    def today(self) -> MarketValueSignalRenderable:
+        """Return today's Market Value Signals."""
+
+    def next_days(self, *, days: int = 7) -> MarketValueSignalRenderable:
+        """Return Market Value Signals for the next N days."""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="football-intelligence",
@@ -53,6 +66,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="Show today's remaining Prediction Board.",
     )
     today.set_defaults(command_handler=_handle_board_today)
+
+    value_picks = subcommands.add_parser(
+        "value-picks",
+        help="Show Market Value Signals for upcoming matches.",
+    )
+    value_window = value_picks.add_mutually_exclusive_group()
+    value_window.add_argument(
+        "--today",
+        action="store_true",
+        help="Show today's remaining local-date Market Value Signals.",
+    )
+    value_window.add_argument(
+        "--days",
+        type=int,
+        default=7,
+        help="Scan the next N days. Defaults to 7.",
+    )
+    value_picks.set_defaults(command_handler=_handle_value_picks)
 
     model_training = subcommands.add_parser(
         "model-training",
@@ -115,6 +146,13 @@ def _handle_board_today(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _handle_value_picks(args: argparse.Namespace) -> int:
+    service = get_market_value_signal_service()
+    scan = service.today() if args.today else service.next_days(days=args.days)
+    print(render_market_value_signals(scan))
+    return 0
+
+
 def run_model_training(
     config_name: str,
     *,
@@ -138,6 +176,12 @@ def get_today_prediction_board() -> PredictionBoardRenderable:
     from football_intelligence.board import PredictionBoardService
 
     return PredictionBoardService.from_config().today()
+
+
+def get_market_value_signal_service() -> MarketValueSignalServiceLike:
+    from football_intelligence.value import MarketValueSignalService
+
+    return MarketValueSignalService.from_config()
 
 
 def render_football_data_status(status: FootballDataStatusRenderable) -> str:
@@ -214,6 +258,55 @@ def render_prediction_board(board: PredictionBoardRenderable) -> str:
     return "\n".join(lines)
 
 
+def render_market_value_signals(scan: MarketValueSignalRenderable) -> str:
+    data = scan.to_dict()
+    window = data["window"]
+    summary = data["summary"]
+    lines = [
+        f"{data['title']} - {window['label']}",
+        (
+            f"Window: {window['starts_at']} to {window['ends_at']} "
+            f"({window['timezone']})"
+        ),
+        (
+            "Summary: "
+            f"{summary['upcoming_match_count']} Upcoming Matches; "
+            f"{summary['matches_with_predictions']} with Predictions; "
+            f"{summary['matches_with_odds']} with odds; "
+            f"{summary['market_value_signal_count']} Market Value Signals"
+        ),
+    ]
+
+    if data["empty_state"]:
+        lines.append(data["empty_state"])
+    else:
+        lines.append("Signals:")
+        for signal in data["signals"]:
+            lines.extend(_render_market_value_signal(signal))
+
+    if data["warnings"]:
+        lines.append("Warnings:")
+        lines.extend(f"  - {warning['message']}" for warning in data["warnings"])
+
+    return "\n".join(lines)
+
+
+def _render_market_value_signal(signal: Mapping[str, Any]) -> list[str]:
+    return [
+        (
+            f"  - {signal['start_time']} | {signal['home_team']} vs "
+            f"{signal['away_team']} ({signal['competition']})"
+        ),
+        f"    Outcome: {signal['outcome']}",
+        f"    Model Probability: {_format_percentage(signal['model_probability'])}",
+        f"    Best Odds: {_format_decimal_odds(signal['best_odds'])}",
+        f"    Implied Probability: {_format_percentage(signal['implied_probability'])}",
+        f"    Edge: {_format_percentage(signal['edge'])}",
+        f"    Bookmaker: {_format_missing(signal['bookmaker'])}",
+        f"    Paper Stake: {_format_number(signal['paper_stake_percentage'])}%",
+    ]
+
+
 def _render_prediction_board_match(match: Mapping[str, Any]) -> list[str]:
     prediction = match["prediction"]
     odds_freshness = match["odds_freshness"]
@@ -274,3 +367,9 @@ def _format_number(value: Any) -> str:
     if value is None:
         return "None"
     return f"{float(value):.1f}"
+
+
+def _format_decimal_odds(value: Any) -> str:
+    if value is None:
+        return "None"
+    return f"{float(value):.2f}"

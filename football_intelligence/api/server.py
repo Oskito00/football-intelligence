@@ -89,6 +89,23 @@ class PredictionBoardServiceLike(Protocol):
         """Return today's Prediction Board."""
 
 
+class MarketValueSignalScanLike(Protocol):
+    """Signal scan object returned by the Market Value Signal service."""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return deterministic API-ready Market Value Signal data."""
+
+
+class MarketValueSignalServiceLike(Protocol):
+    """API-facing Market Value Signal behavior."""
+
+    def today(self) -> MarketValueSignalScanLike:
+        """Return today's Market Value Signals."""
+
+    def next_days(self, *, days: int = 7) -> MarketValueSignalScanLike:
+        """Return Market Value Signals for the next N days."""
+
+
 class AnalystChatService:
     """Conversation-aware API service backed by the read-only Analyst Agent."""
 
@@ -220,6 +237,26 @@ class LazyPredictionBoardService:
         return self._service
 
 
+class LazyMarketValueSignalService:
+    """Lazy default value service so importing the ASGI app does not touch DB config."""
+
+    def __init__(self):
+        self._service: MarketValueSignalServiceLike | None = None
+
+    def today(self) -> MarketValueSignalScanLike:
+        return self._get_service().today()
+
+    def next_days(self, *, days: int = 7) -> MarketValueSignalScanLike:
+        return self._get_service().next_days(days=days)
+
+    def _get_service(self) -> MarketValueSignalServiceLike:
+        if self._service is None:
+            from football_intelligence.value import MarketValueSignalService
+
+            self._service = MarketValueSignalService.from_config()
+        return self._service
+
+
 class GroqChatRunnable:
     """Groq chat completion adapter used by the LangChain RunnableLambda."""
 
@@ -253,6 +290,7 @@ def create_app(
     chat_service: AnalystChatServiceLike | None = None,
     status_service: FootballDataStatusServiceLike | None = None,
     board_service: PredictionBoardServiceLike | None = None,
+    value_service: MarketValueSignalServiceLike | None = None,
 ) -> FastAPI:
     """Create the FastAPI app while preserving the existing external contract."""
     service = chat_service if chat_service is not None else LazyAnalystChatService()
@@ -263,6 +301,9 @@ def create_app(
     )
     prediction_board = (
         board_service if board_service is not None else LazyPredictionBoardService()
+    )
+    market_value_signals = (
+        value_service if value_service is not None else LazyMarketValueSignalService()
     )
     api_app = FastAPI()
 
@@ -304,6 +345,17 @@ def create_app(
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    @api_app.get("/api/value-signals")
+    async def value_signals(today: bool = False, days: int = 7) -> dict[str, Any]:
+        try:
+            if today:
+                return market_value_signals.today().to_dict()
+            return market_value_signals.next_days(days=days).to_dict()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
     @api_app.get("/")
     async def root() -> dict[str, Any]:
         return {
@@ -313,6 +365,7 @@ def create_app(
                 "reset": "/api/reset",
                 "status": "/api/status",
                 "today_prediction_board": "/api/board/today",
+                "value_signals": "/api/value-signals",
                 "docs": "/docs",
             },
         }
@@ -320,6 +373,7 @@ def create_app(
     api_app.state.analyst_chat_service = service
     api_app.state.football_data_status_service = football_status
     api_app.state.prediction_board_service = prediction_board
+    api_app.state.market_value_signal_service = market_value_signals
     return api_app
 
 

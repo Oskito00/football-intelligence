@@ -194,6 +194,7 @@ h2 {
 }
 
 .signal-list,
+.signal-detail-list,
 .team-list,
 .warning-list {
   margin: 14px 0 0;
@@ -202,6 +203,7 @@ h2 {
 }
 
 .signal-list li,
+.signal-detail-list li,
 .team-list li,
 .warning-list li {
   padding: 10px 0;
@@ -214,6 +216,33 @@ h2 {
 
 .warning-list li {
   color: #8a4b16;
+}
+
+.signal-detail-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  color: #264d40;
+}
+
+.signal-detail-list div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.signal-detail-list span,
+.signal-detail-list small,
+.signal-detail-list strong {
+  overflow-wrap: anywhere;
+}
+
+.signal-detail-list small {
+  color: #5b6b79;
+}
+
+.signal-detail-list div:last-child {
+  text-align: right;
 }
 
 .context-panel {
@@ -261,8 +290,13 @@ h2 {
   .summary-grid,
   .probabilities,
   .match-meta,
-  .signal-list li {
+  .signal-list li,
+  .signal-detail-list li {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .signal-detail-list div:last-child {
+    text-align: left;
   }
 }

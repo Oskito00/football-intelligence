@@ -44,4 +44,6 @@ Use these commands to inspect current football data without changing it:
 ```bash
 python -m football_intelligence.cli status
 python -m football_intelligence.cli board today
+python -m football_intelligence.cli value-picks
+python -m football_intelligence.cli value-picks --today
 ```

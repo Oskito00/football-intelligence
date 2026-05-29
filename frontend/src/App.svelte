@@ -24,6 +24,12 @@
   };
 
   type MarketValueSignal = {
+    match_id?: number;
+    start_time?: string | null;
+    home_team?: string | null;
+    away_team?: string | null;
+    competition?: string | null;
+    country?: string | null;
     outcome: string;
     model_probability: number | null;
     best_odds: number | null;
@@ -66,6 +72,26 @@
     empty_state: string | null;
   };
 
+  type MarketValueSignalScan = {
+    title: string;
+    window: {
+      starts_at: string;
+      ends_at: string;
+      timezone: string;
+      label: string;
+    };
+    summary: {
+      upcoming_match_count: number;
+      matches_with_predictions: number;
+      matches_with_odds: number;
+      matches_with_value_signals: number;
+      market_value_signal_count: number;
+    };
+    signals: MarketValueSignal[];
+    warnings: DashboardWarning[];
+    empty_state: string | null;
+  };
+
   type FootballDataStatus = {
     odds_freshness: {
       latest_retrieved_at: string | null;
@@ -81,6 +107,7 @@
   const API_URL = import.meta.env.VITE_API_URL || "";
 
   let board: PredictionBoard | null = null;
+  let valueSignals: MarketValueSignalScan | null = null;
   let status: FootballDataStatus | null = null;
   let loading = true;
   let errorMessage = "";
@@ -93,6 +120,16 @@
     }
 
     return (await response.json()) as PredictionBoard;
+  };
+
+  const fetchMarketValueSignals = async () => {
+    const response = await fetch(`${API_URL}/api/value-signals?today=true`);
+
+    if (!response.ok) {
+      throw new Error(`Market Value Signals request failed with ${response.status}`);
+    }
+
+    return (await response.json()) as MarketValueSignalScan;
   };
 
   const fetchFootballDataStatus = async () => {
@@ -110,12 +147,14 @@
     errorMessage = "";
 
     try {
-      [board, status] = await Promise.all([
+      [board, valueSignals, status] = await Promise.all([
         fetchPredictionBoard(),
+        fetchMarketValueSignals(),
         fetchFootballDataStatus(),
       ]);
     } catch (error) {
       board = null;
+      valueSignals = null;
       status = null;
       errorMessage =
         error instanceof Error ? error.message : "Prediction Board is unavailable.";
@@ -251,6 +290,33 @@
 
         <aside class="side-rail" aria-label="Dashboard context">
           <section class="context-panel">
+            <h2>Market Value Signals</h2>
+            <strong>
+              {formatValue(valueSignals?.summary.market_value_signal_count)}
+            </strong>
+            {#if valueSignals?.signals.length}
+              <ul class="signal-detail-list">
+                {#each valueSignals.signals as signal}
+                  <li>
+                    <div>
+                      <span>{formatValue(signal.home_team)} vs {formatValue(signal.away_team)}</span>
+                      <small>{formatValue(signal.outcome)} / {formatValue(signal.bookmaker)}</small>
+                    </div>
+                    <div>
+                      <strong>{formatPercent(signal.edge)}</strong>
+                      <small>{formatPlainPercent(signal.paper_stake_percentage)} Paper Stake</small>
+                    </div>
+                  </li>
+                {/each}
+              </ul>
+            {:else}
+              <p class="empty">
+                {valueSignals?.empty_state || "No Market Value Signals available."}
+              </p>
+            {/if}
+          </section>
+
+          <section class="context-panel">
             <h2>Odds Freshness</h2>
             <strong>{formatValue(status?.odds_freshness.latest_retrieved_at)}</strong>
             <p>
@@ -277,9 +343,12 @@
 
           <section class="context-panel">
             <h2>Warnings</h2>
-            {#if board.warnings.length || status?.warnings.length}
+            {#if board.warnings.length || valueSignals?.warnings.length || status?.warnings.length}
               <ul class="warning-list">
                 {#each board.warnings as warning}
+                  <li>{warning.message}</li>
+                {/each}
+                {#each valueSignals?.warnings || [] as warning}
                   <li>{warning.message}</li>
                 {/each}
                 {#each status?.warnings || [] as warning}
