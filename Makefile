@@ -1,4 +1,16 @@
-.PHONY: status tonight scrape process-history build-future predict odds
+.PHONY: db-setup db-upgrade db-current db-stamp-baseline status tonight scrape process-history build-future predict odds
+
+db-setup:
+	python -m football_intelligence.cli db setup
+
+db-upgrade:
+	python -m football_intelligence.cli db upgrade
+
+db-current:
+	python -m football_intelligence.cli db current
+
+db-stamp-baseline:
+	python -m football_intelligence.cli db stamp-baseline
 
 status:
 	python -m football_intelligence.cli status

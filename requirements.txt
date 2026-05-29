@@ -6,6 +6,7 @@ langchain-core
 
 psycopg2-binary==2.9.9
 SQLAlchemy==2.0.25
+alembic==1.13.1
 
 requests==2.31.0
 urllib3==2.1.0

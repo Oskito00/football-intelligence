@@ -62,6 +62,40 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subcommands = parser.add_subparsers(dest="command", required=True)
 
+    db = subcommands.add_parser(
+        "db",
+        help="Run Football Intelligence Database Setup commands.",
+    )
+    db_subcommands = db.add_subparsers(dest="db_command", required=True)
+    db_setup = db_subcommands.add_parser(
+        "setup",
+        help="Create or upgrade the configured database schema.",
+    )
+    db_setup.set_defaults(command_handler=_handle_db_setup)
+    db_upgrade = db_subcommands.add_parser(
+        "upgrade",
+        help="Upgrade the configured database schema to the latest migration.",
+    )
+    db_upgrade.set_defaults(command_handler=_handle_db_upgrade)
+    db_current = db_subcommands.add_parser(
+        "current",
+        help="Show the configured database migration state.",
+    )
+    db_current.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Show detailed Alembic revision information.",
+    )
+    db_current.set_defaults(command_handler=_handle_db_current)
+    db_stamp_baseline = db_subcommands.add_parser(
+        "stamp-baseline",
+        help=(
+            "Mark an existing reviewed schema as the current migration head "
+            "without creating tables."
+        ),
+    )
+    db_stamp_baseline.set_defaults(command_handler=_handle_db_stamp_baseline)
+
     prediction_refresh = subcommands.add_parser(
         "prediction-refresh",
         help="Run Prediction Refresh without training a new model.",
@@ -185,6 +219,26 @@ def _handle_model_training(args: argparse.Namespace) -> int:
     return 0 if result.get("success") else 1
 
 
+def _handle_db_setup(_args: argparse.Namespace) -> int:
+    setup_database()
+    return 0
+
+
+def _handle_db_upgrade(_args: argparse.Namespace) -> int:
+    upgrade_database()
+    return 0
+
+
+def _handle_db_current(args: argparse.Namespace) -> int:
+    show_current_database_revision(verbose=args.verbose)
+    return 0
+
+
+def _handle_db_stamp_baseline(_args: argparse.Namespace) -> int:
+    stamp_existing_database_baseline()
+    return 0
+
+
 def _handle_prediction_refresh(args: argparse.Namespace) -> int:
     return run_prediction_refresh_from_args(args)
 
@@ -223,6 +277,34 @@ def run_model_training(
     )
 
     return train_model(config_name, dry_run=dry_run, limit=limit)
+
+
+def setup_database() -> None:
+    from football_intelligence.database.setup import setup_database as run_setup
+
+    run_setup()
+
+
+def upgrade_database() -> None:
+    from football_intelligence.database.setup import upgrade_database as run_upgrade
+
+    run_upgrade()
+
+
+def show_current_database_revision(*, verbose: bool = False) -> None:
+    from football_intelligence.database.setup import (
+        show_current_database_revision as show_revision,
+    )
+
+    show_revision(verbose=verbose)
+
+
+def stamp_existing_database_baseline() -> None:
+    from football_intelligence.database.setup import (
+        stamp_existing_database_baseline as stamp_baseline,
+    )
+
+    stamp_baseline()
 
 
 def get_football_data_status() -> FootballDataStatusRenderable:

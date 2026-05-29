@@ -13,6 +13,10 @@ EXPECTED_MAKE_SHORTCUTS = {
 }
 
 REQUIRED_HANDBOOK_TERMS = (
+    "**Database Setup**",
+    "`make db-setup`",
+    "`make db-current`",
+    "`make db-stamp-baseline`",
     "**Prediction Refresh**",
     "**Source Data Ingestion**",
     "**Historical Feature Set**",

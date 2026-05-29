@@ -7,6 +7,35 @@ targets intentionally call the same CLI contracts that deployment runtimes use.
 `scrape` is shortcut slang for **Source Data Ingestion**. It is convenient
 operator shorthand, not the product term.
 
+## Database Setup
+
+Run **Database Setup** before ingestion, feature construction, prediction
+refresh, or model training on a new local database. The command applies the
+Alembic schema migrations only; it does not import matches, odds, training data,
+database dumps, or model artifacts.
+
+```bash
+python -m football_intelligence.cli db setup
+python -m football_intelligence.cli db current
+```
+
+For an existing local database that already matches the reviewed baseline
+schema, use the stamp command after review. It records the current migration
+revision without creating tables:
+
+```bash
+python -m football_intelligence.cli db stamp-baseline
+```
+
+Makefile shortcuts call the same CLI contract:
+
+| Shortcut | Command | What It Runs |
+| --- | --- | --- |
+| `make db-setup` | `python -m football_intelligence.cli db setup` | Apply **Database Setup** migrations |
+| `make db-upgrade` | `python -m football_intelligence.cli db upgrade` | Upgrade the schema to the latest migration |
+| `make db-current` | `python -m football_intelligence.cli db current` | Show the current migration state |
+| `make db-stamp-baseline` | `python -m football_intelligence.cli db stamp-baseline` | Mark a reviewed existing schema as the migration baseline |
+
 ## Prediction Refresh Shortcuts
 
 These targets are aliases over **Prediction Refresh** selectors. They do not

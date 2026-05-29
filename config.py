@@ -2,6 +2,12 @@
 import os
 from urllib.parse import urlparse
 
+from dotenv import load_dotenv
+
+
+load_dotenv()
+
+
 class Config:
     DB_HOST = os.getenv('DB_HOST')
     DB_NAME = os.getenv('DB_NAME')
