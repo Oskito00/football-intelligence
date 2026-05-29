@@ -22,13 +22,16 @@ REQUIRED_HANDBOOK_TERMS = (
     "`make tonight`",
 )
 VALUE_BACKTEST_COMMAND = "python -m football_intelligence.cli value-backtest"
-REQUIRED_VALUE_BACKTEST_TERMS = (
+VALUE_BACKTEST_EXAMPLE_COMMANDS = (
     VALUE_BACKTEST_COMMAND,
+    f"{VALUE_BACKTEST_COMMAND} --kelly-fraction 0.25",
+    f"{VALUE_BACKTEST_COMMAND} --min-expected-value 0.05",
+    f"{VALUE_BACKTEST_COMMAND} --odds-mode best",
+    f"{VALUE_BACKTEST_COMMAND} --odds-mode average",
+)
+REQUIRED_VALUE_BACKTEST_GUIDANCE = (
     "100 became X",
-    "--kelly-fraction 0.25",
-    "--min-expected-value 0.05",
-    "--odds-mode best",
-    "--odds-mode average",
+    "**Backtest Odds Mode** controls how historical pre-kickoff odds are selected",
     "**Paper Stakes** are hypothetical research stakes, not betting advice",
     "profitable historical result is evidence to inspect, not proof of future profitability",
     "retained **Predictions**",
@@ -61,11 +64,18 @@ def test_command_handbook_uses_product_language_and_shortcuts():
 
 def test_command_handbook_documents_value_backtest_usage_and_limits():
     handbook = read_text(ROOT / "COMMANDS.md")
-    normalized_handbook = " ".join(handbook.split())
 
-    for term in REQUIRED_VALUE_BACKTEST_TERMS:
-        assert " ".join(term.split()) in normalized_handbook
+    for command in VALUE_BACKTEST_EXAMPLE_COMMANDS:
+        assert command in handbook
+
+    normalized_handbook = normalize_text(handbook)
+    for guidance in REQUIRED_VALUE_BACKTEST_GUIDANCE:
+        assert normalize_text(guidance) in normalized_handbook
 
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def normalize_text(text: str) -> str:
+    return " ".join(text.split())
