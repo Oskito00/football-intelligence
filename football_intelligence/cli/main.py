@@ -257,10 +257,10 @@ def _value_backtest_config_from_args(
         "kelly_multiplier": args.kelly_fraction,
         "min_expected_value": args.min_expected_value,
         "odds_mode": args.odds_mode,
-        "strict_prediction_timing": (
-            False if args.allow_late_predictions else None
-        ),
     }
+    if args.allow_late_predictions:
+        config_overrides["strict_prediction_timing"] = False
+
     selected_overrides = {
         key: value for key, value in config_overrides.items() if value is not None
     }
@@ -547,9 +547,9 @@ def _format_strategy_number(value: Any) -> str:
 
 
 def _format_backtest_prediction_timing(configuration: Mapping[str, Any]) -> str:
-    if configuration.get("strict_prediction_timing"):
-        return "strict pre-kickoff"
-    return "late or missing timestamps allowed"
+    if configuration.get("strict_prediction_timing") is False:
+        return "late or missing timestamps allowed"
+    return "strict pre-kickoff"
 
 
 def _format_decimal_odds(value: Any) -> str:

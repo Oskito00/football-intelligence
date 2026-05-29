@@ -138,11 +138,7 @@ def run_value_backtest(
 
     for match in sorted(matches, key=_match_sort_key):
         kickoff = _as_datetime(match.get("start_time"))
-        if (
-            kickoff is None
-            or match.get("home_score") is None
-            or match.get("away_score") is None
-        ):
+        if not _has_backtestable_result(match, kickoff):
             skipped_matches["missing_result"] += 1
             continue
 
@@ -151,9 +147,9 @@ def run_value_backtest(
             skipped_matches["missing_prediction"] += 1
             continue
 
-        prediction_date = _as_datetime(prediction.get("prediction_date"))
-        if config.strict_prediction_timing and (
-            prediction_date is None or not _at_or_before(prediction_date, kickoff)
+        if config.strict_prediction_timing and _prediction_is_late_or_untimed(
+            prediction,
+            kickoff,
         ):
             skipped_matches["late_prediction"] += 1
             continue
@@ -226,8 +222,13 @@ def _summarize_result(
 
 
 def _skipped_match_counts(skipped_matches: Mapping[str, int]) -> dict[str, int]:
-    counts = {reason: 0 for reason in SKIPPED_MATCH_REASONS}
-    counts.update({reason: int(count) for reason, count in skipped_matches.items()})
+    counts = {
+        reason: int(skipped_matches.get(reason, 0))
+        for reason in SKIPPED_MATCH_REASONS
+    }
+    for reason, count in skipped_matches.items():
+        if reason not in counts:
+            counts[reason] = int(count)
     return counts
 
 
@@ -246,6 +247,25 @@ def _warnings_for_config(config: ValueBacktestConfig) -> list[dict[str, str]]:
             }
         )
     return warnings
+
+
+def _has_backtestable_result(
+    match: Mapping[str, Any],
+    kickoff: datetime | None,
+) -> bool:
+    return (
+        kickoff is not None
+        and match.get("home_score") is not None
+        and match.get("away_score") is not None
+    )
+
+
+def _prediction_is_late_or_untimed(
+    prediction: Mapping[str, Any],
+    kickoff: datetime,
+) -> bool:
+    prediction_date = _as_datetime(prediction.get("prediction_date"))
+    return prediction_date is None or not _at_or_before(prediction_date, kickoff)
 
 
 def _select_odds(

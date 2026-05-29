@@ -500,6 +500,7 @@ def test_value_backtest_cli_runs_default_report(monkeypatch, capsys):
     assert "Kelly Fraction: 1.0" in output
     assert "Minimum Expected Value: 0.0%" in output
     assert "Odds Mode: best" in output
+    assert "Prediction Timing: strict pre-kickoff" in output
     assert "Paper Stake" in output
 
 
