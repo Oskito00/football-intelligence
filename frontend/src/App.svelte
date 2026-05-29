@@ -69,8 +69,13 @@
     }
   };
 
-  const formatValue = (value: string | number | null | undefined) =>
-    value === null || value === undefined || value === "" ? "None" : String(value);
+  const formatValue = (value: string | number | null | undefined) => {
+    if (value === null || value === undefined || value === "") {
+      return "None";
+    }
+
+    return String(value);
+  };
 
   loadStatus();
 </script>

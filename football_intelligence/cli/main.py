@@ -2,10 +2,15 @@
 
 import argparse
 from collections.abc import Callable, Sequence
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, Protocol
 
 
 CURRENT_RESULT_MODEL_CONFIG = "result_model_early"
+
+
+class FootballDataStatusRenderable(Protocol):
+    def to_dict(self) -> dict[str, Any]:
+        """Return display-ready Football Data Status facts and warnings."""
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -76,7 +81,7 @@ def _handle_prediction_refresh(args: argparse.Namespace) -> int:
     return 0
 
 
-def _handle_status(args: argparse.Namespace) -> int:
+def _handle_status(_args: argparse.Namespace) -> int:
     print(render_football_data_status(get_football_data_status()))
     return 0
 
@@ -100,13 +105,13 @@ def run_model_training(
     return train_model(config_name, dry_run=dry_run, limit=limit)
 
 
-def get_football_data_status() -> Any:
+def get_football_data_status() -> FootballDataStatusRenderable:
     from football_intelligence.status import FootballDataStatusService
 
     return FootballDataStatusService.from_config().get_status()
 
 
-def render_football_data_status(status: Any) -> str:
+def render_football_data_status(status: FootballDataStatusRenderable) -> str:
     data = status.to_dict()
     latest_match = data["latest_completed_match"]
     odds_freshness = data["odds_freshness"]

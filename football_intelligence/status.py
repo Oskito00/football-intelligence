@@ -100,13 +100,15 @@ class FootballDataStatusService:
         )
         return FootballDataStatus(
             latest_completed_match=facts.get("latest_completed_match"),
-            unprocessed_completed_matches=int(
-                facts.get("unprocessed_completed_matches") or 0
+            unprocessed_completed_matches=_count_fact(
+                facts,
+                "unprocessed_completed_matches",
             ),
             latest_elo_history_date=facts.get("latest_elo_history_date"),
-            future_feature_set_count=int(facts.get("future_feature_set_count") or 0),
-            prediction_count_next_7_days=int(
-                facts.get("prediction_count_next_7_days") or 0
+            future_feature_set_count=_count_fact(facts, "future_feature_set_count"),
+            prediction_count_next_7_days=_count_fact(
+                facts,
+                "prediction_count_next_7_days",
             ),
             odds_freshness=facts.get("odds_freshness") or {},
             top_premier_league_elo_teams=facts.get(
@@ -133,7 +135,7 @@ def _derive_warnings(
             )
         )
 
-    unprocessed = int(facts.get("unprocessed_completed_matches") or 0)
+    unprocessed = _count_fact(facts, "unprocessed_completed_matches")
     if unprocessed > 0:
         warnings.append(
             _warning(
@@ -153,7 +155,7 @@ def _derive_warnings(
             )
         )
 
-    if int(facts.get("future_feature_set_count") or 0) == 0:
+    if _count_fact(facts, "future_feature_set_count") == 0:
         warnings.append(
             _warning(
                 "missing_future_feature_set",
@@ -161,7 +163,7 @@ def _derive_warnings(
             )
         )
 
-    if int(facts.get("prediction_count_next_7_days") or 0) == 0:
+    if _count_fact(facts, "prediction_count_next_7_days") == 0:
         warnings.append(
             _warning(
                 "missing_predictions",
@@ -193,6 +195,10 @@ def _derive_warnings(
         )
 
     return warnings
+
+
+def _count_fact(facts: Mapping[str, Any], key: str) -> int:
+    return int(facts.get(key) or 0)
 
 
 def _warning(code: str, message: str) -> dict[str, str]:
