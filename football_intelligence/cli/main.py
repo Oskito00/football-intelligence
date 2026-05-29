@@ -108,6 +108,26 @@ def build_parser() -> argparse.ArgumentParser:
         "value-backtest",
         help="Run a Value Backtest report for historical Predictions.",
     )
+    value_backtest.add_argument(
+        "--starting-bankroll",
+        type=float,
+        help="Starting bankroll for Paper Stake simulation. Defaults to 100.",
+    )
+    value_backtest.add_argument(
+        "--kelly-fraction",
+        type=float,
+        help="Kelly fraction multiplier. 1.0 is full Kelly.",
+    )
+    value_backtest.add_argument(
+        "--min-expected-value",
+        type=float,
+        help="Minimum expected value required for a Market Value Signal.",
+    )
+    value_backtest.add_argument(
+        "--odds-mode",
+        choices=("best", "average"),
+        help="Backtest Odds Mode. Defaults to best.",
+    )
     value_backtest.set_defaults(command_handler=_handle_value_backtest)
 
     model_training = subcommands.add_parser(
@@ -178,8 +198,8 @@ def _handle_value_picks(args: argparse.Namespace) -> int:
     return 0
 
 
-def _handle_value_backtest(_args: argparse.Namespace) -> int:
-    result = get_value_backtest_service().run()
+def _handle_value_backtest(args: argparse.Namespace) -> int:
+    result = get_value_backtest_service().run(_value_backtest_config_from_args(args))
     print(render_value_backtest(result))
     return 0
 
@@ -219,6 +239,39 @@ def get_value_backtest_service() -> ValueBacktestServiceLike:
     from football_intelligence.value_backtest import ValueBacktestService
 
     return ValueBacktestService.from_config()
+
+
+def _value_backtest_config_from_args(
+    args: argparse.Namespace,
+) -> ValueBacktestConfig | None:
+    strategy_options = (
+        args.starting_bankroll,
+        args.kelly_fraction,
+        args.min_expected_value,
+        args.odds_mode,
+    )
+    if all(value is None for value in strategy_options):
+        return None
+
+    defaults = ValueBacktestConfig()
+    return ValueBacktestConfig(
+        starting_bankroll=(
+            args.starting_bankroll
+            if args.starting_bankroll is not None
+            else defaults.starting_bankroll
+        ),
+        kelly_multiplier=(
+            args.kelly_fraction
+            if args.kelly_fraction is not None
+            else defaults.kelly_multiplier
+        ),
+        min_expected_value=(
+            args.min_expected_value
+            if args.min_expected_value is not None
+            else defaults.min_expected_value
+        ),
+        odds_mode=args.odds_mode if args.odds_mode is not None else defaults.odds_mode,
+    )
 
 
 def render_football_data_status(status: FootballDataStatusRenderable) -> str:
@@ -349,10 +402,19 @@ def render_value_backtest(result: ValueBacktestRenderable) -> str:
             f"{_format_percentage(summary['average_expected_value'])}"
         ),
         f"Max Drawdown: {_format_percentage(summary['max_drawdown'])}",
+        (
+            "Kelly Fraction: "
+            f"{_format_strategy_number(configuration['kelly_multiplier'])}"
+        ),
+        (
+            "Minimum Expected Value: "
+            f"{_format_percentage(configuration['min_expected_value'])}"
+        ),
         f"Odds Mode: {configuration['odds_mode']}",
         (
             "Paper Stake Rule: "
-            f"{_format_number(configuration['kelly_multiplier'])}x Kelly on every "
+            f"{_format_strategy_number(configuration['kelly_multiplier'])}x "
+            "Kelly on every "
             "positive-Kelly Market Value Signal"
         ),
     ]
@@ -473,6 +535,15 @@ def _format_number(value: Any) -> str:
     if value is None:
         return "None"
     return f"{float(value):.1f}"
+
+
+def _format_strategy_number(value: Any) -> str:
+    if value is None:
+        return "None"
+    formatted = f"{float(value):.4f}".rstrip("0").rstrip(".")
+    if "." not in formatted:
+        return f"{formatted}.0"
+    return formatted
 
 
 def _format_decimal_odds(value: Any) -> str:

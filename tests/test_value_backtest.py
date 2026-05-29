@@ -127,7 +127,7 @@ def test_value_backtest_settles_chronological_full_kelly_paper_stakes():
     }
 
 
-def test_value_backtest_average_odds_mode_and_fractional_kelly():
+def test_value_backtest_average_odds_mode_and_fractional_kelly_change_default():
     class FakeQueries:
         def get_value_backtest_matches(self):
             return [
@@ -161,14 +161,67 @@ def test_value_backtest_average_odds_mode_and_fractional_kelly():
                 }
             ]
 
-    result = ValueBacktestService(FakeQueries()).run(
+    best_result = ValueBacktestService(FakeQueries()).run()
+    average_result = ValueBacktestService(FakeQueries()).run(
         ValueBacktestConfig(odds_mode="average", kelly_multiplier=0.5)
     )
 
-    bet = result.to_dict()["paper_bets"][0]
-    assert bet["odds"] == 2.5
-    assert bet["stake"] == 8.33
-    assert result.to_dict()["summary"]["final_bankroll"] == 112.5
+    best_bet = best_result.to_dict()["paper_bets"][0]
+    average_bet = average_result.to_dict()["paper_bets"][0]
+    assert best_bet["odds"] == 3.0
+    assert best_bet["stake"] == 25.0
+    assert average_bet["odds"] == 2.5
+    assert average_bet["stake"] == 8.33
+    assert average_result.to_dict()["summary"]["final_bankroll"] == 112.5
+
+
+def test_value_backtest_min_expected_value_filters_paper_bets():
+    class FakeQueries:
+        def get_value_backtest_matches(self):
+            return [
+                {
+                    "match_id": 1,
+                    "start_time": datetime(2026, 5, 29, 20, 0),
+                    "home_team": "Arsenal",
+                    "away_team": "Chelsea",
+                    "home_score": 1,
+                    "away_score": 1,
+                    "prediction": {
+                        "prediction_date": datetime(2026, 5, 29, 10, 0),
+                        "prob_home_win": 0.50,
+                        "prob_draw": 0.35,
+                        "prob_away_win": 0.15,
+                    },
+                    "odds": [
+                        {
+                            "outcome": "Home Win",
+                            "odds_value": 2.20,
+                            "bookmaker_name": "Book A",
+                            "retrieved_at": datetime(2026, 5, 29, 9, 0),
+                        },
+                        {
+                            "outcome": "Draw",
+                            "odds_value": 4.00,
+                            "bookmaker_name": "Book A",
+                            "retrieved_at": datetime(2026, 5, 29, 9, 0),
+                        },
+                    ],
+                }
+            ]
+
+    default_result = ValueBacktestService(FakeQueries()).run()
+    strict_result = ValueBacktestService(FakeQueries()).run(
+        ValueBacktestConfig(min_expected_value=0.2)
+    )
+
+    assert [
+        (bet["outcome"], bet["expected_value"])
+        for bet in default_result.to_dict()["paper_bets"]
+    ] == [("Home Win", 0.1), ("Draw", 0.4)]
+    assert [
+        (bet["outcome"], bet["expected_value"])
+        for bet in strict_result.to_dict()["paper_bets"]
+    ] == [("Draw", 0.4)]
 
 
 def test_value_backtest_cli_runs_default_report(monkeypatch, capsys):
@@ -236,5 +289,83 @@ def test_value_backtest_cli_runs_default_report(monkeypatch, capsys):
     assert "Paper Bets: 3" in output
     assert "Wins/Losses: 2/1" in output
     assert "Hit Rate: 66.7%" in output
+    assert "Kelly Fraction: 1.0" in output
+    assert "Minimum Expected Value: 0.0%" in output
     assert "Odds Mode: best" in output
     assert "Paper Stake" in output
+
+
+def test_value_backtest_cli_accepts_strategy_options(monkeypatch, capsys):
+    calls = []
+
+    class FakeService:
+        def run(self, config=None):
+            calls.append(config)
+            return FakeResult(config)
+
+    class FakeResult:
+        def __init__(self, config):
+            self._config = config
+
+        def to_dict(self):
+            return {
+                "title": "Value Backtest",
+                "headline": "250.00 became 280.00",
+                "configuration": {
+                    "starting_bankroll": self._config.starting_bankroll,
+                    "kelly_multiplier": self._config.kelly_multiplier,
+                    "min_expected_value": self._config.min_expected_value,
+                    "odds_mode": self._config.odds_mode,
+                    "strict_pre_kickoff_odds": True,
+                    "strict_prediction_timing": True,
+                },
+                "summary": {
+                    "starting_bankroll": 250.0,
+                    "final_bankroll": 280.0,
+                    "profit_loss": 30.0,
+                    "roi": 0.12,
+                    "eligible_match_count": 2,
+                    "paper_bet_count": 1,
+                    "wins": 1,
+                    "losses": 0,
+                    "hit_rate": 1.0,
+                    "max_drawdown": 0.0,
+                    "average_odds": 3.0,
+                    "average_expected_value": 0.25,
+                },
+                "skipped_matches": {},
+                "paper_bets": [],
+                "warnings": [],
+            }
+
+    monkeypatch.setattr(cli_main, "get_value_backtest_service", FakeService)
+
+    exit_code = cli_main.main(
+        [
+            "value-backtest",
+            "--starting-bankroll",
+            "250",
+            "--kelly-fraction",
+            "0.25",
+            "--min-expected-value",
+            "0.2",
+            "--odds-mode",
+            "average",
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert calls == [
+        ValueBacktestConfig(
+            starting_bankroll=250.0,
+            kelly_multiplier=0.25,
+            min_expected_value=0.2,
+            odds_mode="average",
+        )
+    ]
+    assert "Starting Bankroll: 250.00" in output
+    assert "Kelly Fraction: 0.25" in output
+    assert "Minimum Expected Value: 20.0%" in output
+    assert "Odds Mode: average" in output
+    assert "0.25x Kelly" in output
