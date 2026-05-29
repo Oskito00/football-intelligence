@@ -58,7 +58,7 @@ def test_makefile_shortcuts_are_documented_operational_commands():
 
 
 def test_command_handbook_uses_product_language_and_shortcuts():
-    handbook = read_text(ROOT / "COMMANDS.md")
+    handbook = read_text(ROOT / "docs" / "COMMANDS.md")
 
     for term in REQUIRED_HANDBOOK_TERMS:
         assert term in handbook
@@ -68,7 +68,7 @@ def test_command_handbook_uses_product_language_and_shortcuts():
 
 
 def test_command_handbook_documents_value_backtest_usage_and_limits():
-    handbook = read_text(ROOT / "COMMANDS.md")
+    handbook = read_text(ROOT / "docs" / "COMMANDS.md")
 
     for command in VALUE_BACKTEST_EXAMPLE_COMMANDS:
         assert command in handbook

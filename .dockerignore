@@ -1,6 +1,7 @@
 **/node_modules
 **/venv
 **/.venv-sandcastle
+**/.vscode
 **/__pycache__
 *.pyc
 *.log
@@ -22,5 +23,6 @@
 *.parquet
 models/*
 !models/.gitkeep
+!models/README.md
 backup.sql.gz
 data/

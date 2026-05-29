@@ -29,6 +29,16 @@ trained model artifacts.
 - Database dumps, exports, logs, caches, and other runtime outputs are generated
   data, not source.
 
+## What's in the repo
+
+| Path | Purpose |
+| --- | --- |
+| `football_intelligence/` | Python package for API, database access, ingestion, features, predictions, value research, and the Football Intelligence Agent |
+| `frontend/` | Svelte read-only dashboard for inspecting predictions, odds context, and data status |
+| `docs/` | Architecture decisions, command handbook, and agent-facing domain notes |
+| `tests/` | Regression tests for database setup, read-only surfaces, prediction workflows, and public repo boundaries |
+| `models/` | Local generated model artifact home; see `models/README.md` |
+
 ## Local onboarding
 
 Use this path on a fresh clone to reach a schema-only empty dashboard state.
@@ -104,6 +114,8 @@ Open the dashboard at the local frontend URL. With only **Database Setup**
 complete, expect a schema-only empty dashboard state: **Football Data Status**,
 the **Prediction Board**, **Market Value Signals**, and **Feature Snapshots**
 can load without bundled data and without API startup mutating the database.
+
+For day-to-day commands, see [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ## Product surfaces
 
