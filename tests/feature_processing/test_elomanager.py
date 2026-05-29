@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from data_processing.helpers.processing_functions.elo_manager import EloManager
+from football_intelligence.features.construction.elo_manager import EloManager
 
 
 @pytest.fixture
@@ -19,7 +19,8 @@ def sample_matches():
             'away_team_domestic_league_id': 10,
             'competition_id': 555,
             'home_team_name': 'TeamA',
-            'away_team_name': 'TeamB'
+            'away_team_name': 'TeamB',
+            'start_time': '2025-01-01T12:00:00'
         },
         {
             'match_id': 2,
@@ -33,7 +34,8 @@ def sample_matches():
             'away_team_domestic_league_id': 10,
             'competition_id': 555,
             'home_team_name': 'TeamC',
-            'away_team_name': 'TeamD'
+            'away_team_name': 'TeamD',
+            'start_time': '2025-01-02T12:00:00'
         },
         {
             'match_id': 3,
@@ -47,7 +49,8 @@ def sample_matches():
             'away_team_domestic_league_id': 10,
             'competition_id': 555,
             'home_team_name': 'TeamA',
-            'away_team_name': 'TeamD'
+            'away_team_name': 'TeamD',
+            'start_time': '2025-01-03T12:00:00'
         },
         {
             'match_id': 4,
@@ -61,22 +64,23 @@ def sample_matches():
             'away_team_domestic_league_id': 10,
             'competition_id': 555,
             'home_team_name': 'TeamC',
-            'away_team_name': 'TeamB'
+            'away_team_name': 'TeamB',
+            'start_time': '2025-01-04T12:00:00'
         }
     ]
 
 
-@patch('helpers.data_processing.processing_functions.elo_manager.get_bulk_entity_elos')
-@patch('helpers.data_processing.processing_functions.elo_manager.get_counts')
-@patch('helpers.data_processing.processing_functions.elo_manager.calculate_elo_ratings')
-@patch('helpers.data_processing.processing_functions.elo_manager.build_elo_history_record')
-@patch('helpers.data_processing.processing_functions.elo_manager.save_elo_history_bulk')
-@patch('helpers.data_processing.processing_functions.elo_manager.save_updated_elos_bulk')
-@patch('helpers.data_processing.processing_functions.elo_manager.save_updated_counts')
-@patch('helpers.parsing_helpers.list.extract_team_ids')
-@patch('helpers.parsing_helpers.list.extract_nation_names')
-@patch('helpers.parsing_helpers.list.extract_league_ids')
-@patch('helpers.parsing_helpers.list.extract_competition_ids')
+@patch('football_intelligence.features.construction.elo_manager.get_bulk_entity_elos')
+@patch('football_intelligence.features.construction.elo_manager.get_counts')
+@patch('football_intelligence.features.construction.elo_manager.calculate_elo_ratings')
+@patch('football_intelligence.features.construction.elo_manager.build_elo_history_record')
+@patch('football_intelligence.features.construction.elo_manager.save_elo_history_bulk')
+@patch('football_intelligence.features.construction.elo_manager.save_updated_elos_bulk')
+@patch('football_intelligence.features.construction.elo_manager.save_updated_counts')
+@patch('football_intelligence.features.construction.elo_manager.extract_team_ids')
+@patch('football_intelligence.features.construction.elo_manager.extract_nation_names')
+@patch('football_intelligence.features.construction.elo_manager.extract_league_ids')
+@patch('football_intelligence.features.construction.elo_manager.extract_competition_ids')
 def test_elomanager_process_match(
     mock_extract_competition_ids,
     mock_extract_league_ids,
@@ -97,8 +101,11 @@ def test_elomanager_process_match(
     mock_extract_league_ids.return_value = [10]
     mock_extract_competition_ids.return_value = [555]
 
-    mock_get_bulk_entity_elos.side_effect = lambda conn, table, key_field, ids: {id_: {'elo_k': 1500} for id_ in ids}
-    mock_get_counts.return_value = {'555': {'home_wins': 3, 'draw_wins': 0, 'away_wins': 1, 'count': 4}}
+    mock_get_bulk_entity_elos.side_effect = lambda conn, table, key_field, ids, *args: {id_: {'elo_k': 1500} for id_ in ids}
+    mock_get_counts.return_value = {
+        '555': {'home_wins': 3, 'draw_wins': 0, 'away_wins': 1, 'count': 4},
+        'combined_leagues': {'home_wins': 0, 'draw_wins': 0, 'away_wins': 0, 'count': 0},
+    }
     mock_build_elo_history_record.return_value = {'dummy_record': True}
     
     # Just return inputs as "updated" for simplicity
@@ -118,7 +125,7 @@ def test_elomanager_process_match(
 
     # Use context manager
     with EloManager(conn, sample_matches) as manager:
-        assert set(manager.team_ids) == {100, 200}
+        assert set(manager.team_ids) == {100, 200, 101, 201}
         assert set(manager.nation_names) == {'England'}
         assert set(manager.league_ids) == {10}
         assert set(manager.competition_ids) == {555}
@@ -134,12 +141,14 @@ def test_elomanager_process_match(
         assert manager.elo_history[0] == {'dummy_record': True}
 
         # Check counts updated
-        assert manager.counts['555']['home_wins'] == 2  # incremented from 1 to 2
-        assert manager.counts['555']['count'] == 2
+        assert manager.counts['555']['home_wins'] == 4
+        assert manager.counts['555']['count'] == 5
+        assert manager.counts['combined_leagues']['home_wins'] == 1
+        assert manager.counts['combined_leagues']['count'] == 1
 
     # On exit, check saves and commit called
     mock_save_history.assert_called_once_with(conn, manager.elo_history)
-    mock_save_elos.assert_called_once_with(conn, manager.club_elos, manager.nation_elos, manager.league_elos)
+    mock_save_elos.assert_called_once_with(conn, manager.club_elos, manager.nation_elos, manager.league_elos, manager.continent_elos)
     mock_save_counts.assert_called_once_with(conn, manager.counts)
     conn.commit.assert_called_once()
     conn.rollback.assert_not_called()

@@ -2,6 +2,12 @@
 import os
 from urllib.parse import urlparse
 
+from dotenv import load_dotenv
+
+
+load_dotenv()
+
+
 class Config:
     DB_HOST = os.getenv('DB_HOST')
     DB_NAME = os.getenv('DB_NAME')
@@ -11,7 +17,7 @@ class Config:
 
 class ProductionConfig(Config):
     def __init__(self):
-        # Parse DATABASE_URL if it exists (Heroku provides this)
+        # Parse DATABASE_URL if a deployment platform provides one.
         database_url = os.getenv('DATABASE_URL')
         if database_url:
             parsed = urlparse(database_url)

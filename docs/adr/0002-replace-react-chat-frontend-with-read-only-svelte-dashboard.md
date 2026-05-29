@@ -1,0 +1,3 @@
+# Replace React Chat Frontend With Read-Only Svelte Dashboard
+
+The current frontend is a React/MUI chat surface backed by the **Analyst Agent** chat endpoint, but the product is moving toward a read-only dashboard for **Football Data Status**, the **Prediction Board**, **Market Value Signals**, and **Feature Snapshots**. We will replace the React frontend in `frontend/` with a lean Svelte dashboard backed by deterministic JSON endpoints, while keeping the **Analyst Agent** chat endpoint separate for natural-language football questions. This avoids making dashboard data depend on LLM responses and keeps v1 read-only instead of becoming an operator console for refresh or training workflows.

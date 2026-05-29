@@ -1,5 +1,5 @@
 
-from utils.database_helpers.get_and_set_functions import get_from_matches
+from football_intelligence.database import get_from_matches
 
 def test_get_all_from_matches(conn):
     matches = get_from_matches(conn, select_str='SELECT DISTINCT', columns=['match_id', 'start_time', 'competition_season_name', 'competition_id', 'competition_name', 'competition_country', 'home_team_id', 'home_team_name', 'away_team_id', 'away_team_name', 

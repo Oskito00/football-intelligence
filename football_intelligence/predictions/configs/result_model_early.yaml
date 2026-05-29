@@ -1,0 +1,114 @@
+# Configuration for Football Result Prediction Model - Early Prediction
+# Used when formations are not yet available (2+ hours before match)
+
+model:
+  name: "result_model_early"
+  type: "classification"
+  algorithm: "xgboost"  # xgboost, random_forest, logistic_regression
+  variant: "early_prediction"
+
+  # Model hyperparameters
+  hyperparameters:
+    n_estimators: 100
+    max_depth: 6
+    learning_rate: 0.1
+    subsample: 0.8
+    colsample_bytree: 0.8
+    random_state: 42
+
+# Data configuration
+data:
+  feature_loader: "load_result_features"
+  target_column: "result"
+  match_id_column: "match_id"
+
+  # Feature requirements for this model variant
+  feature_requirements:
+    formations: false      # Formations not required
+    lineups: false        # Lineups not required
+
+  # Tables to use for features (no formation_history)
+  feature_tables:
+    - "elo_history"
+    - "stage_of_season_history"
+    - "match_info_history"
+    - "stage_of_season_future"
+    - "match_info_future"
+    - "form_history"
+    - "h2h_history"
+    - "fatigue_history"
+    - 'form_future'
+    - 'h2h_future'
+
+  # Filters
+  filters:
+    min_date: null
+    max_date: null
+    leagues: null  # null means all leagues
+
+  # Train/test split
+  test_size: 0.2
+  validation_size: 0.1
+  random_state: 42
+  stratify: true
+
+# Preprocessing configuration
+preprocessing:
+  scale_features: true
+  handle_missing: true
+  drop_missing_threshold: 0.5  # Drop columns with >50% missing values
+
+  # Feature engineering - no formation features
+  feature_engineering:
+    create_elo_differences: false
+    create_fatigue_differences: false
+    create_formation_features: false  # Skip formation features
+    create_interaction_features: false
+
+# Training configuration
+training:
+  cross_validation:
+    enabled: true
+    folds: 5
+    scoring: "neg_log_loss"
+
+  early_stopping:
+    enabled: true
+    patience: 10
+    metric: "neg_log_loss"
+
+  class_weights: "balanced"  # Handle class imbalance
+
+# Evaluation configuration
+evaluation:
+  metrics:
+    - "accuracy"
+    - "precision"
+    - "recall"
+    - "f1"
+    - "roc_auc"
+    - "log_loss"
+    - "neg_log_loss"
+
+  # Additional evaluation settings
+  confusion_matrix: true
+  feature_importance: true
+  learning_curves: true
+
+# Output configuration
+output:
+  save_model: true
+  save_predictions: true
+  save_feature_importance: true
+  save_evaluation_report: true
+
+  # Paths (relative to project root)
+  model_dir: "models"
+  predictions_dir: "data/predictions"
+  reports_dir: "football_intelligence/predictions/reports"
+
+# Logging configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "football_intelligence/predictions/logs/result_model_early.log"

@@ -1,0 +1,631 @@
+<script lang="ts">
+  type DashboardWarning = {
+    code?: string;
+    severity?: string;
+    message: string;
+  };
+
+  type SetupRequiredDetail = {
+    code: "setup_required";
+    message: string;
+    setup_command?: string;
+  };
+
+  type ApiErrorPayload = {
+    detail?: string | SetupRequiredDetail;
+  };
+
+  class ApiRequestError extends Error {
+    status: number;
+    setupRequired: SetupRequiredDetail | null;
+
+    constructor(
+      message: string,
+      status: number,
+      setupRequired: SetupRequiredDetail | null = null,
+    ) {
+      super(message);
+      this.status = status;
+      this.setupRequired = setupRequired;
+    }
+  }
+
+  type Prediction = {
+    predicted_result: string;
+    confidence: number | null;
+    probabilities: {
+      home_win: number | null;
+      draw: number | null;
+      away_win: number | null;
+    };
+    model_type?: string | null;
+    prediction_date?: string | null;
+  };
+
+  type OddsFreshness = {
+    has_odds: boolean;
+    latest_retrieved_at: string | null;
+    latest_api_last_updated: string | null;
+  };
+
+  type MarketValueSignal = {
+    match_id?: number;
+    start_time?: string | null;
+    home_team?: string | null;
+    away_team?: string | null;
+    competition?: string | null;
+    country?: string | null;
+    outcome: string;
+    model_probability: number | null;
+    best_odds: number | null;
+    implied_probability: number | null;
+    edge: number | null;
+    bookmaker: string | null;
+    paper_stake_percentage: number | null;
+  };
+
+  type BoardMatch = {
+    match_id: number;
+    start_time: string | null;
+    home_team: string;
+    away_team: string;
+    competition: string;
+    country: string;
+    competition_id?: number | null;
+    prediction: Prediction | null;
+    odds_freshness: OddsFreshness;
+    market_value_signals: MarketValueSignal[];
+  };
+
+  type PredictionBoard = {
+    title: string;
+    date: string;
+    generated_at?: string;
+    window: {
+      starts_at: string;
+      ends_at: string;
+      timezone: string;
+    };
+    summary: {
+      upcoming_match_count: number;
+      matches_with_predictions: number;
+      matches_with_odds: number;
+      market_value_signal_count: number;
+    };
+    matches: BoardMatch[];
+    warnings: DashboardWarning[];
+    empty_state: string | null;
+  };
+
+  type MarketValueSignalScan = {
+    title: string;
+    window: {
+      starts_at: string;
+      ends_at: string;
+      timezone: string;
+      label: string;
+    };
+    summary: {
+      upcoming_match_count: number;
+      matches_with_predictions: number;
+      matches_with_odds: number;
+      matches_with_value_signals: number;
+      market_value_signal_count: number;
+    };
+    signals: MarketValueSignal[];
+    warnings: DashboardWarning[];
+    empty_state: string | null;
+  };
+
+  type BestPrice = {
+    outcome: string;
+    best_odds: number | null;
+    implied_probability: number | null;
+    bookmaker: string | null;
+    retrieved_at: string | null;
+  };
+
+  type FeatureSnapshotGroup = {
+    title: string;
+    metrics: {
+      label: string;
+      value: unknown;
+    }[];
+  };
+
+  type MatchDetail = {
+    title: string;
+    match: {
+      match_id: number;
+      start_time: string | null;
+      home_team: string;
+      away_team: string;
+      competition: string;
+      country: string;
+      competition_id?: number | null;
+      status?: string | null;
+      score?: string | null;
+    };
+    prediction: Prediction | null;
+    prediction_empty_state: string | null;
+    odds_context: {
+      has_odds: boolean;
+      best_prices: BestPrice[];
+      empty_state: string | null;
+    };
+    feature_snapshot: {
+      title: string;
+      available: boolean;
+      groups: FeatureSnapshotGroup[];
+      market_context: {
+        has_odds: boolean;
+        best_prices: BestPrice[];
+      };
+      empty_state: string | null;
+    };
+    warnings: DashboardWarning[];
+  };
+
+  type FootballDataStatus = {
+    odds_freshness: {
+      latest_retrieved_at: string | null;
+      matches_with_odds_next_7_days: number;
+    };
+    top_premier_league_elo_teams: {
+      team_name: string;
+      elo: number | null;
+    }[];
+    warnings: DashboardWarning[];
+  };
+
+  const API_URL = import.meta.env.VITE_API_URL || "";
+
+  let board: PredictionBoard | null = null;
+  let valueSignals: MarketValueSignalScan | null = null;
+  let status: FootballDataStatus | null = null;
+  let matchDetail: MatchDetail | null = null;
+  let matchDetailLoading = false;
+  let matchDetailError = "";
+  let loading = true;
+  let errorMessage = "";
+  let setupRequired: SetupRequiredDetail | null = null;
+
+  const isSetupRequiredDetail = (detail: unknown): detail is SetupRequiredDetail => {
+    if (!detail || typeof detail !== "object") {
+      return false;
+    }
+
+    const candidate = detail as Record<string, unknown>;
+    return (
+      candidate.code === "setup_required" &&
+      typeof candidate.message === "string"
+    );
+  };
+
+  const errorMessageFrom = (error: unknown, fallback: string) =>
+    error instanceof Error ? error.message : fallback;
+
+  const requestError = async (response: Response, surface: string) => {
+    let payload: ApiErrorPayload | null = null;
+
+    try {
+      payload = await response.json();
+    } catch {
+      payload = null;
+    }
+
+    if (isSetupRequiredDetail(payload?.detail)) {
+      return new ApiRequestError(
+        payload.detail.message,
+        response.status,
+        payload.detail,
+      );
+    }
+
+    const detail = typeof payload?.detail === "string" ? payload.detail : null;
+    return new ApiRequestError(
+      detail || `${surface} request failed with ${response.status}`,
+      response.status,
+    );
+  };
+
+  const fetchPredictionBoard = async () => {
+    const response = await fetch(`${API_URL}/api/board/today`);
+
+    if (!response.ok) {
+      throw await requestError(response, "Prediction Board");
+    }
+
+    return (await response.json()) as PredictionBoard;
+  };
+
+  const fetchMarketValueSignals = async () => {
+    const response = await fetch(`${API_URL}/api/value-signals?today=true`);
+
+    if (!response.ok) {
+      throw await requestError(response, "Market Value Signals");
+    }
+
+    return (await response.json()) as MarketValueSignalScan;
+  };
+
+  const fetchFootballDataStatus = async () => {
+    const response = await fetch(`${API_URL}/api/status`);
+
+    if (!response.ok) {
+      const error = await requestError(response, "Football Data Status");
+      if (error.setupRequired) {
+        throw error;
+      }
+      return null;
+    }
+
+    return (await response.json()) as FootballDataStatus;
+  };
+
+  const fetchMatchDetail = async (matchId: number) => {
+    const response = await fetch(`${API_URL}/api/matches/${matchId}`);
+
+    if (!response.ok) {
+      throw await requestError(response, "Match Detail");
+    }
+
+    return (await response.json()) as MatchDetail;
+  };
+
+  const openMatchDetail = async (matchId: number | undefined) => {
+    if (matchId === undefined) {
+      return;
+    }
+
+    matchDetailLoading = true;
+    matchDetailError = "";
+
+    try {
+      matchDetail = await fetchMatchDetail(matchId);
+    } catch (error) {
+      matchDetail = null;
+      if (error instanceof ApiRequestError && error.setupRequired) {
+        matchDetailError = error.setupRequired.message;
+      } else {
+        matchDetailError = errorMessageFrom(error, "Match Detail is unavailable.");
+      }
+    } finally {
+      matchDetailLoading = false;
+    }
+  };
+
+  const loadDashboard = async () => {
+    loading = true;
+    errorMessage = "";
+    setupRequired = null;
+
+    try {
+      [board, valueSignals, status] = await Promise.all([
+        fetchPredictionBoard(),
+        fetchMarketValueSignals(),
+        fetchFootballDataStatus(),
+      ]);
+    } catch (error) {
+      board = null;
+      valueSignals = null;
+      status = null;
+      if (error instanceof ApiRequestError && error.setupRequired) {
+        setupRequired = error.setupRequired;
+      } else {
+        errorMessage = errorMessageFrom(error, "Prediction Board is unavailable.");
+      }
+    } finally {
+      loading = false;
+    }
+  };
+
+  const formatValue = (value: string | number | null | undefined) => {
+    if (value === null || value === undefined || value === "") {
+      return "None";
+    }
+
+    return String(value);
+  };
+
+  const formatPercent = (value: number | null | undefined) => {
+    if (value === null || value === undefined) {
+      return "None";
+    }
+
+    return `${(value * 100).toFixed(1)}%`;
+  };
+
+  const formatPlainPercent = (value: number | null | undefined) => {
+    if (value === null || value === undefined) {
+      return "None";
+    }
+
+    return `${value.toFixed(1)}%`;
+  };
+
+  const formatFeatureValue = (value: unknown) => {
+    if (value === null || value === undefined || value === "") {
+      return "None";
+    }
+
+    if (typeof value === "number") {
+      return Number.isInteger(value) ? String(value) : value.toFixed(2);
+    }
+
+    if (typeof value === "object") {
+      return JSON.stringify(value);
+    }
+
+    return String(value);
+  };
+
+  loadDashboard();
+</script>
+
+<main class="dashboard">
+  <section class="board" aria-labelledby="board-title">
+    <div class="page-header">
+      <div>
+        <p class="eyebrow">Read-only dashboard</p>
+        <h1 id="board-title">Prediction Board</h1>
+      </div>
+      <button class="refresh-button" type="button" onclick={loadDashboard}>
+        Refresh
+      </button>
+    </div>
+
+    {#if loading}
+      <div class="state">Loading Prediction Board...</div>
+    {:else if setupRequired}
+      <div class="state setup-required">
+        <strong>Database Setup required</strong>
+        <p>{setupRequired.message}</p>
+        {#if setupRequired.setup_command}
+          <code>{setupRequired.setup_command}</code>
+        {/if}
+      </div>
+    {:else if errorMessage}
+      <div class="state error">{errorMessage}</div>
+    {:else if board}
+      <div class="summary-grid" aria-label="Prediction Board summary">
+        <article class="fact">
+          <span>Upcoming Matches</span>
+          <strong>{board.summary.upcoming_match_count}</strong>
+        </article>
+        <article class="fact">
+          <span>With Predictions</span>
+          <strong>{board.summary.matches_with_predictions}</strong>
+        </article>
+        <article class="fact">
+          <span>With Odds</span>
+          <strong>{board.summary.matches_with_odds}</strong>
+        </article>
+        <article class="fact">
+          <span>Market Value Signals</span>
+          <strong>{board.summary.market_value_signal_count}</strong>
+        </article>
+      </div>
+
+      <div class="content-grid">
+        <section class="match-list" aria-label="Today matches">
+          {#if board.empty_state}
+            <div class="state">{board.empty_state}</div>
+          {:else}
+            {#each board.matches as match}
+              <article class="match-card">
+                <div class="match-main">
+                  <div>
+                    <span class="kickoff">{formatValue(match.start_time)}</span>
+                    <h2>{match.home_team} vs {match.away_team}</h2>
+                    <p>{match.competition} / {match.country}</p>
+                  </div>
+                  <div class:missing={!match.prediction} class="prediction-pill">
+                    {#if match.prediction}
+                      <span>{match.prediction.predicted_result}</span>
+                      <strong>{formatPercent(match.prediction.confidence)}</strong>
+                    {:else}
+                      <span>Prediction</span>
+                      <strong>Missing</strong>
+                    {/if}
+                  </div>
+                </div>
+
+                {#if match.prediction}
+                  <div class="probabilities">
+                    <span>Home {formatPercent(match.prediction.probabilities.home_win)}</span>
+                    <span>Draw {formatPercent(match.prediction.probabilities.draw)}</span>
+                    <span>Away {formatPercent(match.prediction.probabilities.away_win)}</span>
+                  </div>
+                {/if}
+
+                <div class="match-meta">
+                  <span>
+                    Odds:
+                    {match.odds_freshness.has_odds
+                      ? formatValue(match.odds_freshness.latest_retrieved_at)
+                      : "Missing"}
+                  </span>
+                  {#if match.market_value_signals.length}
+                    <span>{match.market_value_signals.length} signals</span>
+                  {:else}
+                    <span>No signals</span>
+                  {/if}
+                  <button
+                    class="detail-button"
+                    type="button"
+                    onclick={() => openMatchDetail(match.match_id)}
+                  >
+                    Details
+                  </button>
+                </div>
+
+                {#if match.market_value_signals.length}
+                  <ul class="signal-list">
+                    {#each match.market_value_signals as signal}
+                      <li>
+                        <span>{signal.outcome}</span>
+                        <span>{formatPercent(signal.edge)} edge</span>
+                        <span>{formatPlainPercent(signal.paper_stake_percentage)} Paper Stake</span>
+                      </li>
+                    {/each}
+                  </ul>
+                {/if}
+              </article>
+            {/each}
+          {/if}
+        </section>
+
+        <aside class="side-rail" aria-label="Dashboard context">
+          <section class="context-panel detail-panel">
+            <h2>Match Detail</h2>
+            {#if matchDetailLoading}
+              <p class="empty">Loading Match Detail...</p>
+            {:else if matchDetailError}
+              <p class="empty error">{matchDetailError}</p>
+            {:else if matchDetail}
+              <div class="detail-heading">
+                <span>{formatValue(matchDetail.match.start_time)}</span>
+                <strong>{matchDetail.match.home_team} vs {matchDetail.match.away_team}</strong>
+                <small>{matchDetail.match.competition} / {matchDetail.match.country}</small>
+              </div>
+
+              <div class="detail-block">
+                <h3>Prediction</h3>
+                {#if matchDetail.prediction}
+                  <div class="probabilities compact">
+                    <span>Home {formatPercent(matchDetail.prediction.probabilities.home_win)}</span>
+                    <span>Draw {formatPercent(matchDetail.prediction.probabilities.draw)}</span>
+                    <span>Away {formatPercent(matchDetail.prediction.probabilities.away_win)}</span>
+                  </div>
+                {:else}
+                  <p class="empty">{matchDetail.prediction_empty_state}</p>
+                {/if}
+              </div>
+
+              <div class="detail-block">
+                <h3>Odds Context</h3>
+                {#if matchDetail.odds_context.best_prices.length}
+                  <ul class="metric-list">
+                    {#each matchDetail.odds_context.best_prices as price}
+                      <li>
+                        <span>{price.outcome}</span>
+                        <strong>{formatValue(price.best_odds)}</strong>
+                        <small>{formatValue(price.bookmaker)}</small>
+                      </li>
+                    {/each}
+                  </ul>
+                {:else}
+                  <p class="empty">{matchDetail.odds_context.empty_state}</p>
+                {/if}
+              </div>
+
+              <div class="detail-block">
+                <h3>{matchDetail.feature_snapshot.title}</h3>
+                {#if matchDetail.feature_snapshot.groups.length}
+                  {#each matchDetail.feature_snapshot.groups as group}
+                    <div class="feature-group">
+                      <h4>{group.title}</h4>
+                      <ul class="metric-list">
+                        {#each group.metrics as metric}
+                          <li>
+                            <span>{metric.label}</span>
+                            <strong>{formatFeatureValue(metric.value)}</strong>
+                          </li>
+                        {/each}
+                      </ul>
+                    </div>
+                  {/each}
+                {:else}
+                  <p class="empty">{matchDetail.feature_snapshot.empty_state}</p>
+                {/if}
+              </div>
+            {:else}
+              <p class="empty">No match selected.</p>
+            {/if}
+          </section>
+
+          <section class="context-panel">
+            <h2>Market Value Signals</h2>
+            <strong>
+              {formatValue(valueSignals?.summary.market_value_signal_count)}
+            </strong>
+            {#if valueSignals?.signals.length}
+              <ul class="signal-detail-list">
+                {#each valueSignals.signals as signal}
+                  <li>
+                    <div>
+                      <span>{formatValue(signal.home_team)} vs {formatValue(signal.away_team)}</span>
+                      <small>{formatValue(signal.outcome)} / {formatValue(signal.bookmaker)}</small>
+                    </div>
+                    <div>
+                      <strong>{formatPercent(signal.edge)}</strong>
+                      <small>{formatPlainPercent(signal.paper_stake_percentage)} Paper Stake</small>
+                      <button
+                        class="detail-button compact-button"
+                        type="button"
+                        onclick={() => openMatchDetail(signal.match_id)}
+                      >
+                        Details
+                      </button>
+                    </div>
+                  </li>
+                {/each}
+              </ul>
+            {:else}
+              <p class="empty">
+                {valueSignals?.empty_state || "No Market Value Signals available."}
+              </p>
+            {/if}
+          </section>
+
+          <section class="context-panel">
+            <h2>Odds Freshness</h2>
+            <strong>{formatValue(status?.odds_freshness.latest_retrieved_at)}</strong>
+            <p>
+              {formatValue(status?.odds_freshness.matches_with_odds_next_7_days)}
+              matches with odds in the next 7 days
+            </p>
+          </section>
+
+          <section class="context-panel">
+            <h2>Top Premier League Elo Teams</h2>
+            {#if status?.top_premier_league_elo_teams.length}
+              <ol class="team-list">
+                {#each status.top_premier_league_elo_teams as team}
+                  <li>
+                    <span>{team.team_name}</span>
+                    <strong>{formatValue(team.elo)}</strong>
+                  </li>
+                {/each}
+              </ol>
+            {:else}
+              <p class="empty">No Elo teams available.</p>
+            {/if}
+          </section>
+
+          <section class="context-panel">
+            <h2>Warnings</h2>
+            {#if board.warnings.length || valueSignals?.warnings.length || status?.warnings.length}
+              <ul class="warning-list">
+                {#each board.warnings as warning}
+                  <li>{warning.message}</li>
+                {/each}
+                {#each valueSignals?.warnings || [] as warning}
+                  <li>{warning.message}</li>
+                {/each}
+                {#each status?.warnings || [] as warning}
+                  <li>{warning.message}</li>
+                {/each}
+              </ul>
+            {:else}
+              <p class="empty">No warnings.</p>
+            {/if}
+          </section>
+        </aside>
+      </div>
+    {:else}
+      <div class="state">Prediction Board is empty.</div>
+    {/if}
+  </section>
+</main>
