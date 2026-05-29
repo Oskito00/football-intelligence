@@ -140,7 +140,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     model_training = subcommands.add_parser(
         "model-training",
-        help="Run explicit Model Training and save model artifacts.",
+        help="Run explicit Model Training and save local artifacts under models/.",
     )
     model_training.add_argument(
         "config",

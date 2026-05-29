@@ -10,5 +10,16 @@
 .pytest_cache
 .sandcastle/logs
 .sandcastle/worktrees
+*.pkl
+*.joblib
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.sql
+*.sql.gz
+*.csv
+*.parquet
+models/*
 backup.sql.gz
 data/

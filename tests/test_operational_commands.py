@@ -20,6 +20,7 @@ REQUIRED_HANDBOOK_TERMS = (
     "**Prediction Board**",
     "`scrape` is shortcut slang for **Source Data Ingestion**",
     "`make tonight`",
+    "Artifacts are saved locally under `models/`",
 )
 VALUE_BACKTEST_COMMAND = "python -m football_intelligence.cli value-backtest"
 VALUE_BACKTEST_EXAMPLE_COMMANDS = (

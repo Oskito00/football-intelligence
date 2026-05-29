@@ -1,6 +1,8 @@
 import sys
+import subprocess
 from pathlib import Path
 
+import pytest
 import yaml
 
 from football_intelligence.predictions import (
@@ -66,14 +68,59 @@ def test_prediction_configs_and_saved_models_use_product_paths():
     model_dir = PROJECT_ROOT / "models"
 
     assert (config_dir / "result_model_early.yaml").exists()
-    assert (model_dir / "result_model_early_20250617_160510" / "model.pkl").exists()
-    assert (model_dir / "result_model_early_latest").exists()
+    assert (model_dir / ".gitkeep").exists()
+
+    tracked_model_files = subprocess.run(
+        ["git", "ls-files", "models"],
+        cwd=PROJECT_ROOT,
+        check=True,
+        text=True,
+        capture_output=True,
+    ).stdout.splitlines()
+    assert tracked_model_files == ["models/.gitkeep"]
 
     with (config_dir / "result_model_early.yaml").open() as config_file:
         config = yaml.safe_load(config_file)
 
     assert config["output"]["model_dir"] == "models"
     assert "ml_pipeline" not in str(config)
+
+
+def test_generated_model_and_data_outputs_are_ignored():
+    gitignore = (PROJECT_ROOT / ".gitignore").read_text(encoding="utf-8")
+
+    required_ignore_rules = (
+        "models/*",
+        "!models/.gitkeep",
+        "*.pkl",
+        "*.joblib",
+        "*.sqlite",
+        "*.sqlite3",
+        "*.db",
+        "*.dump",
+        "*.sql",
+        "*.sql.gz",
+        "*.csv",
+        "*.parquet",
+        "data/",
+    )
+
+    for rule in required_ignore_rules:
+        assert rule in gitignore
+
+
+def test_missing_model_artifact_error_explains_local_model_training_path(tmp_path):
+    from football_intelligence.predictions.model_io import ModelIO
+
+    model_io = ModelIO(tmp_path / "models")
+
+    with pytest.raises(FileNotFoundError) as error:
+        model_io.load_model("result_model_early")
+
+    message = str(error.value)
+    assert "models/result_model_early_latest" in message
+    assert "Model Training" in message
+    assert "python -m football_intelligence.cli model-training" in message
 
 
 def test_active_prediction_runtime_no_longer_imports_ml_pipeline():

@@ -31,7 +31,9 @@ python -m football_intelligence.cli prediction-refresh
 ## Model Training
 
 **Model Training** is separate from **Prediction Refresh**. Run it deliberately
-when a new model should be learned from the **Historical Feature Set**:
+when a new model should be learned from the **Historical Feature Set**.
+Artifacts are saved locally under `models/` when the run is not a dry run; the
+repository tracks only a placeholder for that generated artifact home.
 
 ```bash
 python -m football_intelligence.cli model-training
