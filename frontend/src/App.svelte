@@ -92,6 +92,22 @@
     empty_state: string | null;
   };
 
+  type BestPrice = {
+    outcome: string;
+    best_odds: number | null;
+    implied_probability: number | null;
+    bookmaker: string | null;
+    retrieved_at: string | null;
+  };
+
+  type FeatureSnapshotGroup = {
+    title: string;
+    metrics: {
+      label: string;
+      value: unknown;
+    }[];
+  };
+
   type MatchDetail = {
     title: string;
     match: {
@@ -109,34 +125,16 @@
     prediction_empty_state: string | null;
     odds_context: {
       has_odds: boolean;
-      best_prices: {
-        outcome: string;
-        best_odds: number | null;
-        implied_probability: number | null;
-        bookmaker: string | null;
-        retrieved_at: string | null;
-      }[];
+      best_prices: BestPrice[];
       empty_state: string | null;
     };
     feature_snapshot: {
       title: string;
       available: boolean;
-      groups: {
-        title: string;
-        metrics: {
-          label: string;
-          value: unknown;
-        }[];
-      }[];
+      groups: FeatureSnapshotGroup[];
       market_context: {
         has_odds: boolean;
-        best_prices: {
-          outcome: string;
-          best_odds: number | null;
-          implied_probability: number | null;
-          bookmaker: string | null;
-          retrieved_at: string | null;
-        }[];
+        best_prices: BestPrice[];
       };
       empty_state: string | null;
     };

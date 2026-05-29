@@ -42,6 +42,88 @@ PROBABILITY_OUTCOMES = (
     ("prob_away_win", "Away Win"),
 )
 RECENT_MATCH_LIMIT = 5
+FEATURE_SNAPSHOT_FACT_QUERIES = (
+    (
+        "match_info",
+        """
+        SELECT competition_season_name
+        FROM match_info_future
+        WHERE match_id = %s
+        ORDER BY start_time DESC
+        LIMIT 1
+        """,
+    ),
+    (
+        "stage_of_season",
+        """
+        SELECT stage_of_season, stage_of_season_category
+        FROM stage_of_season_future
+        WHERE match_id = %s
+        ORDER BY start_time DESC
+        LIMIT 1
+        """,
+    ),
+    (
+        "formation",
+        """
+        SELECT home_team_formation, away_team_formation
+        FROM formation_future
+        WHERE match_id = %s
+        ORDER BY start_time DESC
+        LIMIT 1
+        """,
+    ),
+    (
+        "team_strength",
+        """
+        SELECT
+            home_team_elo_K40,
+            away_team_elo_K40,
+            k_draw_parameter,
+            eta_home_advantage
+        FROM elo_future
+        WHERE match_id = %s
+        ORDER BY start_time DESC
+        LIMIT 1
+        """,
+    ),
+    (
+        "league_standings",
+        """
+        SELECT
+            home_standing,
+            home_points,
+            away_standing,
+            away_points
+        FROM league_standings_future
+        WHERE match_id = %s
+        ORDER BY start_time DESC
+        LIMIT 1
+        """,
+    ),
+    (
+        "head_to_head",
+        """
+        SELECT
+            h2h_home_wins_last_10,
+            h2h_draws_last_10,
+            h2h_away_wins_last_10,
+            h2h_avg_total_goals
+        FROM h2h_future
+        WHERE match_id = %s
+        LIMIT 1
+        """,
+    ),
+    (
+        "form",
+        f"""
+        SELECT home_team_form, away_team_form, draw_features
+        FROM {FORM_FEATURE_SCHEMA.table_for_mode("inference")}
+        WHERE match_id = %s
+        LIMIT 1
+        """,
+    ),
+)
 
 
 class FootballQueryError(RuntimeError):
@@ -288,71 +370,9 @@ class ReadOnlyFootballQueries:
 
     def get_feature_snapshot_facts(self, match_id: int) -> dict[str, Any]:
         """Return factual Future Feature Set inputs for a Feature Snapshot."""
-        queries = {
-            "match_info": """
-                SELECT competition_season_name
-                FROM match_info_future
-                WHERE match_id = %s
-                ORDER BY start_time DESC
-                LIMIT 1
-            """,
-            "stage_of_season": """
-                SELECT stage_of_season, stage_of_season_category
-                FROM stage_of_season_future
-                WHERE match_id = %s
-                ORDER BY start_time DESC
-                LIMIT 1
-            """,
-            "formation": """
-                SELECT home_team_formation, away_team_formation
-                FROM formation_future
-                WHERE match_id = %s
-                ORDER BY start_time DESC
-                LIMIT 1
-            """,
-            "team_strength": """
-                SELECT
-                    home_team_elo_K40,
-                    away_team_elo_K40,
-                    k_draw_parameter,
-                    eta_home_advantage
-                FROM elo_future
-                WHERE match_id = %s
-                ORDER BY start_time DESC
-                LIMIT 1
-            """,
-            "league_standings": """
-                SELECT
-                    home_standing,
-                    home_points,
-                    away_standing,
-                    away_points
-                FROM league_standings_future
-                WHERE match_id = %s
-                ORDER BY start_time DESC
-                LIMIT 1
-            """,
-            "head_to_head": """
-                SELECT
-                    h2h_home_wins_last_10,
-                    h2h_draws_last_10,
-                    h2h_away_wins_last_10,
-                    h2h_avg_total_goals
-                FROM h2h_future
-                WHERE match_id = %s
-                LIMIT 1
-            """,
-            "form": f"""
-                SELECT home_team_form, away_team_form, draw_features
-                FROM {FORM_FEATURE_SCHEMA.table_for_mode("inference")}
-                WHERE match_id = %s
-                LIMIT 1
-            """,
-        }
-
         facts = {}
         try:
-            for family, query in queries.items():
+            for family, query in FEATURE_SNAPSHOT_FACT_QUERIES:
                 rows = self._runner.fetch_all(query, (match_id,))
                 if rows:
                     facts[family] = _map_feature_snapshot_family(family, rows[0])

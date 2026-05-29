@@ -3,7 +3,10 @@ from datetime import datetime
 from fastapi.testclient import TestClient
 
 from football_intelligence.api import create_app
-from football_intelligence.match_detail import MatchDetailService
+from football_intelligence.match_detail import (
+    MatchDetailNotFound,
+    MatchDetailService,
+)
 
 
 class FakeMatchDetailQueries:
@@ -189,3 +192,17 @@ def test_match_detail_api_returns_deterministic_match_detail_json():
 
     assert response.status_code == 200
     assert response.json() == FakeMatchDetail().to_dict()
+
+
+def test_match_detail_api_returns_not_found_for_missing_match():
+    class MissingMatchDetailService:
+        def get_match_detail(self, match_id):
+            assert match_id == 404
+            raise MatchDetailNotFound("Match 404 was not found")
+
+    client = TestClient(create_app(match_detail_service=MissingMatchDetailService()))
+
+    response = client.get("/api/matches/404")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Match 404 was not found"}

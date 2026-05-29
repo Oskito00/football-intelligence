@@ -14,6 +14,7 @@ MISSING_ODDS_MESSAGE = "No odds context is available for this match."
 MISSING_FEATURE_SNAPSHOT_MESSAGE = (
     "No Feature Snapshot inputs are available for this match."
 )
+FeatureMetricSpec = tuple[str, str]
 
 
 class MatchDetailNotFound(LookupError):
@@ -34,6 +35,79 @@ class MatchDetailQueries(Protocol):
 
     def get_feature_snapshot_facts(self, match_id: int) -> dict[str, Any]:
         """Return factual Future Feature Set inputs keyed by feature family."""
+
+
+@dataclass(frozen=True)
+class FeatureGroupSpec:
+    """Display grouping for one Feature Snapshot fact family."""
+
+    title: str
+    family: str
+    metrics: tuple[FeatureMetricSpec, ...]
+
+
+FEATURE_GROUP_SPECS = (
+    FeatureGroupSpec(
+        title="Match Context",
+        family="match_info",
+        metrics=(("Competition Season", "competition_season"),),
+    ),
+    FeatureGroupSpec(
+        title="Match Context",
+        family="stage_of_season",
+        metrics=(
+            ("Stage Category", "stage_of_season_category"),
+            ("Stage Of Season", "stage_of_season"),
+        ),
+    ),
+    FeatureGroupSpec(
+        title="Team Strength",
+        family="team_strength",
+        metrics=(
+            ("Home Elo K40", "home_team_elo_K40"),
+            ("Away Elo K40", "away_team_elo_K40"),
+            ("Draw Parameter", "k_draw_parameter"),
+            ("Home Advantage", "eta_home_advantage"),
+        ),
+    ),
+    FeatureGroupSpec(
+        title="Formation",
+        family="formation",
+        metrics=(
+            ("Home Formation", "home_team_formation"),
+            ("Away Formation", "away_team_formation"),
+        ),
+    ),
+    FeatureGroupSpec(
+        title="League Standings",
+        family="league_standings",
+        metrics=(
+            ("Home Standing", "home_standing"),
+            ("Home Points", "home_points"),
+            ("Away Standing", "away_standing"),
+            ("Away Points", "away_points"),
+        ),
+    ),
+    FeatureGroupSpec(
+        title="Head To Head",
+        family="head_to_head",
+        metrics=(
+            ("Home Wins Last 10", "h2h_home_wins_last_10"),
+            ("Draws Last 10", "h2h_draws_last_10"),
+            ("Away Wins Last 10", "h2h_away_wins_last_10"),
+            ("Average Total Goals", "h2h_avg_total_goals"),
+        ),
+    ),
+    FeatureGroupSpec(
+        title="Recent Form",
+        family="form",
+        metrics=(
+            ("Home Team Form", "home_team_form"),
+            ("Away Team Form", "away_team_form"),
+            ("Draw Features", "draw_features"),
+        ),
+    ),
+)
 
 
 @dataclass(frozen=True)
@@ -169,73 +243,9 @@ def _feature_snapshot(
 
 
 def _feature_groups(feature_facts: Mapping[str, Any]) -> list[dict[str, Any]]:
-    groups = [
-        _group(
-            "Match Context",
-            feature_facts.get("match_info"),
-            (
-                ("Competition Season", "competition_season"),
-            ),
-        ),
-        _group(
-            "Match Context",
-            feature_facts.get("stage_of_season"),
-            (
-                ("Stage Category", "stage_of_season_category"),
-                ("Stage Of Season", "stage_of_season"),
-            ),
-        ),
-        _group(
-            "Team Strength",
-            feature_facts.get("team_strength"),
-            (
-                ("Home Elo K40", "home_team_elo_K40"),
-                ("Away Elo K40", "away_team_elo_K40"),
-                ("Draw Parameter", "k_draw_parameter"),
-                ("Home Advantage", "eta_home_advantage"),
-            ),
-        ),
-        _group(
-            "Formation",
-            feature_facts.get("formation"),
-            (
-                ("Home Formation", "home_team_formation"),
-                ("Away Formation", "away_team_formation"),
-            ),
-        ),
-        _group(
-            "League Standings",
-            feature_facts.get("league_standings"),
-            (
-                ("Home Standing", "home_standing"),
-                ("Home Points", "home_points"),
-                ("Away Standing", "away_standing"),
-                ("Away Points", "away_points"),
-            ),
-        ),
-        _group(
-            "Head To Head",
-            feature_facts.get("head_to_head"),
-            (
-                ("Home Wins Last 10", "h2h_home_wins_last_10"),
-                ("Draws Last 10", "h2h_draws_last_10"),
-                ("Away Wins Last 10", "h2h_away_wins_last_10"),
-                ("Average Total Goals", "h2h_avg_total_goals"),
-            ),
-        ),
-        _group(
-            "Recent Form",
-            feature_facts.get("form"),
-            (
-                ("Home Team Form", "home_team_form"),
-                ("Away Team Form", "away_team_form"),
-                ("Draw Features", "draw_features"),
-            ),
-        ),
-    ]
-
     merged: dict[str, list[dict[str, Any]]] = {}
-    for group in groups:
+    for spec in FEATURE_GROUP_SPECS:
+        group = _group(spec.title, feature_facts.get(spec.family), spec.metrics)
         if not group:
             continue
         merged.setdefault(group["title"], []).extend(group["metrics"])
@@ -271,16 +281,20 @@ def _warnings(
     has_odds: bool,
     has_feature_snapshot: bool,
 ) -> list[dict[str, str]]:
-    warnings = []
-    if not has_prediction:
-        warnings.append(_warning("missing_prediction", MISSING_PREDICTION_MESSAGE))
-    if not has_odds:
-        warnings.append(_warning("missing_odds", MISSING_ODDS_MESSAGE))
-    if not has_feature_snapshot:
-        warnings.append(
-            _warning("missing_feature_snapshot", MISSING_FEATURE_SNAPSHOT_MESSAGE)
-        )
-    return warnings
+    missing_states = (
+        (not has_prediction, "missing_prediction", MISSING_PREDICTION_MESSAGE),
+        (not has_odds, "missing_odds", MISSING_ODDS_MESSAGE),
+        (
+            not has_feature_snapshot,
+            "missing_feature_snapshot",
+            MISSING_FEATURE_SNAPSHOT_MESSAGE,
+        ),
+    )
+    return [
+        _warning(code, message)
+        for missing, code, message in missing_states
+        if missing
+    ]
 
 
 def _warning(code: str, message: str) -> dict[str, str]:
