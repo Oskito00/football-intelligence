@@ -2,6 +2,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pandas as pd
 import pytest
 import yaml
 
@@ -101,6 +102,13 @@ def test_prediction_configs_and_saved_models_use_product_paths():
     assert "ml_pipeline" not in str(config)
 
 
+def test_model_training_uses_configured_local_model_artifact_home():
+    from football_intelligence.predictions.training import _model_artifact_dir
+
+    assert _model_artifact_dir({"output": {"model_dir": "models"}}) == "models"
+    assert _model_artifact_dir({}) == "models"
+
+
 def test_generated_model_and_data_outputs_are_ignored_by_git():
     assert_ignore_rules(
         PROJECT_ROOT / ".gitignore",
@@ -134,6 +142,104 @@ def test_missing_model_artifact_error_explains_local_model_training_path(tmp_pat
     assert "models/result_model_early_latest" in message
     assert "Model Training" in message
     assert "python -m football_intelligence.cli model-training" in message
+
+
+def test_prediction_inference_entrypoint_assumes_predictions_table_exists(monkeypatch):
+    from football_intelligence.predictions import inference_entrypoint
+
+    connection = object()
+    original_argv = sys.argv[:]
+
+    monkeypatch.setattr(
+        inference_entrypoint.config_manager,
+        "load_config",
+        lambda config_name: {"model": {"name": "result_model_early"}},
+    )
+    monkeypatch.setattr(
+        inference_entrypoint,
+        "create_match_result_predictions_table",
+        lambda conn: (_ for _ in ()).throw(
+            AssertionError("Prediction inference must not create schema")
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        inference_entrypoint,
+        "get_inferrer",
+        lambda model_name: (
+            lambda *args, **kwargs: {"success": True, "num_predictions": 0}
+        ),
+    )
+
+    try:
+        sys.argv = ["prediction-inference", "result_model_early"]
+        inference_entrypoint.main(connection)
+    finally:
+        sys.argv = original_argv
+
+
+def test_saving_predictions_assumes_database_setup_prepared_destination(monkeypatch):
+    from football_intelligence.database import football
+
+    calls = []
+    predictions = pd.DataFrame(
+        [
+            {
+                "match_id": 1,
+                "predicted_result": 2,
+                "start_time": "2026-05-29T12:00:00",
+                "home_team_name": "Home",
+                "away_team_name": "Away",
+                "prob_home_win": 0.5,
+                "prob_draw": 0.25,
+                "prob_away_win": 0.25,
+                "prediction_timestamp": "2026-05-29T12:01:00",
+            }
+        ]
+    )
+
+    monkeypatch.setattr(
+        football,
+        "create_match_result_predictions_table",
+        lambda conn: (_ for _ in ()).throw(
+            AssertionError("Prediction Refresh must not create schema")
+        ),
+    )
+    monkeypatch.setattr(
+        football,
+        "upsert_records",
+        lambda **kwargs: calls.append(kwargs),
+    )
+
+    assert football.save_predictions_to_db(object(), predictions) is True
+    assert calls[0]["table_name"] == "match_result_predictions"
+
+
+def test_prediction_inference_missing_model_is_reported_before_feature_loading(monkeypatch):
+    from football_intelligence.predictions import inference
+
+    class UnexpectedFeatureLoader:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("Missing model should be handled before database reads")
+
+    monkeypatch.setattr(inference, "ResultFeatureLoader", UnexpectedFeatureLoader)
+    monkeypatch.setattr(
+        inference.model_io,
+        "load_model",
+        lambda model_name, version=None: (_ for _ in ()).throw(
+            FileNotFoundError(
+                "No latest model artifact found for result_model_early. Run Model Training."
+            )
+        ),
+    )
+
+    result = inference.infer_result_model(
+        object(),
+        {"model": {"name": "result_model_early"}, "data": {}},
+    )
+
+    assert result["success"] is False
+    assert "Model Training" in result["error"]
 
 
 def test_active_prediction_runtime_no_longer_imports_ml_pipeline():

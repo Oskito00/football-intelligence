@@ -9,7 +9,6 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 
 from config import get_config
-from football_intelligence.database import create_match_result_predictions_table
 from football_intelligence.predictions.config import config_manager
 from football_intelligence.predictions.inference import infer_result_model
 
@@ -86,9 +85,6 @@ def main(conn=None):
 
         # Get the appropriate inferrer
         inferrer = get_inferrer(model_name)
-
-        # Create the predictions table if it doesn't exist
-        create_match_result_predictions_table(conn)
 
         # Run inference
         result = inferrer(

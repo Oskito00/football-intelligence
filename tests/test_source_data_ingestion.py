@@ -4,6 +4,7 @@ from football_intelligence.ingestion import (
     SourceDataIngestion,
     default_source_data_provider,
 )
+from football_intelligence.ingestion import api_football
 from football_intelligence.ingestion.api_football import ApiFootballSourceDataProvider
 from tests.import_audit import find_imports_matching, is_module_or_child
 
@@ -53,6 +54,31 @@ def test_source_data_ingestion_workflow_delegates_to_provider_without_api_calls(
 
 def test_default_source_data_provider_is_api_football_adapter():
     assert isinstance(default_source_data_provider(), ApiFootballSourceDataProvider)
+
+
+def test_odds_refresh_assumes_database_setup_prepared_odds_table(monkeypatch, capsys):
+    connection = object()
+    calls = []
+
+    def fail_create_odds_table(conn):
+        raise AssertionError("Source Data Ingestion must not create schema")
+
+    monkeypatch.setattr(
+        api_football,
+        "create_odds_table",
+        fail_create_odds_table,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        api_football,
+        "get_future_matches_with_odds",
+        lambda conn: calls.append(("future-matches", conn)) or [],
+    )
+
+    api_football.scrape_future_match_odds(connection)
+
+    assert calls == [("future-matches", connection)]
+    assert "No future matches found with odds available" in capsys.readouterr().out
 
 
 def test_ingestion_namespace_only_exports_product_level_interfaces():

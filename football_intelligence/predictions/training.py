@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 from typing import Dict, Any, Optional
 
-from football_intelligence.predictions.model_io import model_io
+from football_intelligence.predictions.model_io import ModelIO
 
 
 def convert_to_native_types(obj):
@@ -50,7 +50,7 @@ def train_result_model(conn, config: Dict[str, Any],
 
         # Validate required tables exist
         if not feature_loader.validate_required_tables():
-            raise ValueError("Required tables not found in database")
+            feature_loader.require_database_setup_tables("Model Training")
 
         # Load data
         logger.info("Loading training data")
@@ -106,7 +106,7 @@ def train_result_model(conn, config: Dict[str, Any],
 
         # Save model if not dry run
         model_path = None
-        if not dry_run:
+        if not dry_run and config.get("output", {}).get("save_model", True):
             logger.info("Saving model")
             metadata = {
                 'config': config,
@@ -121,7 +121,7 @@ def train_result_model(conn, config: Dict[str, Any],
             if feature_importance is not None:
                 metadata['feature_importance'] = feature_importance.to_dict('records')
 
-            model_path = model_io.save_model(
+            model_path = ModelIO(_model_artifact_dir(config)).save_model(
                 model.model,
                 config['model']['name'],
                 metadata=metadata,
@@ -169,6 +169,11 @@ def _build_where_clause(filters: Dict[str, Any]) -> Optional[str]:
         conditions.append(f"mih.competition_id IN ('{league_list}')")
 
     return " AND ".join(conditions) if conditions else None
+
+
+def _model_artifact_dir(config: Dict[str, Any]) -> str:
+    """Return the configured Local Model Artifact directory."""
+    return config.get("output", {}).get("model_dir", "models")
 
 
 def _run_cross_validation(model, X, y, cv_config: Dict[str, Any]):

@@ -37,6 +37,10 @@ Prediction = dict[str, Any]
 OddsByOutcome = dict[str, dict[str, Any]]
 AllBookmakerOddsByOutcome = dict[str, list[dict[str, Any]]]
 
+POSTGRES_UNDEFINED_TABLE = "42P01"
+POSTGRES_UNDEFINED_COLUMN = "42703"
+DATABASE_SETUP_COMMAND = "python -m football_intelligence.cli db setup"
+
 PREDICTED_RESULT_LABELS = {2: "Home Win", 1: "Draw", 0: "Away Win"}
 PROBABILITY_OUTCOMES = (
     ("prob_home_win", "Home Win"),
@@ -130,6 +134,52 @@ FEATURE_SNAPSHOT_FACT_QUERIES = (
 
 class FootballQueryError(RuntimeError):
     """Raised when a read-only football query cannot be completed."""
+
+
+class DatabaseSetupRequiredError(RuntimeError):
+    """Raised when a workflow needs Database Setup before it can run."""
+
+
+def database_setup_required_message(
+    workflow: str,
+    *,
+    missing_tables: Sequence[str] | None = None,
+) -> str:
+    """Return a friendly setup-required message for operational workflows."""
+    detail = ""
+    if missing_tables:
+        table_list = ", ".join(sorted(missing_tables))
+        detail = f" Missing required table(s): {table_list}."
+
+    return (
+        f"{workflow} requires Football Intelligence Database Setup before it runs."
+        f"{detail} Run `{DATABASE_SETUP_COMMAND}` to prepare the schema."
+    )
+
+
+def is_missing_database_schema_error(error: BaseException) -> bool:
+    """Return True for common database errors caused by missing setup."""
+    pgcode = getattr(error, "pgcode", None)
+    if pgcode in {POSTGRES_UNDEFINED_TABLE, POSTGRES_UNDEFINED_COLUMN}:
+        return True
+
+    text = str(error).lower()
+    return (
+        ("relation" in text and "does not exist" in text)
+        or ("table" in text and "does not exist" in text)
+        or ("no such table" in text)
+    )
+
+
+def raise_database_setup_required(
+    workflow: str,
+    *,
+    missing_tables: Sequence[str] | None = None,
+) -> None:
+    """Raise the canonical setup-required error for operational workflows."""
+    raise DatabaseSetupRequiredError(
+        database_setup_required_message(workflow, missing_tables=missing_tables)
+    )
 
 
 class ReadOnlyQueryRunner(Protocol):
@@ -1254,6 +1304,7 @@ def _date_string(value: Any) -> str | None:
 
 
 __all__ = [
+    "DatabaseSetupRequiredError",
     "FootballQueryError",
     "PostgresReadOnlyRunner",
     "ReadOnlyFootballQueries",
@@ -1264,6 +1315,7 @@ __all__ = [
     "create_match_result_predictions_table",
     "create_odds_table",
     "create_tables",
+    "database_setup_required_message",
     "dict_to_sqlite",
     "drop_future_tables",
     "drop_tables",
@@ -1271,9 +1323,11 @@ __all__ = [
     "get_from_standings",
     "get_future_matches_with_odds",
     "get_latest_predictions",
+    "is_missing_database_schema_error",
     "load_from_postgres",
     "prune_all_future_features",
     "prune_old_future_features",
+    "raise_database_setup_required",
     "save_predictions_to_db",
     "update_processed_status",
     "upsert_records",
@@ -1284,7 +1338,7 @@ __all__ = [
 # Intelligence Lifecycle and prediction workflows.
 
 def create_tables(conn):
-    """Creates tables of use to processing functions"""
+    """Temporary compatibility helper; Alembic owns Database Setup."""
     create_team_match_history_table(conn)
     create_counter_table(conn)
     create_elo_history_table(conn)
@@ -1303,6 +1357,7 @@ def create_tables(conn):
     create_h2h_tables(conn)
 
 def create_match_result_predictions_table(conn):
+    """Temporary compatibility helper; Alembic owns Database Setup."""
     cursor = conn.cursor()
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS match_result_predictions (
@@ -1338,7 +1393,7 @@ def create_processed_info_table(conn):
         """)
 
 def create_future_tables(conn):
-    """Creates tables of use to processing functions"""
+    """Temporary compatibility helper; Alembic owns Database Setup."""
     create_elo_future_table(conn)
     create_stage_of_season_future_table(conn)
     create_match_info_future_table(conn)
@@ -2032,7 +2087,7 @@ def create_league_standings_future_table(conn):
     cursor.close()
 
 def create_odds_table(conn):
-    """Create the odds table if it doesn't exist"""
+    """Temporary compatibility helper; Alembic owns Database Setup."""
     cursor = conn.cursor()
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS odds (
@@ -2576,9 +2631,6 @@ def save_predictions_to_db(conn, predictions_df, model_type='basic'):
     logger = logging.getLogger(__name__)
 
     try:
-        # Ensure the table exists
-        create_match_result_predictions_table(conn)
-
         # Add model_type if not already present
         if 'model_type' not in predictions_df.columns:
             predictions_df = predictions_df.copy()
@@ -2618,7 +2670,10 @@ def save_predictions_to_db(conn, predictions_df, model_type='basic'):
         return True
 
     except Exception as e:
-        logger.error(f"Failed to save predictions to database: {str(e)}")
+        if is_missing_database_schema_error(e):
+            logger.error(database_setup_required_message("Prediction Refresh"))
+        else:
+            logger.error(f"Failed to save predictions to database: {str(e)}")
         return False
 
 def get_latest_predictions(conn, limit=None):

@@ -5,6 +5,8 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import logging
 
+from football_intelligence.database import raise_database_setup_required
+
 
 class BaseFeatureLoader(ABC):
     """
@@ -21,6 +23,7 @@ class BaseFeatureLoader(ABC):
         self.feature_tables = self.config.get('feature_tables', [])
         self.target_column = self.config.get('target_column', None)
         self.match_id_column = self.config.get('match_id_column', 'match_id')
+        self.last_missing_required_tables: List[str] = []
         
     @abstractmethod
     def get_required_tables(self) -> List[str]:
@@ -238,10 +241,18 @@ class BaseFeatureLoader(ABC):
         existing_table_names = existing_tables['table_name'].tolist() if not existing_tables.empty else []
         
         missing_tables = set(required_tables) - set(existing_table_names)
-        
+        self.last_missing_required_tables = sorted(missing_tables)
+
         if missing_tables:
             self.logger.error(f"Missing required tables: {missing_tables}")
             return False
         
         self.logger.info("All required tables found")
-        return True 
+        return True
+
+    def require_database_setup_tables(self, workflow: str) -> None:
+        """Raise a friendly Database Setup error for the last missing-table check."""
+        raise_database_setup_required(
+            workflow,
+            missing_tables=self.last_missing_required_tables,
+        )

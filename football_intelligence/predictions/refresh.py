@@ -8,6 +8,11 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from football_intelligence.database import (
+    DatabaseSetupRequiredError,
+    database_setup_required_message,
+    is_missing_database_schema_error,
+)
 from football_intelligence.features import (
     build_future_feature_set,
     build_historical_feature_set,
@@ -240,7 +245,23 @@ def run_prediction_refresh(
             logger.info("Starting %s", step.name)
             try:
                 step.action()
-            except Exception:
+            except DatabaseSetupRequiredError as exc:
+                steps_failed.append(step.name)
+                logger.error(str(exc))
+                if not continue_on_error:
+                    raise
+            except Exception as exc:
+                if is_missing_database_schema_error(exc):
+                    setup_error = DatabaseSetupRequiredError(
+                        database_setup_required_message(
+                            f"Prediction Refresh step '{step.name}'"
+                        )
+                    )
+                    steps_failed.append(step.name)
+                    logger.error(str(setup_error))
+                    if not continue_on_error:
+                        raise setup_error from None
+                    continue
                 steps_failed.append(step.name)
                 logger.exception("Error in %s", step.name)
                 if not continue_on_error:
