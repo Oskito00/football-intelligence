@@ -128,6 +128,14 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("best", "average"),
         help="Backtest Odds Mode. Defaults to best.",
     )
+    value_backtest.add_argument(
+        "--allow-late-predictions",
+        action="store_true",
+        help=(
+            "Allow retained Predictions with late or missing timestamps. "
+            "Marks the report as less trustworthy."
+        ),
+    )
     value_backtest.set_defaults(command_handler=_handle_value_backtest)
 
     model_training = subcommands.add_parser(
@@ -249,6 +257,9 @@ def _value_backtest_config_from_args(
         "kelly_multiplier": args.kelly_fraction,
         "min_expected_value": args.min_expected_value,
         "odds_mode": args.odds_mode,
+        "strict_prediction_timing": (
+            False if args.allow_late_predictions else None
+        ),
     }
     selected_overrides = {
         key: value for key, value in config_overrides.items() if value is not None
@@ -397,6 +408,10 @@ def render_value_backtest(result: ValueBacktestRenderable) -> str:
         ),
         f"Odds Mode: {configuration['odds_mode']}",
         (
+            "Prediction Timing: "
+            f"{_format_backtest_prediction_timing(configuration)}"
+        ),
+        (
             "Paper Stake Rule: "
             f"{_format_strategy_number(configuration['kelly_multiplier'])}x "
             "Kelly on every "
@@ -529,6 +544,12 @@ def _format_strategy_number(value: Any) -> str:
     if "." not in formatted:
         return f"{formatted}.0"
     return formatted
+
+
+def _format_backtest_prediction_timing(configuration: Mapping[str, Any]) -> str:
+    if configuration.get("strict_prediction_timing"):
+        return "strict pre-kickoff"
+    return "late or missing timestamps allowed"
 
 
 def _format_decimal_odds(value: Any) -> str:

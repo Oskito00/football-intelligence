@@ -224,6 +224,214 @@ def test_value_backtest_min_expected_value_filters_paper_bets():
     ] == [("Draw", 0.4)]
 
 
+def test_value_backtest_excludes_post_kickoff_odds():
+    class FakeQueries:
+        def get_value_backtest_matches(self):
+            return [
+                {
+                    "match_id": 1,
+                    "start_time": datetime(2026, 5, 29, 20, 0),
+                    "home_team": "Arsenal",
+                    "away_team": "Chelsea",
+                    "home_score": 2,
+                    "away_score": 0,
+                    "prediction": {
+                        "prediction_date": datetime(2026, 5, 29, 10, 0),
+                        "prob_home_win": 0.50,
+                        "prob_draw": 0.25,
+                        "prob_away_win": 0.25,
+                    },
+                    "odds": [
+                        {
+                            "outcome": "Home Win",
+                            "odds_value": 2.20,
+                            "bookmaker_name": "Pre Kickoff",
+                            "retrieved_at": datetime(2026, 5, 29, 19, 0),
+                        },
+                        {
+                            "outcome": "Home Win",
+                            "odds_value": 4.00,
+                            "bookmaker_name": "Post Kickoff",
+                            "retrieved_at": datetime(2026, 5, 29, 21, 0),
+                        },
+                    ],
+                }
+            ]
+
+    result = ValueBacktestService(FakeQueries()).run()
+
+    assert [
+        (bet["outcome"], bet["odds"], bet["bookmaker"])
+        for bet in result.to_dict()["paper_bets"]
+    ] == [("Home Win", 2.2, "Pre Kickoff")]
+
+
+def test_value_backtest_excludes_late_predictions_unless_explicitly_allowed():
+    class FakeQueries:
+        def get_value_backtest_matches(self):
+            return [
+                {
+                    "match_id": 1,
+                    "start_time": datetime(2026, 5, 29, 20, 0),
+                    "home_team": "Arsenal",
+                    "away_team": "Chelsea",
+                    "home_score": 2,
+                    "away_score": 0,
+                    "prediction": {
+                        "prediction_date": datetime(2026, 5, 29, 21, 0),
+                        "prob_home_win": 0.50,
+                        "prob_draw": 0.25,
+                        "prob_away_win": 0.25,
+                    },
+                    "odds": [
+                        {
+                            "outcome": "Home Win",
+                            "odds_value": 2.50,
+                            "bookmaker_name": "Book A",
+                            "retrieved_at": datetime(2026, 5, 29, 19, 0),
+                        }
+                    ],
+                },
+                {
+                    "match_id": 2,
+                    "start_time": datetime(2026, 5, 30, 15, 0),
+                    "home_team": "Liverpool",
+                    "away_team": "Everton",
+                    "home_score": 1,
+                    "away_score": 0,
+                    "prediction": {
+                        "prediction_date": None,
+                        "prob_home_win": 0.50,
+                        "prob_draw": 0.25,
+                        "prob_away_win": 0.25,
+                    },
+                    "odds": [
+                        {
+                            "outcome": "Home Win",
+                            "odds_value": 2.50,
+                            "bookmaker_name": "Book A",
+                            "retrieved_at": datetime(2026, 5, 30, 10, 0),
+                        }
+                    ],
+                },
+            ]
+
+    strict_result = ValueBacktestService(FakeQueries()).run()
+    loose_result = ValueBacktestService(FakeQueries()).run(
+        ValueBacktestConfig(strict_prediction_timing=False)
+    )
+
+    assert strict_result.to_dict()["paper_bets"] == []
+    assert strict_result.to_dict()["skipped_matches"]["late_prediction"] == 2
+    assert [
+        (bet["match_id"], bet["outcome"], bet["stake"])
+        for bet in loose_result.to_dict()["paper_bets"]
+    ] == [(1, "Home Win", 16.67), (2, "Home Win", 20.83)]
+    assert loose_result.to_dict()["configuration"]["strict_prediction_timing"] is False
+    assert {
+        warning["code"] for warning in loose_result.to_dict()["warnings"]
+    } >= {"late_or_missing_prediction_timestamps_allowed"}
+
+
+def test_value_backtest_surfaces_skipped_match_counts_for_data_quality():
+    class FakeQueries:
+        def get_value_backtest_matches(self):
+            return [
+                {
+                    "match_id": 1,
+                    "start_time": datetime(2026, 5, 29, 20, 0),
+                    "home_team": "Arsenal",
+                    "away_team": "Chelsea",
+                    "home_score": None,
+                    "away_score": None,
+                    "prediction": {
+                        "prediction_date": datetime(2026, 5, 29, 10, 0),
+                        "prob_home_win": 0.50,
+                        "prob_draw": 0.25,
+                        "prob_away_win": 0.25,
+                    },
+                    "odds": [
+                        {
+                            "outcome": "Home Win",
+                            "odds_value": 2.50,
+                            "bookmaker_name": "Book A",
+                            "retrieved_at": datetime(2026, 5, 29, 19, 0),
+                        }
+                    ],
+                },
+                {
+                    "match_id": 2,
+                    "start_time": datetime(2026, 5, 30, 15, 0),
+                    "home_team": "Liverpool",
+                    "away_team": "Everton",
+                    "home_score": 1,
+                    "away_score": 0,
+                    "prediction": None,
+                    "odds": [
+                        {
+                            "outcome": "Home Win",
+                            "odds_value": 2.50,
+                            "bookmaker_name": "Book A",
+                            "retrieved_at": datetime(2026, 5, 30, 10, 0),
+                        }
+                    ],
+                },
+                {
+                    "match_id": 3,
+                    "start_time": datetime(2026, 5, 31, 15, 0),
+                    "home_team": "Spurs",
+                    "away_team": "Fulham",
+                    "home_score": 1,
+                    "away_score": 0,
+                    "prediction": {
+                        "prediction_date": datetime(2026, 5, 31, 10, 0),
+                        "prob_home_win": 0.50,
+                        "prob_draw": 0.25,
+                        "prob_away_win": 0.25,
+                    },
+                    "odds": [],
+                },
+                {
+                    "match_id": 4,
+                    "start_time": datetime(2026, 6, 1, 15, 0),
+                    "home_team": "Leeds",
+                    "away_team": "Burnley",
+                    "home_score": 1,
+                    "away_score": 0,
+                    "prediction": {
+                        "prediction_date": datetime(2026, 6, 1, 16, 0),
+                        "prob_home_win": 0.50,
+                        "prob_draw": 0.25,
+                        "prob_away_win": 0.25,
+                    },
+                    "odds": [
+                        {
+                            "outcome": "Home Win",
+                            "odds_value": 2.50,
+                            "bookmaker_name": "Book A",
+                            "retrieved_at": datetime(2026, 6, 1, 10, 0),
+                        }
+                    ],
+                },
+            ]
+
+    result = ValueBacktestService(FakeQueries()).run()
+
+    assert result.to_dict()["skipped_matches"] == {
+        "missing_prediction": 1,
+        "missing_odds": 1,
+        "late_prediction": 1,
+        "missing_result": 1,
+    }
+    report = cli_main.render_value_backtest(result)
+    assert "Skipped Matches:" in report
+    assert "missing_prediction: 1" in report
+    assert "missing_odds: 1" in report
+    assert "late_prediction: 1" in report
+    assert "missing_result: 1" in report
+    assert "may not include all historical prediction revisions" in report
+
+
 def test_value_backtest_cli_runs_default_report(monkeypatch, capsys):
     calls = []
 
@@ -317,7 +525,7 @@ def test_value_backtest_cli_accepts_strategy_options(monkeypatch, capsys):
                     "min_expected_value": self._config.min_expected_value,
                     "odds_mode": self._config.odds_mode,
                     "strict_pre_kickoff_odds": True,
-                    "strict_prediction_timing": True,
+                    "strict_prediction_timing": self._config.strict_prediction_timing,
                 },
                 "summary": {
                     "starting_bankroll": 250.0,
@@ -351,6 +559,7 @@ def test_value_backtest_cli_accepts_strategy_options(monkeypatch, capsys):
             "0.2",
             "--odds-mode",
             "average",
+            "--allow-late-predictions",
         ]
     )
 
@@ -362,10 +571,12 @@ def test_value_backtest_cli_accepts_strategy_options(monkeypatch, capsys):
             kelly_multiplier=0.25,
             min_expected_value=0.2,
             odds_mode="average",
+            strict_prediction_timing=False,
         )
     ]
     assert "Starting Bankroll: 250.00" in output
     assert "Kelly Fraction: 0.25" in output
     assert "Minimum Expected Value: 20.0%" in output
     assert "Odds Mode: average" in output
+    assert "Prediction Timing: late or missing timestamps allowed" in output
     assert "0.25x Kelly" in output

@@ -18,8 +18,18 @@ OUTCOME_PROBABILITIES = (
     ("Away Win", "prob_away_win"),
 )
 RETAINED_PREDICTION_WARNING = (
-    "This Value Backtest uses the retained Prediction per Completed Match, "
-    "not every historical revision."
+    "This Value Backtest uses the retained Prediction per Completed Match and "
+    "may not include all historical prediction revisions."
+)
+LOOSE_PREDICTION_TIMING_WARNING = (
+    "Late or missing retained Prediction timestamps were allowed, so this "
+    "Value Backtest is less trustworthy."
+)
+SKIPPED_MATCH_REASONS = (
+    "missing_prediction",
+    "missing_odds",
+    "late_prediction",
+    "missing_result",
 )
 
 
@@ -83,14 +93,9 @@ class ValueBacktestResult:
                 paper_bets=self.paper_bets,
                 max_drawdown=self.max_drawdown,
             ),
-            "skipped_matches": dict(self.skipped_matches),
+            "skipped_matches": _skipped_match_counts(self.skipped_matches),
             "paper_bets": [dict(bet) for bet in self.paper_bets],
-            "warnings": [
-                {
-                    "code": "retained_predictions",
-                    "message": RETAINED_PREDICTION_WARNING,
-                }
-            ],
+            "warnings": _warnings_for_config(self.config),
         }
 
 
@@ -218,6 +223,29 @@ def _summarize_result(
             _average(paper_bets, "expected_value")
         ),
     }
+
+
+def _skipped_match_counts(skipped_matches: Mapping[str, int]) -> dict[str, int]:
+    counts = {reason: 0 for reason in SKIPPED_MATCH_REASONS}
+    counts.update({reason: int(count) for reason, count in skipped_matches.items()})
+    return counts
+
+
+def _warnings_for_config(config: ValueBacktestConfig) -> list[dict[str, str]]:
+    warnings = [
+        {
+            "code": "retained_predictions",
+            "message": RETAINED_PREDICTION_WARNING,
+        }
+    ]
+    if not config.strict_prediction_timing:
+        warnings.append(
+            {
+                "code": "late_or_missing_prediction_timestamps_allowed",
+                "message": LOOSE_PREDICTION_TIMING_WARNING,
+            }
+        )
+    return warnings
 
 
 def _select_odds(
