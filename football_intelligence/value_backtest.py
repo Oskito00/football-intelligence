@@ -183,8 +183,9 @@ def run_value_backtest(
 
         match_profit_loss = _settle_match_bets(match, match_bets)
         bankroll_after_match = bankroll + match_profit_loss
+        bankroll_after_settlement = _round_money(bankroll_after_match)
         for bet in match_bets:
-            bet["bankroll_after_settlement"] = _round_money(bankroll_after_match)
+            bet["bankroll_after_settlement"] = bankroll_after_settlement
         paper_bets.extend(match_bets)
 
         bankroll = bankroll_after_match
@@ -389,6 +390,7 @@ def _qualifying_paper_bet(
         return None
 
     stake = bankroll * kelly_fraction * config.kelly_multiplier
+    bankroll_before_settlement = _round_money(bankroll)
     return {
         "match_id": int(match["match_id"]),
         "start_time": _isoformat(match.get("start_time")),
@@ -401,8 +403,8 @@ def _qualifying_paper_bet(
         "expected_value": _round_ratio(expected_value),
         "kelly_fraction": _round_ratio(kelly_fraction),
         "stake": _round_money(stake),
-        "bankroll_before_match": _round_money(bankroll),
-        "bankroll_before_settlement": _round_money(bankroll),
+        "bankroll_before_match": bankroll_before_settlement,
+        "bankroll_before_settlement": bankroll_before_settlement,
         "bookmaker": odds.get("bookmaker_name"),
     }
 

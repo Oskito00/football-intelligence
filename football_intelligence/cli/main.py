@@ -441,6 +441,10 @@ def render_value_backtest(result: ValueBacktestRenderable) -> str:
 
 
 def _render_backtest_paper_bet(bet: Mapping[str, Any]) -> list[str]:
+    bankroll_before_settlement = bet.get(
+        "bankroll_before_settlement",
+        bet.get("bankroll_before_match"),
+    )
     return [
         (
             f"  - {bet['start_time']} | {bet['home_team']} vs "
@@ -459,15 +463,11 @@ def _render_backtest_paper_bet(bet: Mapping[str, Any]) -> list[str]:
         ),
         (
             "    Bankroll: "
-            f"{_format_decimal_money(_backtest_bankroll_before_settlement(bet))} -> "
+            f"{_format_decimal_money(bankroll_before_settlement)} -> "
             f"{_format_decimal_money(bet['bankroll_after_settlement'])}; "
             f"Profit/Loss: {_format_decimal_money(bet['profit_loss'])}"
         ),
     ]
-
-
-def _backtest_bankroll_before_settlement(bet: Mapping[str, Any]) -> Any:
-    return bet.get("bankroll_before_settlement", bet.get("bankroll_before_match"))
 
 
 def _render_market_value_signal(signal: Mapping[str, Any]) -> list[str]:
