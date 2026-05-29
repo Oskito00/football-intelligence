@@ -27,6 +27,13 @@ architecture.
   python -m football_intelligence.cli model-training
   ```
 
+- **Football Data Status** shows read-only football-data readiness facts and
+  warnings without collapsing them into a single score.
+
+  ```bash
+  make status
+  ```
+
 Heroku, Docker, cron, or another host can run those same commands. Deployment
 files in this repository are runtime wiring only; they invoke the Football
 Intelligence CLI so they do not become the conceptual owner of

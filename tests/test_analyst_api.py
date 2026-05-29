@@ -92,3 +92,51 @@ def test_api_exposes_only_read_only_analyst_tools():
     }
     assert "prediction_refresh" not in service.available_tool_names
     assert "model_training" not in service.available_tool_names
+
+
+def test_status_endpoint_returns_deterministic_football_data_status_json():
+    class FakeStatus:
+        def to_dict(self):
+            return {
+                "title": "Football Data Status",
+                "latest_completed_match": {
+                    "match_id": 42,
+                    "start_time": "2026-05-27T20:00:00",
+                    "home_team": "Arsenal",
+                    "away_team": "Chelsea",
+                    "competition": "Premier League",
+                    "country": "England",
+                    "score": "2-1",
+                },
+                "unprocessed_completed_matches": 0,
+                "latest_elo_history_date": "2026-05-26T22:00:00",
+                "future_feature_set_count": 7,
+                "prediction_count_next_7_days": 6,
+                "odds_freshness": {
+                    "latest_retrieved_at": "2026-05-28T12:00:00",
+                    "latest_api_last_updated": None,
+                    "matches_with_odds_next_7_days": 5,
+                    "stale_after_hours": 24,
+                },
+                "top_premier_league_elo_teams": [
+                    {
+                        "team_id": 1,
+                        "team_name": "Arsenal",
+                        "elo": 1875,
+                        "competition": "Premier League",
+                        "country": "England",
+                    }
+                ],
+                "warnings": [],
+            }
+
+    class FakeStatusService:
+        def get_status(self):
+            return FakeStatus()
+
+    client = TestClient(create_app(FakeAnalystAgent(), FakeStatusService()))
+
+    response = client.get("/api/status")
+
+    assert response.status_code == 200
+    assert response.json() == FakeStatus().to_dict()

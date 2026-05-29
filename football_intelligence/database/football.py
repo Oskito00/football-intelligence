@@ -410,6 +410,135 @@ class ReadOnlyFootballQueries:
             },
         }
 
+    def get_football_data_status_facts(
+        self,
+        *,
+        days: int = 7,
+        top_team_limit: int = 5,
+        elo_competition: str = "Premier League",
+        elo_country: str = "England",
+    ) -> dict[str, Any]:
+        """Return read-only facts backing Football Data Status."""
+        try:
+            latest_completed_match = self._runner.fetch_one(
+                """
+                SELECT
+                    match_id,
+                    start_time,
+                    home_team_name,
+                    away_team_name,
+                    competition_name,
+                    competition_country,
+                    home_score,
+                    away_score
+                FROM matches
+                WHERE home_score IS NOT NULL
+                AND away_score IS NOT NULL
+                ORDER BY start_time DESC
+                LIMIT 1
+                """
+            )
+            unprocessed_completed_matches = self._runner.fetch_one(
+                """
+                SELECT COUNT(*) AS count
+                FROM matches m
+                LEFT JOIN processed_info p ON (
+                    m.match_id = p.match_id
+                    AND p.is_processed = true
+                    AND p.processing_mode = 'training'
+                )
+                WHERE m.home_score IS NOT NULL
+                AND m.away_score IS NOT NULL
+                AND p.match_id IS NULL
+                """
+            )
+            latest_elo_history_date = self._runner.fetch_one(
+                """
+                SELECT MAX(start_time) AS latest_elo_history_date
+                FROM elo_history
+                """
+            )
+            future_feature_set_count = self._runner.fetch_one(
+                """
+                SELECT COUNT(DISTINCT match_id) AS count
+                FROM match_info_future
+                WHERE start_time >= CURRENT_TIMESTAMP
+                AND start_time <= CURRENT_TIMESTAMP + (%s * INTERVAL '1 day')
+                """,
+                (days,),
+            )
+            prediction_count = self._runner.fetch_one(
+                """
+                SELECT COUNT(DISTINCT match_id) AS count
+                FROM match_result_predictions
+                WHERE start_time >= CURRENT_TIMESTAMP
+                AND start_time <= CURRENT_TIMESTAMP + (%s * INTERVAL '1 day')
+                """,
+                (days,),
+            )
+            odds_freshness = self._runner.fetch_one(
+                """
+                SELECT
+                    MAX(o.retrieved_at) AS latest_retrieved_at,
+                    MAX(o.api_last_updated) AS latest_api_last_updated,
+                    COUNT(DISTINCT o.match_id) AS matches_with_odds_next_7_days
+                FROM odds o
+                JOIN matches m ON m.match_id = o.match_id
+                WHERE m.home_score IS NULL
+                AND m.away_score IS NULL
+                AND m.start_time >= CURRENT_TIMESTAMP
+                AND m.start_time <= CURRENT_TIMESTAMP + (%s * INTERVAL '1 day')
+                """,
+                (days,),
+            )
+            top_elo_teams = self._runner.fetch_all(
+                """
+                SELECT
+                    c.team_id,
+                    COALESCE(t.team_name, c.team_name) AS team_name,
+                    c.elo_K40 AS elo,
+                    t.main_competition_name AS competition,
+                    t.main_competition_country AS country
+                FROM club_elo_ratings c
+                JOIN team_main_competition t ON t.team_id = c.team_id
+                WHERE t.main_competition_name ILIKE %s
+                AND t.main_competition_country ILIKE %s
+                AND c.elo_K40 IS NOT NULL
+                ORDER BY c.elo_K40 DESC, COALESCE(t.team_name, c.team_name) ASC
+                LIMIT %s
+                """,
+                (elo_competition, elo_country, top_team_limit),
+            )
+        except Exception as exc:
+            raise FootballQueryError(f"Error getting Football Data Status: {exc}") from exc
+
+        return {
+            "latest_completed_match": _map_completed_match(latest_completed_match)
+            if latest_completed_match
+            else None,
+            "unprocessed_completed_matches": _count_value(
+                unprocessed_completed_matches
+            ),
+            "latest_elo_history_date": (latest_elo_history_date or {}).get(
+                "latest_elo_history_date"
+            ),
+            "future_feature_set_count": _count_value(future_feature_set_count),
+            "prediction_count_next_7_days": _count_value(prediction_count),
+            "odds_freshness": {
+                "latest_retrieved_at": (odds_freshness or {}).get(
+                    "latest_retrieved_at"
+                ),
+                "latest_api_last_updated": (odds_freshness or {}).get(
+                    "latest_api_last_updated"
+                ),
+                "matches_with_odds_next_7_days": _count_value(
+                    odds_freshness,
+                    "matches_with_odds_next_7_days",
+                ),
+            },
+            "top_premier_league_elo_teams": [_map_elo_team(row) for row in top_elo_teams],
+        }
+
     def _fetch_latest_odds_rows(
         self,
         match_ids: Sequence[int],
@@ -505,6 +634,34 @@ def _map_upcoming_match(row: Row) -> dict[str, Any]:
         "country": row["competition_country"],
         "competition_id": row.get("competition_id"),
     }
+
+
+def _map_completed_match(row: Row) -> dict[str, Any]:
+    return {
+        "match_id": row["match_id"],
+        "start_time": row.get("start_time"),
+        "home_team": row["home_team_name"],
+        "away_team": row["away_team_name"],
+        "competition": row["competition_name"],
+        "country": row["competition_country"],
+        "score": f"{row['home_score']}-{row['away_score']}",
+    }
+
+
+def _map_elo_team(row: Row) -> dict[str, Any]:
+    return {
+        "team_id": row["team_id"],
+        "team_name": row["team_name"],
+        "elo": row.get("elo"),
+        "competition": row.get("competition"),
+        "country": row.get("country"),
+    }
+
+
+def _count_value(row: Row | None, key: str = "count") -> int:
+    if not row:
+        return 0
+    return int(row.get(key) or 0)
 
 
 def _map_recent_form(

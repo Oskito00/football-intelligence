@@ -61,6 +61,20 @@ class AnalystChatServiceLike(Protocol):
         """Return current conversation-memory counts."""
 
 
+class FootballDataStatusLike(Protocol):
+    """Status object returned by the Football Data Status service."""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return deterministic API-ready status facts and warnings."""
+
+
+class FootballDataStatusServiceLike(Protocol):
+    """API-facing Football Data Status behavior."""
+
+    def get_status(self) -> FootballDataStatusLike:
+        """Return current Football Data Status."""
+
+
 class AnalystChatService:
     """Conversation-aware API service backed by the read-only Analyst Agent."""
 
@@ -158,6 +172,23 @@ class LazyAnalystChatService:
         return self._service
 
 
+class LazyFootballDataStatusService:
+    """Lazy default status service so importing the ASGI app does not touch DB config."""
+
+    def __init__(self):
+        self._service: FootballDataStatusServiceLike | None = None
+
+    def get_status(self) -> FootballDataStatusLike:
+        return self._get_service().get_status()
+
+    def _get_service(self) -> FootballDataStatusServiceLike:
+        if self._service is None:
+            from football_intelligence.status import FootballDataStatusService
+
+            self._service = FootballDataStatusService.from_config()
+        return self._service
+
+
 class GroqChatRunnable:
     """Groq chat completion adapter used by the LangChain RunnableLambda."""
 
@@ -187,9 +218,17 @@ class GroqChatRunnable:
         return str(payload["choices"][0]["message"]["content"])
 
 
-def create_app(chat_service: AnalystChatServiceLike | None = None) -> FastAPI:
+def create_app(
+    chat_service: AnalystChatServiceLike | None = None,
+    status_service: FootballDataStatusServiceLike | None = None,
+) -> FastAPI:
     """Create the FastAPI app while preserving the existing external contract."""
     service = chat_service if chat_service is not None else LazyAnalystChatService()
+    football_status = (
+        status_service
+        if status_service is not None
+        else LazyFootballDataStatusService()
+    )
     api_app = FastAPI()
 
     api_app.add_middleware(
@@ -216,6 +255,13 @@ def create_app(chat_service: AnalystChatServiceLike | None = None) -> FastAPI:
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    @api_app.get("/api/status")
+    async def status() -> dict[str, Any]:
+        try:
+            return football_status.get_status().to_dict()
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
     @api_app.get("/")
     async def root() -> dict[str, Any]:
         return {
@@ -223,11 +269,13 @@ def create_app(chat_service: AnalystChatServiceLike | None = None) -> FastAPI:
             "endpoints": {
                 "chat": "/api/chat",
                 "reset": "/api/reset",
+                "status": "/api/status",
                 "docs": "/docs",
             },
         }
 
     api_app.state.analyst_chat_service = service
+    api_app.state.football_data_status_service = football_status
     return api_app
 
 

@@ -2,6 +2,7 @@
 
 from football_intelligence.api.server import (
     AnalystChatService,
+    FootballDataStatusServiceLike,
     GroqChatRunnable,
     Message,
     app,
@@ -10,6 +11,7 @@ from football_intelligence.api.server import (
 
 __all__ = [
     "AnalystChatService",
+    "FootballDataStatusServiceLike",
     "GroqChatRunnable",
     "Message",
     "app",

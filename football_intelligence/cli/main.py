@@ -2,7 +2,7 @@
 
 import argparse
 from collections.abc import Callable, Sequence
-from typing import Any, Optional
+from typing import Any, Mapping, Optional
 
 
 CURRENT_RESULT_MODEL_CONFIG = "result_model_early"
@@ -20,6 +20,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run Prediction Refresh without training a new model.",
     )
     prediction_refresh.set_defaults(command_handler=_handle_prediction_refresh)
+
+    status = subcommands.add_parser(
+        "status",
+        help="Show Football Data Status facts and warnings.",
+    )
+    status.set_defaults(command_handler=_handle_status)
 
     model_training = subcommands.add_parser(
         "model-training",
@@ -70,6 +76,11 @@ def _handle_prediction_refresh(args: argparse.Namespace) -> int:
     return 0
 
 
+def _handle_status(args: argparse.Namespace) -> int:
+    print(render_football_data_status(get_football_data_status()))
+    return 0
+
+
 def run_prediction_refresh() -> None:
     from football_intelligence.predictions.refresh import run_prediction_refresh as refresh
 
@@ -87,3 +98,65 @@ def run_model_training(
     )
 
     return train_model(config_name, dry_run=dry_run, limit=limit)
+
+
+def get_football_data_status() -> Any:
+    from football_intelligence.status import FootballDataStatusService
+
+    return FootballDataStatusService.from_config().get_status()
+
+
+def render_football_data_status(status: Any) -> str:
+    data = status.to_dict()
+    latest_match = data["latest_completed_match"]
+    odds_freshness = data["odds_freshness"]
+
+    lines = [
+        data["title"],
+        f"Latest Completed Match: {_format_latest_completed_match(latest_match)}",
+        (
+            "Unprocessed Completed Matches: "
+            f"{data['unprocessed_completed_matches']}"
+        ),
+        f"Latest Elo History Date: {_format_missing(data['latest_elo_history_date'])}",
+        f"Future Feature Set Count: {data['future_feature_set_count']}",
+        f"Next 7 Days Prediction Count: {data['prediction_count_next_7_days']}",
+        (
+            "Odds Freshness: latest retrieved "
+            f"{_format_missing(odds_freshness['latest_retrieved_at'])}; "
+            f"{odds_freshness['matches_with_odds_next_7_days']} matches with odds"
+        ),
+        "Top Premier League Elo Teams:",
+    ]
+
+    top_teams = data["top_premier_league_elo_teams"]
+    if top_teams:
+        lines.extend(
+            f"  {index}. {team['team_name']} - {_format_missing(team['elo'])}"
+            for index, team in enumerate(top_teams, start=1)
+        )
+    else:
+        lines.append("  None")
+
+    lines.append("Warnings:")
+    if data["warnings"]:
+        lines.extend(f"  - {warning['message']}" for warning in data["warnings"])
+    else:
+        lines.append("  None")
+
+    return "\n".join(lines)
+
+
+def _format_latest_completed_match(match: Mapping[str, Any] | None) -> str:
+    if not match:
+        return "None"
+    return (
+        f"{match['home_team']} {match['score']} {match['away_team']} "
+        f"({match['competition']}, {match['start_time']})"
+    )
+
+
+def _format_missing(value: Any) -> str:
+    if value is None:
+        return "None"
+    return str(value)

@@ -5,7 +5,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - REACT_APP_API_URL=http://165.227.225.47:5000
+      - VITE_API_URL=http://165.227.225.47:5000
     depends_on:
       - api
 

@@ -1,4 +1,4 @@
-FROM node:16
+FROM node:22-slim
 
 WORKDIR /app
 
@@ -14,5 +14,5 @@ COPY . .
 # Build the app
 RUN npm run build
 
-# Start the app
+# Start the dashboard shell
 CMD ["npm", "start"]
