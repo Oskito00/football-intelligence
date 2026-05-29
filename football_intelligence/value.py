@@ -153,22 +153,24 @@ def _normalized_signals(
     for signal in signals:
         match_id = signal.get("match_id")
         match = matches_by_id.get(int(match_id)) if match_id is not None else None
-        normalized.append(_normalized_signal(signal, match=match))
+        normalized.append(
+            normalize_market_value_signal(
+                signal,
+                match=match,
+                include_match_context=True,
+            )
+        )
     return normalized
 
 
-def _normalized_signal(
+def normalize_market_value_signal(
     signal: Mapping[str, Any],
     *,
-    match: Mapping[str, Any] | None,
+    match: Mapping[str, Any] | None = None,
+    include_match_context: bool = False,
 ) -> dict[str, Any]:
-    return {
-        "match_id": signal.get("match_id"),
-        "start_time": _isoformat(_first_present(match, signal, "start_time")),
-        "home_team": _first_present(match, signal, "home_team"),
-        "away_team": _first_present(match, signal, "away_team"),
-        "competition": _first_present(match, signal, "competition"),
-        "country": _first_present(match, signal, "country"),
+    """Return the stable API representation of a Market Value Signal."""
+    value_signal = {
         "outcome": signal.get("outcome"),
         "model_probability": _number_or_none(signal.get("model_probability")),
         "best_odds": _number_or_none(signal.get("odds_value")),
@@ -178,6 +180,19 @@ def _normalized_signal(
         "paper_stake_percentage": _number_or_none(
             signal.get("recommended_bet_percentage")
         ),
+    }
+
+    if not include_match_context:
+        return value_signal
+
+    return {
+        "match_id": signal.get("match_id"),
+        "start_time": _isoformat(_first_present(match, signal, "start_time")),
+        "home_team": _first_present(match, signal, "home_team"),
+        "away_team": _first_present(match, signal, "away_team"),
+        "competition": _first_present(match, signal, "competition"),
+        "country": _first_present(match, signal, "country"),
+        **value_signal,
         "prediction_date": _isoformat(signal.get("prediction_date")),
     }
 

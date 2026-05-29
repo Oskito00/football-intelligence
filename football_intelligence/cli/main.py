@@ -8,6 +8,7 @@ from football_intelligence.cli.prediction_refresh import (
     add_prediction_refresh_arguments,
     run_prediction_refresh_from_args,
 )
+from football_intelligence.value import DEFAULT_SIGNAL_DAYS
 
 
 CURRENT_RESULT_MODEL_CONFIG = "result_model_early"
@@ -32,7 +33,11 @@ class MarketValueSignalServiceLike(Protocol):
     def today(self) -> MarketValueSignalRenderable:
         """Return today's Market Value Signals."""
 
-    def next_days(self, *, days: int = 7) -> MarketValueSignalRenderable:
+    def next_days(
+        self,
+        *,
+        days: int = DEFAULT_SIGNAL_DAYS,
+    ) -> MarketValueSignalRenderable:
         """Return Market Value Signals for the next N days."""
 
 
@@ -80,8 +85,8 @@ def build_parser() -> argparse.ArgumentParser:
     value_window.add_argument(
         "--days",
         type=int,
-        default=7,
-        help="Scan the next N days. Defaults to 7.",
+        default=DEFAULT_SIGNAL_DAYS,
+        help=f"Scan the next N days. Defaults to {DEFAULT_SIGNAL_DAYS}.",
     )
     value_picks.set_defaults(command_handler=_handle_value_picks)
 

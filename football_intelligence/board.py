@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from typing import Any, Protocol
 
+from football_intelligence.value import normalize_market_value_signal
+
 
 BOARD_TITLE = "Prediction Board"
 EMPTY_BOARD_MESSAGE = (
@@ -158,7 +160,7 @@ def _match_card(
         "prediction": _normalize_prediction(prediction),
         "odds_freshness": _normalize_odds_freshness(odds_freshness),
         "market_value_signals": [
-            _normalize_value_signal(signal) for signal in value_signals
+            normalize_market_value_signal(signal) for signal in value_signals
         ],
     }
 
@@ -185,20 +187,6 @@ def _normalize_odds_freshness(odds: Mapping[str, Any] | None) -> dict[str, Any]:
         "has_odds": bool(odds),
         "latest_retrieved_at": _isoformat(odds.get("latest_retrieved_at")),
         "latest_api_last_updated": _isoformat(odds.get("latest_api_last_updated")),
-    }
-
-
-def _normalize_value_signal(signal: Mapping[str, Any]) -> dict[str, Any]:
-    return {
-        "outcome": signal.get("outcome"),
-        "model_probability": _number_or_none(signal.get("model_probability")),
-        "best_odds": _number_or_none(signal.get("odds_value")),
-        "implied_probability": _number_or_none(signal.get("implied_probability")),
-        "edge": _number_or_none(signal.get("expected_value")),
-        "bookmaker": signal.get("bookmaker_name"),
-        "paper_stake_percentage": _number_or_none(
-            signal.get("recommended_bet_percentage")
-        ),
     }
 
 

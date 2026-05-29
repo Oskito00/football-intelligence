@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from football_intelligence.analyst import AnalystAgent
+from football_intelligence.value import DEFAULT_SIGNAL_DAYS
 
 _RECENT_CONTEXT_MESSAGE_LIMIT = 6
 _GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -102,7 +103,11 @@ class MarketValueSignalServiceLike(Protocol):
     def today(self) -> MarketValueSignalScanLike:
         """Return today's Market Value Signals."""
 
-    def next_days(self, *, days: int = 7) -> MarketValueSignalScanLike:
+    def next_days(
+        self,
+        *,
+        days: int = DEFAULT_SIGNAL_DAYS,
+    ) -> MarketValueSignalScanLike:
         """Return Market Value Signals for the next N days."""
 
 
@@ -246,7 +251,11 @@ class LazyMarketValueSignalService:
     def today(self) -> MarketValueSignalScanLike:
         return self._get_service().today()
 
-    def next_days(self, *, days: int = 7) -> MarketValueSignalScanLike:
+    def next_days(
+        self,
+        *,
+        days: int = DEFAULT_SIGNAL_DAYS,
+    ) -> MarketValueSignalScanLike:
         return self._get_service().next_days(days=days)
 
     def _get_service(self) -> MarketValueSignalServiceLike:
@@ -346,7 +355,10 @@ def create_app(
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @api_app.get("/api/value-signals")
-    async def value_signals(today: bool = False, days: int = 7) -> dict[str, Any]:
+    async def value_signals(
+        today: bool = False,
+        days: int = DEFAULT_SIGNAL_DAYS,
+    ) -> dict[str, Any]:
         try:
             if today:
                 return market_value_signals.today().to_dict()
