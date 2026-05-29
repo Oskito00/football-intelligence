@@ -6,6 +6,7 @@ ADR_0003 = ROOT / "docs" / "adr" / "0003-use-alembic-for-database-setup.md"
 CONTEXT = ROOT / "CONTEXT.md"
 DOMAIN_DOCS = ROOT / "docs" / "agents" / "domain.md"
 PUBLIC_README = ROOT / "readme.md"
+ENV_EXAMPLE = ROOT / ".env.example"
 
 
 def test_database_setup_adr_records_canonical_alembic_decision():
@@ -46,6 +47,43 @@ def test_public_docs_distinguish_source_schema_data_and_artifacts():
             "The public repository ships code and schema, not private football data or trained model artifacts",
         ),
         normalize=True,
+    )
+
+
+def test_public_readme_documents_code_only_onboarding_path():
+    assert_contains_all(
+        read_text(PUBLIC_README),
+        (
+            "code-only Football Intelligence repository",
+            "No real match data, odds data, database dumps, generated training datasets, or trained model artifacts are shipped",
+            "cp .env.example .env",
+            "DATABASE_URL=postgresql+psycopg2://football:football@localhost:5432/football_intelligence",
+            "make db-setup",
+            "Run **Database Setup** before **Source Data Ingestion**, **Prediction Refresh**, or **Model Training**",
+            "python -m uvicorn football_intelligence.api:app --host 0.0.0.0 --port 5000",
+            "npm run build",
+            "schema-only empty dashboard state",
+            "The API, frontend dashboard, operational workflows, and **Football Intelligence Agent** are separate surfaces",
+        ),
+        normalize=True,
+    )
+
+
+def test_env_example_documents_safe_local_defaults():
+    assert_contains_all(
+        read_text(ENV_EXAMPLE),
+        (
+            "ENV=dev",
+            "DB_HOST=localhost",
+            "DB_PORT=5432",
+            "DB_NAME=football_intelligence",
+            "DB_USER=football",
+            "DB_PASSWORD=football",
+            "DATABASE_URL=postgresql+psycopg2://football:football@localhost:5432/football_intelligence",
+            "API_FOOTBALL_KEY=",
+            "GROQ_API_KEY=",
+            "VITE_API_URL=http://localhost:5000",
+        ),
     )
 
 
