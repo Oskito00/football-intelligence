@@ -11,6 +11,7 @@ __all__ = [
     "ingestion",
     "features",
     "predictions",
+    "board",
     "api",
     "database",
     "cli",

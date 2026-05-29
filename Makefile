@@ -1,7 +1,10 @@
-.PHONY: status scrape process-history build-future predict odds
+.PHONY: status tonight scrape process-history build-future predict odds
 
 status:
 	python -m football_intelligence.cli status
+
+tonight:
+	python -m football_intelligence.cli board today
 
 scrape:
 	python -m football_intelligence.cli prediction-refresh --only source-data-ingestion

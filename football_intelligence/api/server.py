@@ -75,6 +75,20 @@ class FootballDataStatusServiceLike(Protocol):
         """Return current Football Data Status."""
 
 
+class PredictionBoardLike(Protocol):
+    """Board object returned by the Prediction Board service."""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return deterministic API-ready board data."""
+
+
+class PredictionBoardServiceLike(Protocol):
+    """API-facing Prediction Board behavior."""
+
+    def today(self) -> PredictionBoardLike:
+        """Return today's Prediction Board."""
+
+
 class AnalystChatService:
     """Conversation-aware API service backed by the read-only Analyst Agent."""
 
@@ -189,6 +203,23 @@ class LazyFootballDataStatusService:
         return self._service
 
 
+class LazyPredictionBoardService:
+    """Lazy default board service so importing the ASGI app does not touch DB config."""
+
+    def __init__(self):
+        self._service: PredictionBoardServiceLike | None = None
+
+    def today(self) -> PredictionBoardLike:
+        return self._get_service().today()
+
+    def _get_service(self) -> PredictionBoardServiceLike:
+        if self._service is None:
+            from football_intelligence.board import PredictionBoardService
+
+            self._service = PredictionBoardService.from_config()
+        return self._service
+
+
 class GroqChatRunnable:
     """Groq chat completion adapter used by the LangChain RunnableLambda."""
 
@@ -221,6 +252,7 @@ class GroqChatRunnable:
 def create_app(
     chat_service: AnalystChatServiceLike | None = None,
     status_service: FootballDataStatusServiceLike | None = None,
+    board_service: PredictionBoardServiceLike | None = None,
 ) -> FastAPI:
     """Create the FastAPI app while preserving the existing external contract."""
     service = chat_service if chat_service is not None else LazyAnalystChatService()
@@ -228,6 +260,9 @@ def create_app(
         status_service
         if status_service is not None
         else LazyFootballDataStatusService()
+    )
+    prediction_board = (
+        board_service if board_service is not None else LazyPredictionBoardService()
     )
     api_app = FastAPI()
 
@@ -262,6 +297,13 @@ def create_app(
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    @api_app.get("/api/board/today")
+    async def today_prediction_board() -> dict[str, Any]:
+        try:
+            return prediction_board.today().to_dict()
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
     @api_app.get("/")
     async def root() -> dict[str, Any]:
         return {
@@ -270,12 +312,14 @@ def create_app(
                 "chat": "/api/chat",
                 "reset": "/api/reset",
                 "status": "/api/status",
+                "today_prediction_board": "/api/board/today",
                 "docs": "/docs",
             },
         }
 
     api_app.state.analyst_chat_service = service
     api_app.state.football_data_status_service = football_status
+    api_app.state.prediction_board_service = prediction_board
     return api_app
 
 

@@ -17,7 +17,9 @@ REQUIRED_HANDBOOK_TERMS = (
     "**Source Data Ingestion**",
     "**Historical Feature Set**",
     "**Future Feature Set**",
+    "**Prediction Board**",
     "`scrape` is shortcut slang for **Source Data Ingestion**",
+    "`make tonight`",
 )
 
 

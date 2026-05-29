@@ -227,6 +227,39 @@ class ReadOnlyFootballQueries:
 
         return [_map_upcoming_match(row) for row in rows]
 
+    def get_upcoming_matches_between(
+        self,
+        *,
+        starts_at: datetime,
+        ends_at: datetime,
+    ) -> list[dict[str, Any]]:
+        """Return remaining Upcoming Matches in an explicit date window."""
+        query = """
+            SELECT
+                match_id,
+                start_time,
+                home_team_name,
+                away_team_name,
+                competition_name,
+                competition_country,
+                competition_id
+            FROM matches
+            WHERE match_status = 'NS'
+            AND start_time >= %s
+            AND start_time < %s
+            AND home_team_name IS NOT NULL
+            AND away_team_name IS NOT NULL
+            ORDER BY start_time ASC, match_id ASC
+        """
+        try:
+            rows = self._runner.fetch_all(query, (starts_at, ends_at))
+        except Exception as exc:
+            raise FootballQueryError(
+                f"Error getting Prediction Board matches: {exc}"
+            ) from exc
+
+        return [_map_upcoming_match(row) for row in rows]
+
     def get_recent_form(
         self,
         team_id: int,
@@ -325,6 +358,38 @@ class ReadOnlyFootballQueries:
         """Return latest odds from all bookmakers keyed by match ID."""
         rows = self._fetch_latest_odds_rows(match_ids, bet_type_id)
         return _group_odds_by_match_and_outcome(rows)
+
+    def get_odds_freshness_for_matches(
+        self,
+        match_ids: Sequence[int],
+    ) -> dict[int, dict[str, Any]]:
+        """Return odds freshness keyed by match ID."""
+        if not match_ids:
+            return {}
+
+        query = f"""
+            SELECT
+                match_id,
+                MAX(retrieved_at) AS latest_retrieved_at,
+                MAX(api_last_updated) AS latest_api_last_updated
+            FROM odds
+            WHERE match_id IN ({_placeholders(match_ids)})
+            GROUP BY match_id
+        """
+        try:
+            rows = self._runner.fetch_all(query, tuple(match_ids))
+        except Exception as exc:
+            raise FootballQueryError(
+                f"Error getting odds freshness for Prediction Board: {exc}"
+            ) from exc
+
+        return {
+            int(row["match_id"]): {
+                "latest_retrieved_at": row.get("latest_retrieved_at"),
+                "latest_api_last_updated": row.get("latest_api_last_updated"),
+            }
+            for row in rows
+        }
 
     def analyze_matches_for_value(
         self,

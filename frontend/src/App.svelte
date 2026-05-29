@@ -1,69 +1,103 @@
 <script lang="ts">
-  type CompletedMatch = {
+  type Prediction = {
+    predicted_result: string;
+    confidence: number | null;
+    probabilities: {
+      home_win: number | null;
+      draw: number | null;
+      away_win: number | null;
+    };
+    model_type?: string | null;
+    prediction_date?: string | null;
+  };
+
+  type OddsFreshness = {
+    has_odds: boolean;
+    latest_retrieved_at: string | null;
+    latest_api_last_updated: string | null;
+  };
+
+  type MarketValueSignal = {
+    outcome: string;
+    model_probability: number | null;
+    best_odds: number | null;
+    implied_probability: number | null;
+    edge: number | null;
+    bookmaker: string | null;
+    paper_stake_percentage: number | null;
+  };
+
+  type BoardMatch = {
     match_id: number;
     start_time: string | null;
     home_team: string;
     away_team: string;
     competition: string;
     country: string;
-    score: string;
+    prediction: Prediction | null;
+    odds_freshness: OddsFreshness;
+    market_value_signals: MarketValueSignal[];
   };
 
-  type OddsFreshness = {
-    latest_retrieved_at: string | null;
-    latest_api_last_updated: string | null;
-    matches_with_odds_next_7_days: number;
-    stale_after_hours: number;
-  };
-
-  type EloTeam = {
-    team_id: number;
-    team_name: string;
-    elo: number | null;
-    competition: string;
-    country: string;
-  };
-
-  type StatusWarning = {
-    code: string;
-    severity: string;
-    message: string;
+  type PredictionBoard = {
+    title: string;
+    date: string;
+    window: {
+      starts_at: string;
+      ends_at: string;
+      timezone: string;
+    };
+    summary: {
+      upcoming_match_count: number;
+      matches_with_predictions: number;
+      matches_with_odds: number;
+      market_value_signal_count: number;
+    };
+    matches: BoardMatch[];
+    warnings: { code: string; severity: string; message: string }[];
+    empty_state: string | null;
   };
 
   type FootballDataStatus = {
-    title: string;
-    latest_completed_match: CompletedMatch | null;
-    unprocessed_completed_matches: number;
-    latest_elo_history_date: string | null;
-    future_feature_set_count: number;
-    prediction_count_next_7_days: number;
-    odds_freshness: OddsFreshness;
-    top_premier_league_elo_teams: EloTeam[];
-    warnings: StatusWarning[];
+    odds_freshness: {
+      latest_retrieved_at: string | null;
+      matches_with_odds_next_7_days: number;
+    };
+    top_premier_league_elo_teams: {
+      team_name: string;
+      elo: number | null;
+    }[];
+    warnings: { message: string }[];
   };
 
   const API_URL = import.meta.env.VITE_API_URL || "";
 
+  let board: PredictionBoard | null = null;
   let status: FootballDataStatus | null = null;
   let loading = true;
   let errorMessage = "";
 
-  const loadStatus = async () => {
+  const loadDashboard = async () => {
     loading = true;
     errorMessage = "";
 
     try {
-      const response = await fetch(`${API_URL}/api/status`);
-      if (!response.ok) {
-        throw new Error(`Status request failed with ${response.status}`);
+      const [boardResponse, statusResponse] = await Promise.all([
+        fetch(`${API_URL}/api/board/today`),
+        fetch(`${API_URL}/api/status`),
+      ]);
+
+      if (!boardResponse.ok) {
+        throw new Error(`Prediction Board request failed with ${boardResponse.status}`);
       }
-      status = await response.json();
+
+      board = await boardResponse.json();
+      status = statusResponse.ok ? await statusResponse.json() : null;
     } catch (error) {
+      board = null;
       status = null;
       errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Football Data Status is unavailable.";
+        error instanceof Error ? error.message : "Prediction Board is unavailable.";
     } finally {
       loading = false;
     }
@@ -77,108 +111,168 @@
     return String(value);
   };
 
-  loadStatus();
+  const formatPercent = (value: number | null | undefined) => {
+    if (value === null || value === undefined) {
+      return "None";
+    }
+
+    return `${(value * 100).toFixed(1)}%`;
+  };
+
+  const formatPlainPercent = (value: number | null | undefined) => {
+    if (value === null || value === undefined) {
+      return "None";
+    }
+
+    return `${value.toFixed(1)}%`;
+  };
+
+  loadDashboard();
 </script>
 
 <main class="dashboard">
-  <section class="panel" aria-labelledby="status-title">
-    <div class="panel-header">
+  <section class="board" aria-labelledby="board-title">
+    <div class="page-header">
       <div>
         <p class="eyebrow">Read-only dashboard</p>
-        <h1 id="status-title">Football Data Status</h1>
+        <h1 id="board-title">Prediction Board</h1>
       </div>
-      <button class="refresh-button" type="button" onclick={loadStatus}>
+      <button class="refresh-button" type="button" onclick={loadDashboard}>
         Refresh
       </button>
     </div>
 
     {#if loading}
-      <div class="state">Loading Football Data Status...</div>
+      <div class="state">Loading Prediction Board...</div>
     {:else if errorMessage}
       <div class="state error">{errorMessage}</div>
-    {:else if status}
-      <div class="status-grid">
-        <article class="fact wide">
-          <span>Latest Completed Match</span>
-          {#if status.latest_completed_match}
-            <strong>
-              {status.latest_completed_match.home_team}
-              {status.latest_completed_match.score}
-              {status.latest_completed_match.away_team}
-            </strong>
-            <small>
-              {status.latest_completed_match.competition} /
-              {formatValue(status.latest_completed_match.start_time)}
-            </small>
-          {:else}
-            <strong>None</strong>
-          {/if}
-        </article>
-
+    {:else if board}
+      <div class="summary-grid" aria-label="Prediction Board summary">
         <article class="fact">
-          <span>Unprocessed Completed Matches</span>
-          <strong>{status.unprocessed_completed_matches}</strong>
+          <span>Upcoming Matches</span>
+          <strong>{board.summary.upcoming_match_count}</strong>
         </article>
-
         <article class="fact">
-          <span>Latest Elo History Date</span>
-          <strong>{formatValue(status.latest_elo_history_date)}</strong>
+          <span>With Predictions</span>
+          <strong>{board.summary.matches_with_predictions}</strong>
         </article>
-
         <article class="fact">
-          <span>Future Feature Set</span>
-          <strong>{status.future_feature_set_count}</strong>
+          <span>With Odds</span>
+          <strong>{board.summary.matches_with_odds}</strong>
         </article>
-
         <article class="fact">
-          <span>Next 7 Days Predictions</span>
-          <strong>{status.prediction_count_next_7_days}</strong>
-        </article>
-
-        <article class="fact wide">
-          <span>Odds Freshness</span>
-          <strong>
-            {formatValue(status.odds_freshness.latest_retrieved_at)}
-          </strong>
-          <small>
-            {status.odds_freshness.matches_with_odds_next_7_days} matches with
-            odds in the next 7 days
-          </small>
+          <span>Market Value Signals</span>
+          <strong>{board.summary.market_value_signal_count}</strong>
         </article>
       </div>
 
-      <div class="split">
-        <section class="list-section" aria-labelledby="elo-title">
-          <h2 id="elo-title">Top Premier League Elo Teams</h2>
-          {#if status.top_premier_league_elo_teams.length}
-            <ol class="team-list">
-              {#each status.top_premier_league_elo_teams as team}
-                <li>
-                  <span>{team.team_name}</span>
-                  <strong>{formatValue(team.elo)}</strong>
-                </li>
-              {/each}
-            </ol>
+      <div class="content-grid">
+        <section class="match-list" aria-label="Today matches">
+          {#if board.empty_state}
+            <div class="state">{board.empty_state}</div>
           {:else}
-            <p class="empty">No Elo teams available.</p>
+            {#each board.matches as match}
+              <article class="match-card">
+                <div class="match-main">
+                  <div>
+                    <span class="kickoff">{formatValue(match.start_time)}</span>
+                    <h2>{match.home_team} vs {match.away_team}</h2>
+                    <p>{match.competition} / {match.country}</p>
+                  </div>
+                  <div class:missing={!match.prediction} class="prediction-pill">
+                    {#if match.prediction}
+                      <span>{match.prediction.predicted_result}</span>
+                      <strong>{formatPercent(match.prediction.confidence)}</strong>
+                    {:else}
+                      <span>Prediction</span>
+                      <strong>Missing</strong>
+                    {/if}
+                  </div>
+                </div>
+
+                {#if match.prediction}
+                  <div class="probabilities">
+                    <span>Home {formatPercent(match.prediction.probabilities.home_win)}</span>
+                    <span>Draw {formatPercent(match.prediction.probabilities.draw)}</span>
+                    <span>Away {formatPercent(match.prediction.probabilities.away_win)}</span>
+                  </div>
+                {/if}
+
+                <div class="match-meta">
+                  <span>
+                    Odds:
+                    {match.odds_freshness.has_odds
+                      ? formatValue(match.odds_freshness.latest_retrieved_at)
+                      : "Missing"}
+                  </span>
+                  {#if match.market_value_signals.length}
+                    <span>{match.market_value_signals.length} signals</span>
+                  {:else}
+                    <span>No signals</span>
+                  {/if}
+                </div>
+
+                {#if match.market_value_signals.length}
+                  <ul class="signal-list">
+                    {#each match.market_value_signals as signal}
+                      <li>
+                        <span>{signal.outcome}</span>
+                        <span>{formatPercent(signal.edge)} edge</span>
+                        <span>{formatPlainPercent(signal.paper_stake_percentage)} Paper Stake</span>
+                      </li>
+                    {/each}
+                  </ul>
+                {/if}
+              </article>
+            {/each}
           {/if}
         </section>
 
-        <section class="list-section" aria-labelledby="warnings-title">
-          <h2 id="warnings-title">Warnings</h2>
-          {#if status.warnings.length}
-            <ul class="warning-list">
-              {#each status.warnings as warning}
-                <li>{warning.message}</li>
-              {/each}
-            </ul>
-          {:else}
-            <p class="empty">No warnings.</p>
-          {/if}
-        </section>
+        <aside class="side-rail" aria-label="Dashboard context">
+          <section class="context-panel">
+            <h2>Odds Freshness</h2>
+            <strong>{formatValue(status?.odds_freshness.latest_retrieved_at)}</strong>
+            <p>
+              {formatValue(status?.odds_freshness.matches_with_odds_next_7_days)}
+              matches with odds in the next 7 days
+            </p>
+          </section>
+
+          <section class="context-panel">
+            <h2>Top Premier League Elo Teams</h2>
+            {#if status?.top_premier_league_elo_teams.length}
+              <ol class="team-list">
+                {#each status.top_premier_league_elo_teams as team}
+                  <li>
+                    <span>{team.team_name}</span>
+                    <strong>{formatValue(team.elo)}</strong>
+                  </li>
+                {/each}
+              </ol>
+            {:else}
+              <p class="empty">No Elo teams available.</p>
+            {/if}
+          </section>
+
+          <section class="context-panel">
+            <h2>Warnings</h2>
+            {#if board.warnings.length || status?.warnings.length}
+              <ul class="warning-list">
+                {#each board.warnings as warning}
+                  <li>{warning.message}</li>
+                {/each}
+                {#each status?.warnings || [] as warning}
+                  <li>{warning.message}</li>
+                {/each}
+              </ul>
+            {:else}
+              <p class="empty">No warnings.</p>
+            {/if}
+          </section>
+        </aside>
       </div>
     {:else}
-      <div class="state">Football Data Status is empty.</div>
+      <div class="state">Prediction Board is empty.</div>
     {/if}
   </section>
 </main>

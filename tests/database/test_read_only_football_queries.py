@@ -118,6 +118,58 @@ def test_upcoming_matches_maps_stable_match_shape():
     ]
 
 
+def test_prediction_board_match_window_uses_explicit_bounds():
+    starts_at = datetime(2026, 5, 29, 12, 0)
+    ends_at = datetime(2026, 5, 30, 0, 0)
+    runner = FakeReadOnlyRunner(
+        many=[
+            {
+                "match_id": 42,
+                "start_time": datetime(2026, 5, 29, 20, 0),
+                "home_team_name": "Arsenal",
+                "away_team_name": "Chelsea",
+                "competition_name": "Premier League",
+                "competition_country": "England",
+                "competition_id": 39,
+            }
+        ]
+    )
+    queries = ReadOnlyFootballQueries(runner)
+
+    matches = queries.get_upcoming_matches_between(
+        starts_at=starts_at,
+        ends_at=ends_at,
+    )
+
+    assert matches[0]["match_id"] == 42
+    assert runner.calls == [("all", runner.calls[0][1], (starts_at, ends_at))]
+
+
+def test_odds_freshness_maps_latest_odds_by_match():
+    retrieved_at = datetime(2026, 5, 29, 9, 30)
+    api_last_updated = datetime(2026, 5, 29, 9, 20)
+    runner = FakeReadOnlyRunner(
+        many=[
+            {
+                "match_id": 42,
+                "latest_retrieved_at": retrieved_at,
+                "latest_api_last_updated": api_last_updated,
+            }
+        ]
+    )
+    queries = ReadOnlyFootballQueries(runner)
+
+    freshness = queries.get_odds_freshness_for_matches([42, 43])
+
+    assert freshness == {
+        42: {
+            "latest_retrieved_at": retrieved_at,
+            "latest_api_last_updated": api_last_updated,
+        }
+    }
+    assert runner.calls[0][2] == (42, 43)
+
+
 def test_recent_form_returns_no_result_shape():
     queries = ReadOnlyFootballQueries(FakeReadOnlyRunner(many=[]))
 
