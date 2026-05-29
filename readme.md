@@ -19,6 +19,16 @@ architecture.
   python -m football_intelligence.cli prediction-refresh
   ```
 
+  To test the refresh in parts, use `--only`:
+
+  ```bash
+  python -m football_intelligence.cli prediction-refresh --list-parts
+  python -m football_intelligence.cli prediction-refresh --only source-data
+  python -m football_intelligence.cli prediction-refresh --only features
+  python -m football_intelligence.cli prediction-refresh --only inference
+  python -m football_intelligence.cli prediction-refresh --only odds
+  ```
+
 - **Model Training** is separate and intentional. It learns a new prediction
   model from the **Historical Feature Set** and writes model artifacts when the
   run is not a dry run.
@@ -34,7 +44,8 @@ architecture.
   make status
   ```
 
-Heroku, Docker, cron, or another host can run those same commands. Deployment
-files in this repository are runtime wiring only; they invoke the Football
-Intelligence CLI so they do not become the conceptual owner of
-**Prediction Refresh**, **Model Training**, or the **Match Intelligence Lifecycle**.
+Docker, cron, or another host can run those same commands. The repository keeps
+one backend `Dockerfile`, one `docker-compose.yml`, and one root
+`requirements.txt` so runtime wiring stays tidy and does not become the
+conceptual owner of **Prediction Refresh**, **Model Training**, or the
+**Match Intelligence Lifecycle**.

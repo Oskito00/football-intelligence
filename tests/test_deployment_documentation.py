@@ -25,26 +25,26 @@ REQUIRED_DEPLOYMENT_TERMS = (
     "**Match Intelligence Lifecycle**",
     PREDICTION_REFRESH_COMMAND,
     MODEL_TRAINING_COMMAND,
-    "Heroku",
     "Docker",
     "cron",
 )
 DEPLOYMENT_CONFIGS = (
-    ROOT / "Dockerfile.web",
-    ROOT / "Dockerfile.operations",
+    ROOT / "Dockerfile",
     ROOT / "docker-compose.yml",
-    ROOT / "docker-compose.dev.yml",
-    ROOT / "docker-compose.prod.yml",
-    ROOT / "heroku.yml",
-)
-COMPOSE_CONFIGS = (
-    ROOT / "docker-compose.yml",
-    ROOT / "docker-compose.dev.yml",
-    ROOT / "docker-compose.prod.yml",
 )
 RETIRED_ENTRYPOINT_PATHS = (
     ROOT / "scheduler",
     ROOT / "Dockerfile.scheduler",
+)
+RETIRED_DEPLOYMENT_FILES = (
+    ROOT / "Dockerfile.web",
+    ROOT / "Dockerfile.operations",
+    ROOT / "docker-compose.dev.yml",
+    ROOT / "docker-compose.prod.yml",
+    ROOT / "heroku.yml",
+    ROOT / "requirements.web.txt",
+    ROOT / "requirements.operations.txt",
+    ROOT / "requirements_dev.txt",
 )
 
 
@@ -62,22 +62,23 @@ def test_documentation_describes_cli_first_deployment_boundary(
 
 
 def test_deployment_configs_use_football_intelligence_operational_entrypoints():
-    web_dockerfile = read_text(ROOT / "Dockerfile.web")
-    operations_dockerfile = read_text(ROOT / "Dockerfile.operations")
-    heroku_config = read_text(ROOT / "heroku.yml")
-    compose_configs = [read_text(path) for path in COMPOSE_CONFIGS]
+    dockerfile = read_text(ROOT / "Dockerfile")
+    compose_config = read_text(ROOT / "docker-compose.yml")
     combined_config = "\n".join(read_text(path) for path in DEPLOYMENT_CONFIGS)
 
-    assert WEB_API_ENTRYPOINT in web_dockerfile
-    assert "football_intelligence.cli" in operations_dockerfile
-    assert "prediction-refresh" in operations_dockerfile
-    assert PREDICTION_REFRESH_COMMAND in heroku_config
-    assert MODEL_TRAINING_COMMAND in heroku_config
-    assert all(PREDICTION_REFRESH_COMMAND in config for config in compose_configs)
-    assert all(MODEL_TRAINING_COMMAND in config for config in compose_configs)
+    assert WEB_API_ENTRYPOINT in dockerfile
+    assert "requirements.txt" in dockerfile
+    assert PREDICTION_REFRESH_COMMAND in compose_config
+    assert MODEL_TRAINING_COMMAND in compose_config
 
     for retired_entrypoint in RETIRED_ENTRYPOINT_TEXT:
         assert retired_entrypoint not in combined_config
+
+
+def test_redundant_deployment_files_are_deleted():
+    existing_retired_files = [path for path in RETIRED_DEPLOYMENT_FILES if path.exists()]
+
+    assert existing_retired_files == []
 
 
 def test_retired_scheduler_package_and_entrypoint_files_are_deleted():

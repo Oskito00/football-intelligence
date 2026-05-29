@@ -1,7 +1,14 @@
 **/node_modules
 **/venv
+**/.venv-sandcastle
 **/__pycache__
 *.pyc
+*.log
 .env
 .git
 .gitignore
+.pytest_cache
+.sandcastle/logs
+.sandcastle/worktrees
+backup.sql.gz
+data/

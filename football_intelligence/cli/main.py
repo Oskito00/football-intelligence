@@ -4,6 +4,11 @@ import argparse
 from collections.abc import Callable, Sequence
 from typing import Any, Mapping, Optional, Protocol
 
+from football_intelligence.cli.prediction_refresh import (
+    add_prediction_refresh_arguments,
+    run_prediction_refresh_from_args,
+)
+
 
 CURRENT_RESULT_MODEL_CONFIG = "result_model_early"
 
@@ -24,6 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
         "prediction-refresh",
         help="Run Prediction Refresh without training a new model.",
     )
+    add_prediction_refresh_arguments(prediction_refresh)
     prediction_refresh.set_defaults(command_handler=_handle_prediction_refresh)
 
     status = subcommands.add_parser(
@@ -64,7 +70,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     command_handler: Callable[[argparse.Namespace], int] = args.command_handler
-    return command_handler(args)
+    try:
+        return command_handler(args)
+    except ValueError as exc:
+        parser.error(str(exc))
 
 
 def _handle_model_training(args: argparse.Namespace) -> int:
@@ -77,19 +86,12 @@ def _handle_model_training(args: argparse.Namespace) -> int:
 
 
 def _handle_prediction_refresh(args: argparse.Namespace) -> int:
-    run_prediction_refresh()
-    return 0
+    return run_prediction_refresh_from_args(args)
 
 
 def _handle_status(_args: argparse.Namespace) -> int:
     print(render_football_data_status(get_football_data_status()))
     return 0
-
-
-def run_prediction_refresh() -> None:
-    from football_intelligence.predictions.refresh import run_prediction_refresh as refresh
-
-    refresh()
 
 
 def run_model_training(

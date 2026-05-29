@@ -24,6 +24,7 @@ PROHIBITED_IMPLEMENTATION_MODULES = (
     "data_scraping",
     "data_processing",
     "ml_pipeline",
+    "ml_pipeline_cnn",
     "utils.database",
     "chatbot",
     "scheduler",
@@ -113,9 +114,8 @@ def test_active_runtime_imports_only_use_product_namespace_for_migrated_areas():
     assert offenders == []
 
 
-def test_remaining_experiment_source_is_outside_active_runtime_audit():
-    assert (PROJECT_ROOT / "ml_pipeline_cnn" / "main_train.py").exists()
-    assert PROJECT_ROOT / "ml_pipeline_cnn" not in ACTIVE_RUNTIME_ROOTS
+def test_retired_cnn_experiment_package_is_deleted():
+    assert not (PROJECT_ROOT / "ml_pipeline_cnn").exists()
 
 
 def test_retired_helper_alias_package_is_deleted():

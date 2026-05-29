@@ -34,16 +34,43 @@ def test_prediction_refresh_command_does_not_invoke_model_training(monkeypatch):
     def fail_model_training(*args, **kwargs):
         raise AssertionError("Prediction Refresh must not run Model Training")
 
-    def fake_run_prediction_refresh():
-        calls.append("prediction-refresh")
+    def fake_run_prediction_refresh_from_args(args):
+        calls.append(
+            {
+                "command": "prediction-refresh",
+                "model_config": args.model_config,
+                "skip_odds": args.skip_odds,
+                "only": args.only,
+            }
+        )
+        return 0
 
     monkeypatch.setattr(cli_main, "run_model_training", fail_model_training)
-    monkeypatch.setattr(cli_main, "run_prediction_refresh", fake_run_prediction_refresh)
+    monkeypatch.setattr(
+        cli_main,
+        "run_prediction_refresh_from_args",
+        fake_run_prediction_refresh_from_args,
+    )
 
-    exit_code = cli_main.main(["prediction-refresh"])
+    exit_code = cli_main.main(
+        [
+            "prediction-refresh",
+            "--model-config",
+            "result_model_late",
+            "--only",
+            "features",
+        ]
+    )
 
     assert exit_code == 0
-    assert calls == ["prediction-refresh"]
+    assert calls == [
+        {
+            "command": "prediction-refresh",
+            "model_config": "result_model_late",
+            "skip_odds": False,
+            "only": ["features"],
+        }
+    ]
 
 
 def test_model_training_command_returns_failure_exit_code(monkeypatch):

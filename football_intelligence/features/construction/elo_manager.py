@@ -13,7 +13,13 @@ from football_intelligence.features.construction.elo_helpers import (
     save_updated_counts,
     save_updated_elos_bulk,
 )
-from utils.parsing.list import extract_competition_ids, extract_league_ids, extract_nation_names, extract_team_id_name_map, extract_team_ids
+from football_intelligence.features.construction.match_inputs import (
+    extract_competition_ids,
+    extract_league_ids,
+    extract_nation_names,
+    extract_team_id_name_map,
+    extract_team_ids,
+)
 
 
 class EloManager:

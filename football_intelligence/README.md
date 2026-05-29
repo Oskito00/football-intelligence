@@ -22,11 +22,21 @@ file:
 - **Model Training**: `python -m football_intelligence.cli model-training`
 - **Football Data Status**: `python -m football_intelligence.cli status`
 
-Heroku, Docker, cron, or another runtime can invoke those commands. Deployment
-files in this repository are runtime wiring only; they invoke the Football
-Intelligence CLI instead of compatibility runners, so they are not the
-conceptual owner of **Prediction Refresh**, **Model Training**, or the
-**Match Intelligence Lifecycle**.
+Prediction Refresh can also be tested in parts:
+
+```bash
+python -m football_intelligence.cli prediction-refresh --list-parts
+python -m football_intelligence.cli prediction-refresh --only source-data
+python -m football_intelligence.cli prediction-refresh --only features
+python -m football_intelligence.cli prediction-refresh --only inference
+python -m football_intelligence.cli prediction-refresh --only odds
+```
+
+Docker, cron, or another runtime can invoke those commands. The repository keeps
+one backend `Dockerfile`, one `docker-compose.yml`, and one root
+`requirements.txt`; those files invoke the Football Intelligence CLI instead of
+compatibility runners, so they are not the conceptual owner of
+**Prediction Refresh**, **Model Training**, or the **Match Intelligence Lifecycle**.
 
 Initial read-only football queries live in `football_intelligence.database`:
 
@@ -75,8 +85,8 @@ Migration status:
 1. Active product behavior is owned by `football_intelligence.*` modules.
 2. New callers should use the product-level interfaces above instead of
    implementation-era package names.
-3. `ml_pipeline_cnn` remains an out-of-scope experiment unless future product
-   usage is proven.
+3. Retired implementation-era packages and inactive experiments have been
+   deleted rather than kept as compatibility surfaces.
 
 ## Feature schema registry
 

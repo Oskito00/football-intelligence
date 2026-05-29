@@ -19,7 +19,6 @@ from football_intelligence.database import (
     get_future_matches_with_odds,
     upsert_records,
 )
-from utils.formatting.time import datetime_string_converter
 
 
 config = get_config()
@@ -37,6 +36,13 @@ PAYLOAD = {}
 
 # Target bookmakers: Betfair, Bwin, William Hill, Bet365, Betfred
 TARGET_BOOKMAKERS = [3, 6, 7, 8, 12]
+
+
+def datetime_string_converter(raw_datetime):
+    """Return the YYYY-MM-DD prefix used by the existing ingestion rows."""
+    if raw_datetime:
+        return str(raw_datetime)[:10]
+    return None
 
 
 class ApiFootballSourceDataProvider:

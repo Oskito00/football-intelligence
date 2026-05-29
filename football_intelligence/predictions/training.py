@@ -7,8 +7,20 @@ from __future__ import annotations
 import logging
 from typing import Dict, Any, Optional
 
-from utils.parsing.pandas import convert_to_native_types
 from football_intelligence.predictions.model_io import model_io
+
+
+def convert_to_native_types(obj):
+    """Recursively convert pandas/numpy values to plain Python values."""
+    if isinstance(obj, dict):
+        return {str(k): convert_to_native_types(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [convert_to_native_types(item) for item in obj]
+    if hasattr(obj, "item"):
+        return obj.item()
+    if hasattr(obj, "tolist"):
+        return obj.tolist()
+    return obj
 
 
 def train_result_model(conn, config: Dict[str, Any],

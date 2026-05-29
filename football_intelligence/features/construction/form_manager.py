@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import json
 
 from football_intelligence.features.schema import FORM_FEATURE_SCHEMA
-from utils.parsing.list import extract_team_ids
+from football_intelligence.features.construction.match_inputs import extract_team_ids
 
 class FormManager:
     # Class-level cache to persist across batches
