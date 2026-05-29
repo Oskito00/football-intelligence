@@ -244,34 +244,19 @@ def get_value_backtest_service() -> ValueBacktestServiceLike:
 def _value_backtest_config_from_args(
     args: argparse.Namespace,
 ) -> ValueBacktestConfig | None:
-    strategy_options = (
-        args.starting_bankroll,
-        args.kelly_fraction,
-        args.min_expected_value,
-        args.odds_mode,
-    )
-    if all(value is None for value in strategy_options):
+    config_overrides: dict[str, Any] = {
+        "starting_bankroll": args.starting_bankroll,
+        "kelly_multiplier": args.kelly_fraction,
+        "min_expected_value": args.min_expected_value,
+        "odds_mode": args.odds_mode,
+    }
+    selected_overrides = {
+        key: value for key, value in config_overrides.items() if value is not None
+    }
+    if not selected_overrides:
         return None
 
-    defaults = ValueBacktestConfig()
-    return ValueBacktestConfig(
-        starting_bankroll=(
-            args.starting_bankroll
-            if args.starting_bankroll is not None
-            else defaults.starting_bankroll
-        ),
-        kelly_multiplier=(
-            args.kelly_fraction
-            if args.kelly_fraction is not None
-            else defaults.kelly_multiplier
-        ),
-        min_expected_value=(
-            args.min_expected_value
-            if args.min_expected_value is not None
-            else defaults.min_expected_value
-        ),
-        odds_mode=args.odds_mode if args.odds_mode is not None else defaults.odds_mode,
-    )
+    return ValueBacktestConfig(**selected_overrides)
 
 
 def render_football_data_status(status: FootballDataStatusRenderable) -> str:
