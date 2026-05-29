@@ -34,16 +34,83 @@ def test_prediction_refresh_command_does_not_invoke_model_training(monkeypatch):
     def fail_model_training(*args, **kwargs):
         raise AssertionError("Prediction Refresh must not run Model Training")
 
-    def fake_run_prediction_refresh():
-        calls.append("prediction-refresh")
+    def fake_run_prediction_refresh(*, model_config, include_odds, selectors):
+        calls.append(
+            {
+                "model_config": model_config,
+                "include_odds": include_odds,
+                "selectors": selectors,
+            }
+        )
+
+        return type(
+            "Result",
+            (),
+            {
+                "steps_run": ("refresh current match data",),
+                "steps_failed": (),
+            },
+        )()
+
+    from football_intelligence.cli import prediction_refresh
 
     monkeypatch.setattr(cli_main, "run_model_training", fail_model_training)
-    monkeypatch.setattr(cli_main, "run_prediction_refresh", fake_run_prediction_refresh)
+    monkeypatch.setattr(
+        prediction_refresh,
+        "run_prediction_refresh",
+        fake_run_prediction_refresh,
+    )
 
     exit_code = cli_main.main(["prediction-refresh"])
 
     assert exit_code == 0
-    assert calls == ["prediction-refresh"]
+    assert calls == [
+        {
+            "model_config": "result_model_early",
+            "include_odds": True,
+            "selectors": (),
+        }
+    ]
+
+
+def test_prediction_refresh_command_forwards_selector_arguments(monkeypatch):
+    calls = []
+
+    def fake_run_prediction_refresh(*, model_config, include_odds, selectors):
+        calls.append(
+            {
+                "model_config": model_config,
+                "include_odds": include_odds,
+                "selectors": selectors,
+            }
+        )
+        return type(
+            "Result",
+            (),
+            {
+                "steps_run": ("build Future Feature Set",),
+                "steps_failed": (),
+            },
+        )()
+
+    from football_intelligence.cli import prediction_refresh
+
+    monkeypatch.setattr(
+        prediction_refresh,
+        "run_prediction_refresh",
+        fake_run_prediction_refresh,
+    )
+
+    exit_code = cli_main.main(["prediction-refresh", "--only", "future-feature-set"])
+
+    assert exit_code == 0
+    assert calls == [
+        {
+            "model_config": "result_model_early",
+            "include_odds": True,
+            "selectors": ("future-feature-set",),
+        }
+    ]
 
 
 def test_model_training_command_returns_failure_exit_code(monkeypatch):

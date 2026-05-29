@@ -119,8 +119,8 @@ def test_prediction_refresh_builds_steps_from_product_ingestion(monkeypatch):
 def test_prediction_refresh_cli_invokes_application_workflow(monkeypatch, capsys):
     calls = []
 
-    def fake_run_prediction_refresh(*, model_config, include_odds):
-        calls.append((model_config, include_odds))
+    def fake_run_prediction_refresh(*, model_config, include_odds, selectors):
+        calls.append((model_config, include_odds, selectors))
         return type(
             "Result",
             (),
@@ -143,5 +143,67 @@ def test_prediction_refresh_cli_invokes_application_workflow(monkeypatch, capsys
     )
 
     assert exit_code == 0
-    assert calls == [("result_model_late", False)]
+    assert calls == [("result_model_late", False, ())]
     assert "Prediction Refresh completed: 2 steps run" in capsys.readouterr().out
+
+
+def test_prediction_refresh_cli_accepts_refresh_selectors(monkeypatch):
+    calls = []
+
+    def fake_run_prediction_refresh(*, model_config, include_odds, selectors):
+        calls.append((model_config, include_odds, selectors))
+        return type(
+            "Result",
+            (),
+            {
+                "steps_run": ("build Historical Feature Set",),
+                "steps_failed": (),
+            },
+        )()
+
+    from football_intelligence.cli import prediction_refresh
+
+    monkeypatch.setattr(
+        prediction_refresh,
+        "run_prediction_refresh",
+        fake_run_prediction_refresh,
+    )
+
+    exit_code = prediction_refresh.main(["--only", "historical-feature-set"])
+
+    assert exit_code == 0
+    assert calls == [("result_model_early", True, ("historical-feature-set",))]
+
+
+def test_prediction_refresh_filters_steps_by_selector():
+    calls = []
+    connection = object()
+
+    def make_step(name):
+        return PredictionRefreshStep(name, lambda: calls.append(name))
+
+    def step_factory(received_connection, model_config, include_odds):
+        assert received_connection is connection
+        assert model_config == "result_model_early"
+        assert include_odds is True
+        return [
+            make_step("refresh league catalogue"),
+            make_step("refresh current match data"),
+            make_step("build Historical Feature Set"),
+            make_step("build Future Feature Set"),
+            make_step("run Prediction inference"),
+            make_step("refresh odds"),
+        ]
+
+    result = run_prediction_refresh(
+        connection=connection,
+        selectors=("source-data-ingestion",),
+        step_factory=step_factory,
+        logger=logging.getLogger("test_prediction_refresh"),
+    )
+
+    assert calls == [
+        "refresh league catalogue",
+        "refresh current match data",
+    ]
+    assert result.steps_run == tuple(calls)

@@ -19,6 +19,9 @@ def build_parser() -> argparse.ArgumentParser:
         "prediction-refresh",
         help="Run Prediction Refresh without training a new model.",
     )
+    from football_intelligence.cli.prediction_refresh import add_arguments
+
+    add_arguments(prediction_refresh)
     prediction_refresh.set_defaults(command_handler=_handle_prediction_refresh)
 
     model_training = subcommands.add_parser(
@@ -66,8 +69,9 @@ def _handle_model_training(args: argparse.Namespace) -> int:
 
 
 def _handle_prediction_refresh(args: argparse.Namespace) -> int:
-    run_prediction_refresh()
-    return 0
+    from football_intelligence.cli.prediction_refresh import run_from_args
+
+    return run_from_args(args)
 
 
 def run_prediction_refresh() -> None:

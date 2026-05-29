@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -16,6 +16,16 @@ from football_intelligence.ingestion import SourceDataIngestion
 
 
 DEFAULT_MODEL_CONFIG = "result_model_early"
+PREDICTION_REFRESH_SELECTORS = {
+    "source-data-ingestion": {
+        "refresh league catalogue",
+        "refresh current match data",
+    },
+    "historical-feature-set": {"build Historical Feature Set"},
+    "future-feature-set": {"build Future Feature Set"},
+    "prediction-inference": {"run Prediction inference"},
+    "odds-refresh": {"refresh odds"},
+}
 
 
 @dataclass(frozen=True)
@@ -113,6 +123,7 @@ def run_prediction_refresh(
     connection_factory: ConnectionFactory = create_database_connection,
     model_config: str = DEFAULT_MODEL_CONFIG,
     include_odds: bool = True,
+    selectors: Sequence[str] = (),
     step_factory: StepFactory = build_prediction_refresh_steps,
     logger: logging.Logger | None = None,
     continue_on_error: bool = True,
@@ -125,7 +136,8 @@ def run_prediction_refresh(
     steps_failed: list[str] = []
 
     try:
-        for step in step_factory(conn, model_config, include_odds):
+        steps = step_factory(conn, model_config, include_odds)
+        for step in select_prediction_refresh_steps(steps, selectors):
             logger.info("Starting %s", step.name)
             try:
                 step.action()
@@ -145,3 +157,27 @@ def run_prediction_refresh(
         steps_run=tuple(steps_run),
         steps_failed=tuple(steps_failed),
     )
+
+
+def select_prediction_refresh_steps(
+    steps: Iterable[PredictionRefreshStep],
+    selectors: Sequence[str] = (),
+) -> list[PredictionRefreshStep]:
+    """Filter Prediction Refresh steps by stable operational selectors."""
+    if not selectors:
+        return list(steps)
+
+    unknown_selectors = [
+        selector for selector in selectors if selector not in PREDICTION_REFRESH_SELECTORS
+    ]
+    if unknown_selectors:
+        raise ValueError(
+            "Unknown Prediction Refresh selector(s): "
+            + ", ".join(sorted(unknown_selectors))
+        )
+
+    selected_step_names = set()
+    for selector in selectors:
+        selected_step_names.update(PREDICTION_REFRESH_SELECTORS[selector])
+
+    return [step for step in steps if step.name in selected_step_names]
