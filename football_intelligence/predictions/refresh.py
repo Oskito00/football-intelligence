@@ -222,6 +222,14 @@ def build_prediction_refresh_steps(
     return steps
 
 
+def _database_setup_required_for_refresh_step(
+    step: PredictionRefreshStep,
+) -> DatabaseSetupRequiredError:
+    return DatabaseSetupRequiredError(
+        database_setup_required_message(f"Prediction Refresh step '{step.name}'")
+    )
+
+
 def run_prediction_refresh(
     *,
     connection: Any | None = None,
@@ -252,11 +260,7 @@ def run_prediction_refresh(
                     raise
             except Exception as exc:
                 if is_missing_database_schema_error(exc):
-                    setup_error = DatabaseSetupRequiredError(
-                        database_setup_required_message(
-                            f"Prediction Refresh step '{step.name}'"
-                        )
-                    )
+                    setup_error = _database_setup_required_for_refresh_step(step)
                     steps_failed.append(step.name)
                     logger.error(str(setup_error))
                     if not continue_on_error:

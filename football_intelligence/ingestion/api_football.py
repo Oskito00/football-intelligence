@@ -37,6 +37,7 @@ PAYLOAD = {}
 
 # Target bookmakers: Betfair, Bwin, William Hill, Bet365, Betfred
 TARGET_BOOKMAKERS = [3, 6, 7, 8, 12]
+ODDS_REFRESH_WORKFLOW = "Source Data Ingestion odds refresh"
 
 
 def datetime_string_converter(raw_datetime):
@@ -44,6 +45,10 @@ def datetime_string_converter(raw_datetime):
     if raw_datetime:
         return str(raw_datetime)[:10]
     return None
+
+
+def _print_odds_refresh_database_setup_required() -> None:
+    print(database_setup_required_message(ODDS_REFRESH_WORKFLOW))
 
 
 class ApiFootballSourceDataProvider:
@@ -403,7 +408,7 @@ def save_odds_to_db(conn, odds_records: list):
 
     except Exception as e:
         if is_missing_database_schema_error(e):
-            print(database_setup_required_message("Source Data Ingestion odds refresh"))
+            _print_odds_refresh_database_setup_required()
         else:
             print(f"❌ Error saving odds: {str(e)}")
         conn.rollback()
@@ -437,11 +442,7 @@ def scrape_future_match_odds(conn=None):
             print(f"📋 Found {len(match_ids)} future matches to process")
         except Exception as e:
             if is_missing_database_schema_error(e):
-                print(
-                    database_setup_required_message(
-                        "Source Data Ingestion odds refresh",
-                    )
-                )
+                _print_odds_refresh_database_setup_required()
                 return
             print(f"❌ Error in get_future_matches_with_odds: {str(e)}")
             return
@@ -490,7 +491,7 @@ def scrape_future_match_odds(conn=None):
 
     except Exception as e:
         if is_missing_database_schema_error(e):
-            print(database_setup_required_message("Source Data Ingestion odds refresh"))
+            _print_odds_refresh_database_setup_required()
             return
 
         print(f"❌ Error during scraping: {str(e)}")
