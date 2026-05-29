@@ -5,6 +5,27 @@
     message: string;
   };
 
+  type SetupRequiredDetail = {
+    code: "setup_required";
+    message: string;
+    setup_command?: string;
+  };
+
+  class ApiRequestError extends Error {
+    status: number;
+    setupRequired: SetupRequiredDetail | null;
+
+    constructor(
+      message: string,
+      status: number,
+      setupRequired: SetupRequiredDetail | null = null,
+    ) {
+      super(message);
+      this.status = status;
+      this.setupRequired = setupRequired;
+    }
+  }
+
   type Prediction = {
     predicted_result: string;
     confidence: number | null;
@@ -163,12 +184,37 @@
   let matchDetailError = "";
   let loading = true;
   let errorMessage = "";
+  let setupRequired: SetupRequiredDetail | null = null;
+
+  const requestError = async (response: Response, surface: string) => {
+    let payload: { detail?: string | SetupRequiredDetail } | null = null;
+
+    try {
+      payload = await response.json();
+    } catch {
+      payload = null;
+    }
+
+    if (
+      payload &&
+      typeof payload.detail === "object" &&
+      payload.detail?.code === "setup_required"
+    ) {
+      return new ApiRequestError(payload.detail.message, response.status, payload.detail);
+    }
+
+    const detail = typeof payload?.detail === "string" ? payload.detail : null;
+    return new ApiRequestError(
+      detail || `${surface} request failed with ${response.status}`,
+      response.status,
+    );
+  };
 
   const fetchPredictionBoard = async () => {
     const response = await fetch(`${API_URL}/api/board/today`);
 
     if (!response.ok) {
-      throw new Error(`Prediction Board request failed with ${response.status}`);
+      throw await requestError(response, "Prediction Board");
     }
 
     return (await response.json()) as PredictionBoard;
@@ -178,7 +224,7 @@
     const response = await fetch(`${API_URL}/api/value-signals?today=true`);
 
     if (!response.ok) {
-      throw new Error(`Market Value Signals request failed with ${response.status}`);
+      throw await requestError(response, "Market Value Signals");
     }
 
     return (await response.json()) as MarketValueSignalScan;
@@ -188,6 +234,10 @@
     const response = await fetch(`${API_URL}/api/status`);
 
     if (!response.ok) {
+      const error = await requestError(response, "Football Data Status");
+      if (error.setupRequired) {
+        throw error;
+      }
       return null;
     }
 
@@ -198,7 +248,7 @@
     const response = await fetch(`${API_URL}/api/matches/${matchId}`);
 
     if (!response.ok) {
-      throw new Error(`Match Detail request failed with ${response.status}`);
+      throw await requestError(response, "Match Detail");
     }
 
     return (await response.json()) as MatchDetail;
@@ -216,8 +266,12 @@
       matchDetail = await fetchMatchDetail(matchId);
     } catch (error) {
       matchDetail = null;
-      matchDetailError =
-        error instanceof Error ? error.message : "Match Detail is unavailable.";
+      if (error instanceof ApiRequestError && error.setupRequired) {
+        matchDetailError = error.setupRequired.message;
+      } else {
+        matchDetailError =
+          error instanceof Error ? error.message : "Match Detail is unavailable.";
+      }
     } finally {
       matchDetailLoading = false;
     }
@@ -226,6 +280,7 @@
   const loadDashboard = async () => {
     loading = true;
     errorMessage = "";
+    setupRequired = null;
 
     try {
       [board, valueSignals, status] = await Promise.all([
@@ -237,8 +292,12 @@
       board = null;
       valueSignals = null;
       status = null;
-      errorMessage =
-        error instanceof Error ? error.message : "Prediction Board is unavailable.";
+      if (error instanceof ApiRequestError && error.setupRequired) {
+        setupRequired = error.setupRequired;
+      } else {
+        errorMessage =
+          error instanceof Error ? error.message : "Prediction Board is unavailable.";
+      }
     } finally {
       loading = false;
     }
@@ -301,6 +360,14 @@
 
     {#if loading}
       <div class="state">Loading Prediction Board...</div>
+    {:else if setupRequired}
+      <div class="state setup-required">
+        <strong>Database Setup required</strong>
+        <p>{setupRequired.message}</p>
+        {#if setupRequired.setup_command}
+          <code>{setupRequired.setup_command}</code>
+        {/if}
+      </div>
     {:else if errorMessage}
       <div class="state error">{errorMessage}</div>
     {:else if board}

@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from football_intelligence.analyst import AnalystAgent
+from football_intelligence.database import DatabaseSetupRequiredError
 from football_intelligence.match_detail import MatchDetailNotFound
 from football_intelligence.value import DEFAULT_SIGNAL_DAYS
 
@@ -382,6 +383,8 @@ def create_app(
     async def status() -> dict[str, Any]:
         try:
             return football_status.get_status().to_dict()
+        except DatabaseSetupRequiredError as exc:
+            raise _setup_required_http_exception(exc) from exc
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -389,6 +392,8 @@ def create_app(
     async def today_prediction_board() -> dict[str, Any]:
         try:
             return prediction_board.today().to_dict()
+        except DatabaseSetupRequiredError as exc:
+            raise _setup_required_http_exception(exc) from exc
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -403,6 +408,8 @@ def create_app(
             return market_value_signals.next_days(days=days).to_dict()
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except DatabaseSetupRequiredError as exc:
+            raise _setup_required_http_exception(exc) from exc
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -412,6 +419,8 @@ def create_app(
             return match_detail.get_match_detail(match_id).to_dict()
         except MatchDetailNotFound as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except DatabaseSetupRequiredError as exc:
+            raise _setup_required_http_exception(exc) from exc
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -446,6 +455,17 @@ def _configured_chat_llm() -> Any:
 
 def _count_messages_by_role(messages: Sequence[dict[str, Any]], role: str) -> int:
     return sum(1 for message in messages if message["role"] == role)
+
+
+def _setup_required_http_exception(exc: DatabaseSetupRequiredError) -> HTTPException:
+    return HTTPException(
+        status_code=503,
+        detail={
+            "code": exc.code,
+            "message": str(exc),
+            "setup_command": exc.setup_command,
+        },
+    )
 
 
 def _prompt_messages(prompt_value: Any) -> list[dict[str, str]]:

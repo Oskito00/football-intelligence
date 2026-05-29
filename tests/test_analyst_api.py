@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from football_intelligence.analyst import AnalystAgent, AnalystFootballTools
 from football_intelligence.api import AnalystChatService, create_app
+from football_intelligence.database import DatabaseSetupRequiredError
 from tests.test_analyst_agent import FakePlanner, FakeSynthesizer
 from tests.test_analyst_tools import FakeFootballQueries
 
@@ -140,3 +141,48 @@ def test_status_endpoint_returns_deterministic_football_data_status_json():
 
     assert response.status_code == 200
     assert response.json() == FakeStatus().to_dict()
+
+
+def test_read_only_dashboard_endpoints_return_setup_required_for_missing_schema():
+    class MissingSchemaService:
+        def get_status(self):
+            raise DatabaseSetupRequiredError('relation "matches" does not exist')
+
+        def today(self):
+            raise DatabaseSetupRequiredError('relation "matches" does not exist')
+
+        def next_days(self, *, days=7):
+            raise DatabaseSetupRequiredError('relation "matches" does not exist')
+
+        def get_match_detail(self, match_id):
+            raise DatabaseSetupRequiredError('relation "matches" does not exist')
+
+    service = MissingSchemaService()
+    client = TestClient(
+        create_app(
+            status_service=service,
+            board_service=service,
+            value_service=service,
+            match_detail_service=service,
+        )
+    )
+
+    responses = [
+        client.get("/api/status"),
+        client.get("/api/board/today"),
+        client.get("/api/value-signals"),
+        client.get("/api/matches/42"),
+    ]
+
+    assert [response.status_code for response in responses] == [503, 503, 503, 503]
+    for response in responses:
+        assert response.json()["detail"] == {
+            "code": "setup_required",
+            "message": (
+                "Database Setup is required before read-only Football Intelligence "
+                "surfaces can query this database. Run "
+                "`python -m football_intelligence.cli db setup`. "
+                'Detail: relation "matches" does not exist'
+            ),
+            "setup_command": "python -m football_intelligence.cli db setup",
+        }

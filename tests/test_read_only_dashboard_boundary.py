@@ -168,6 +168,20 @@ def test_dashboard_api_endpoints_are_get_only_deterministic_contracts():
         assert forbidden_path not in schema["paths"]
 
 
+def test_dashboard_api_startup_does_not_run_database_setup(monkeypatch):
+    from football_intelligence.database import setup as database_setup
+
+    def fail_setup(*args, **kwargs):
+        raise AssertionError("API startup must not run Database Setup")
+
+    monkeypatch.setattr(database_setup, "setup_database", fail_setup)
+    monkeypatch.setattr(database_setup, "upgrade_database", fail_setup)
+
+    client = TestClient(create_app())
+
+    assert client.get("/openapi.json").status_code == 200
+
+
 def test_dashboard_api_endpoints_do_not_require_analyst_agent_chat_flow():
     client = TestClient(
         create_app(
@@ -206,6 +220,16 @@ def test_svelte_dashboard_only_calls_read_only_dashboard_endpoints():
 
     for forbidden_control in FORBIDDEN_DASHBOARD_CONTROL_LABELS:
         assert forbidden_control.lower() not in app_source.lower()
+
+
+def test_svelte_dashboard_renders_setup_required_state_without_operational_controls():
+    app_source = read_text(ROOT / "frontend" / "src" / "App.svelte")
+
+    assert "setup_required" in app_source
+    assert "Database Setup required" in app_source
+    assert "setup_command" in app_source
+    assert "setupRequired = error.setupRequired" in app_source
+    assert "/api/db" not in app_source
 
 
 def test_future_agent_docs_pin_the_read_only_dashboard_boundary():

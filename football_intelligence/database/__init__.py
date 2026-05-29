@@ -1,6 +1,7 @@
 """Database access home for football data queries and mutations."""
 
 from football_intelligence.database.football import (
+    DatabaseSetupRequiredError,
     FootballQueryError,
     PostgresReadOnlyRunner,
     ReadOnlyFootballQueries,
@@ -27,6 +28,7 @@ from football_intelligence.database.football import (
 )
 
 __all__ = [
+    "DatabaseSetupRequiredError",
     "FootballQueryError",
     "PostgresReadOnlyRunner",
     "ReadOnlyFootballQueries",

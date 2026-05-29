@@ -3,6 +3,7 @@ from datetime import datetime
 import pytest
 
 from football_intelligence.database.football import (
+    DatabaseSetupRequiredError,
     FootballQueryError,
     PostgresReadOnlyRunner,
     ReadOnlyFootballQueries,
@@ -32,6 +33,44 @@ class FailingReadOnlyRunner:
 
     def fetch_all(self, query, params=()):
         raise RuntimeError("database offline")
+
+
+class MissingTableReadOnlyRunner:
+    def fetch_one(self, query, params=()):
+        raise RuntimeError('relation "matches" does not exist')
+
+    def fetch_all(self, query, params=()):
+        raise RuntimeError('relation "matches" does not exist')
+
+
+class SchemaOnlyEmptyReadOnlyRunner:
+    def __init__(self):
+        self.one_results = [
+            None,
+            {"count": 0},
+            {"latest_elo_history_date": None},
+            {"count": 0},
+            {"count": 0},
+            {
+                "latest_retrieved_at": None,
+                "latest_api_last_updated": None,
+                "matches_with_odds_next_7_days": 0,
+            },
+        ]
+        self.feature_family_results = [[] for _ in range(7)]
+        self.calls = []
+
+    def fetch_one(self, query, params=()):
+        self.calls.append(("one", query, tuple(params)))
+        return self.one_results.pop(0)
+
+    def fetch_all(self, query, params=()):
+        self.calls.append(("all", query, tuple(params)))
+        if "team_main_competition" in query:
+            return []
+        if tuple(params) == (42,):
+            return self.feature_family_results.pop(0)
+        return []
 
 
 def test_match_prediction_maps_latest_prediction_shape():
@@ -78,6 +117,20 @@ def test_prediction_lookup_wraps_backend_errors():
 
     with pytest.raises(FootballQueryError, match="Error getting prediction"):
         queries.get_match_prediction(42)
+
+
+def test_missing_required_tables_raise_setup_required_error():
+    queries = ReadOnlyFootballQueries(MissingTableReadOnlyRunner())
+
+    with pytest.raises(DatabaseSetupRequiredError) as exc_info:
+        queries.get_upcoming_matches_between(
+            starts_at=datetime(2026, 5, 29, 12, 0),
+            ends_at=datetime(2026, 5, 30, 0, 0),
+        )
+
+    assert exc_info.value.code == "setup_required"
+    assert exc_info.value.setup_command == "python -m football_intelligence.cli db setup"
+    assert "Database Setup is required" in str(exc_info.value)
 
 
 def test_upcoming_matches_maps_stable_match_shape():
@@ -222,6 +275,40 @@ def test_feature_snapshot_facts_collect_future_feature_families():
     assert facts["head_to_head"]["h2h_avg_total_goals"] == 2.6
     assert facts["form"]["home_team_form"] == {"wins": 3}
     assert all(call[2] == (42,) for call in runner.calls)
+
+
+def test_schema_only_empty_database_returns_empty_read_only_facts():
+    runner = SchemaOnlyEmptyReadOnlyRunner()
+    queries = ReadOnlyFootballQueries(runner)
+
+    status = queries.get_football_data_status_facts()
+    board_matches = queries.get_upcoming_matches_between(
+        starts_at=datetime(2026, 5, 29, 12, 0),
+        ends_at=datetime(2026, 5, 30, 0, 0),
+    )
+    feature_facts = queries.get_feature_snapshot_facts(42)
+
+    assert status == {
+        "latest_completed_match": None,
+        "unprocessed_completed_matches": 0,
+        "latest_elo_history_date": None,
+        "future_feature_set_count": 0,
+        "prediction_count_next_7_days": 0,
+        "odds_freshness": {
+            "latest_retrieved_at": None,
+            "latest_api_last_updated": None,
+            "matches_with_odds_next_7_days": 0,
+        },
+        "top_premier_league_elo_teams": [],
+    }
+    assert board_matches == []
+    assert queries.get_multiple_match_predictions([]) == {}
+    assert queries.get_odds_freshness_for_matches([]) == {}
+    assert feature_facts == {}
+    assert all(
+        call[1].lstrip().upper().startswith(("SELECT", "WITH"))
+        for call in runner.calls
+    )
 
 
 def test_odds_freshness_maps_latest_odds_by_match():

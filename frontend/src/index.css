@@ -340,6 +340,23 @@ h4 {
   color: #a43f3f;
 }
 
+.setup-required {
+  display: grid;
+  gap: 10px;
+  color: #8a4b16;
+}
+
+.setup-required code {
+  width: fit-content;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  border: 1px solid #e0c6aa;
+  border-radius: 6px;
+  background: #fff8f0;
+  padding: 8px 10px;
+  color: #63350f;
+}
+
 @media (max-width: 900px) {
   .dashboard {
     padding: 18px;

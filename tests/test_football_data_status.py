@@ -137,3 +137,40 @@ def test_football_data_status_warns_when_odds_are_stale():
         "stale_odds",
         "missing_premier_league_elo_teams",
     }
+
+
+def test_football_data_status_distinguishes_empty_data_from_setup_failure():
+    class EmptySchemaStatusQueries:
+        def get_football_data_status_facts(self, **kwargs):
+            return {
+                "latest_completed_match": None,
+                "unprocessed_completed_matches": 0,
+                "latest_elo_history_date": None,
+                "future_feature_set_count": 0,
+                "prediction_count_next_7_days": 0,
+                "odds_freshness": {
+                    "latest_retrieved_at": None,
+                    "latest_api_last_updated": None,
+                    "matches_with_odds_next_7_days": 0,
+                },
+                "top_premier_league_elo_teams": [],
+            }
+
+    service = FootballDataStatusService(
+        EmptySchemaStatusQueries(),
+        now_factory=lambda: datetime(2026, 5, 29, 12, 0),
+    )
+
+    status = service.get_status().to_dict()
+
+    assert status["latest_completed_match"] is None
+    assert status["future_feature_set_count"] == 0
+    assert status["prediction_count_next_7_days"] == 0
+    assert {warning["code"] for warning in status["warnings"]} == {
+        "missing_latest_completed_match",
+        "missing_latest_elo_history",
+        "missing_future_feature_set",
+        "missing_predictions",
+        "missing_odds",
+        "missing_premier_league_elo_teams",
+    }

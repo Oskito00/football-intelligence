@@ -132,6 +132,20 @@ class FootballQueryError(RuntimeError):
     """Raised when a read-only football query cannot be completed."""
 
 
+class DatabaseSetupRequiredError(FootballQueryError):
+    """Raised when read-only access finds required schema is missing."""
+
+    code = "setup_required"
+    setup_command = "python -m football_intelligence.cli db setup"
+
+    def __init__(self, detail: str):
+        super().__init__(
+            "Database Setup is required before read-only Football Intelligence "
+            f"surfaces can query this database. Run `{self.setup_command}`. "
+            f"Detail: {detail}"
+        )
+
+
 class ReadOnlyQueryRunner(Protocol):
     """Small DB-API boundary used by the football query module."""
 
@@ -214,9 +228,7 @@ class ReadOnlyFootballQueries:
         try:
             row = self._runner.fetch_one(query, (match_id,))
         except Exception as exc:
-            raise FootballQueryError(
-                f"Error getting prediction for match {match_id}: {exc}"
-            ) from exc
+            raise _query_error(f"Error getting prediction for match {match_id}", exc) from exc
 
         return _map_prediction(row) if row else None
 
@@ -247,7 +259,7 @@ class ReadOnlyFootballQueries:
         try:
             rows = self._runner.fetch_all(query, tuple(match_ids))
         except Exception as exc:
-            raise FootballQueryError(f"Error getting predictions: {exc}") from exc
+            raise _query_error("Error getting predictions", exc) from exc
 
         predictions: dict[int, Prediction] = {}
         for row in rows:
@@ -308,7 +320,7 @@ class ReadOnlyFootballQueries:
         try:
             rows = self._runner.fetch_all(query, tuple(params))
         except Exception as exc:
-            raise FootballQueryError(f"Error getting upcoming matches: {exc}") from exc
+            raise _query_error("Error getting upcoming matches", exc) from exc
 
         return [_map_upcoming_match(row) for row in rows]
 
@@ -339,9 +351,7 @@ class ReadOnlyFootballQueries:
         try:
             rows = self._runner.fetch_all(query, (starts_at, ends_at))
         except Exception as exc:
-            raise FootballQueryError(
-                f"Error getting Prediction Board matches: {exc}"
-            ) from exc
+            raise _query_error("Error getting Prediction Board matches", exc) from exc
 
         return [_map_upcoming_match(row) for row in rows]
 
@@ -366,7 +376,7 @@ class ReadOnlyFootballQueries:
         try:
             row = self._runner.fetch_one(query, (match_id,))
         except Exception as exc:
-            raise FootballQueryError(f"Error getting match {match_id}: {exc}") from exc
+            raise _query_error(f"Error getting match {match_id}", exc) from exc
 
         return _map_match_detail(row) if row else None
 
@@ -379,9 +389,7 @@ class ReadOnlyFootballQueries:
                 if rows:
                     facts[family] = _map_feature_snapshot_family(family, rows[0])
         except Exception as exc:
-            raise FootballQueryError(
-                f"Error getting Feature Snapshot for match {match_id}: {exc}"
-            ) from exc
+            raise _query_error(f"Error getting Feature Snapshot for match {match_id}", exc) from exc
 
         return facts
 
@@ -428,7 +436,7 @@ class ReadOnlyFootballQueries:
         try:
             rows = self._runner.fetch_all(query, tuple(query_params))
         except Exception as exc:
-            raise FootballQueryError(f"Error getting recent form: {exc}") from exc
+            raise _query_error("Error getting recent form", exc) from exc
 
         if not rows:
             return {
@@ -504,9 +512,7 @@ class ReadOnlyFootballQueries:
         try:
             rows = self._runner.fetch_all(query, tuple(match_ids))
         except Exception as exc:
-            raise FootballQueryError(
-                f"Error getting odds freshness for Prediction Board: {exc}"
-            ) from exc
+            raise _query_error("Error getting odds freshness for Prediction Board", exc) from exc
 
         return {
             int(row["match_id"]): {
@@ -700,7 +706,7 @@ class ReadOnlyFootballQueries:
                 (elo_competition, elo_country, top_team_limit),
             )
         except Exception as exc:
-            raise FootballQueryError(f"Error getting Football Data Status: {exc}") from exc
+            raise _query_error("Error getting Football Data Status", exc) from exc
 
         return {
             "latest_completed_match": _map_completed_match(latest_completed_match)
@@ -768,7 +774,7 @@ class ReadOnlyFootballQueries:
         try:
             return self._runner.fetch_all(query, tuple(match_ids) + (bet_type_id,))
         except Exception as exc:
-            raise FootballQueryError(f"Error getting odds: {exc}") from exc
+            raise _query_error("Error getting odds", exc) from exc
 
     def get_value_backtest_matches(self) -> list[dict[str, Any]]:
         """Return Completed Matches with retained Predictions and historical odds."""
@@ -805,9 +811,7 @@ class ReadOnlyFootballQueries:
         try:
             rows = self._runner.fetch_all(query)
         except Exception as exc:
-            raise FootballQueryError(
-                f"Error getting Value Backtest rows: {exc}"
-            ) from exc
+            raise _query_error("Error getting Value Backtest rows", exc) from exc
 
         return _map_value_backtest_matches(rows)
 
@@ -816,6 +820,28 @@ def _ensure_read_only_query(query: str) -> None:
     normalized = query.lstrip().upper()
     if not normalized.startswith(("SELECT", "WITH")):
         raise ValueError("read-only football queries may only use SELECT or WITH")
+
+
+def _query_error(context: str, exc: Exception) -> FootballQueryError:
+    detail = f"{context}: {exc}"
+    if _is_missing_required_table_error(exc):
+        return DatabaseSetupRequiredError(detail)
+    return FootballQueryError(detail)
+
+
+def _is_missing_required_table_error(exc: Exception) -> bool:
+    if getattr(exc, "pgcode", None) == "42P01":
+        return True
+    cause = getattr(exc, "__cause__", None)
+    if cause is not None and cause is not exc:
+        return _is_missing_required_table_error(cause)
+
+    error_text = str(exc).lower()
+    return (
+        "undefinedtable" in type(exc).__name__.lower()
+        or "does not exist" in error_text
+        or "no such table" in error_text
+    )
 
 
 def _placeholders(values: Sequence[Any]) -> str:
@@ -1254,6 +1280,7 @@ def _date_string(value: Any) -> str | None:
 
 
 __all__ = [
+    "DatabaseSetupRequiredError",
     "FootballQueryError",
     "PostgresReadOnlyRunner",
     "ReadOnlyFootballQueries",

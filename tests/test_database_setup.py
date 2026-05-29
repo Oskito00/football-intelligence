@@ -152,10 +152,11 @@ def test_baseline_migration_is_schema_only_and_covers_current_tables():
         "match_info_history",
         "match_info_future",
         "league_standings_future",
+        "team_main_competition",
         "teams_mapping",
     }
 
     assert required_tables.issubset(BASELINE_TABLES)
-    assert len(BASELINE_TABLES) == 27
+    assert len(BASELINE_TABLES) == 28
     assert "INSERT INTO" not in baseline_schema.BASELINE_SCHEMA_SQL
     assert "COPY " not in baseline_schema.BASELINE_SCHEMA_SQL

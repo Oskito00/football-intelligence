@@ -677,6 +677,14 @@ CREATE TABLE teams_mapping (
     domestic_country character varying(100),
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE team_main_competition (
+    team_id integer NOT NULL,
+    team_name text,
+    main_competition_id integer,
+    main_competition_name text,
+    main_competition_country text,
+    match_count integer
+);
 ALTER TABLE ONLY h2h_stats ALTER COLUMN team_pair_id SET DEFAULT nextval('h2h_stats_team_pair_id_seq'::regclass);
 ALTER TABLE ONLY odds ALTER COLUMN id SET DEFAULT nextval('odds_id_seq'::regclass);
 ALTER TABLE ONLY club_elo_ratings
@@ -721,6 +729,8 @@ ALTER TABLE ONLY teammatchhistory
     ADD CONSTRAINT teammatchhistory_pkey PRIMARY KEY (team_id, match_id);
 ALTER TABLE ONLY teams_mapping
     ADD CONSTRAINT teams_mapping_pkey PRIMARY KEY (team_id);
+ALTER TABLE ONLY team_main_competition
+    ADD CONSTRAINT team_main_competition_pkey PRIMARY KEY (team_id);
 CREATE INDEX idx_elo_future_start_time ON elo_future USING btree (start_time);
 CREATE INDEX idx_form_matches_away_team ON form_matches_cache USING btree (away_team_id);
 CREATE INDEX idx_form_matches_home_team ON form_matches_cache USING btree (home_team_id);
@@ -752,6 +762,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_table("team_main_competition")
     op.drop_table("teams_mapping")
     op.drop_table("teammatchhistory")
     op.drop_table("stage_of_season_history")
