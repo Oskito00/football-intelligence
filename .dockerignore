@@ -21,5 +21,6 @@
 *.csv
 *.parquet
 models/*
+!models/.gitkeep
 backup.sql.gz
 data/

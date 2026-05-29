@@ -82,29 +82,23 @@ class ModelIO:
         """
         if version is None:
             model_dir = self.base_path / f"{model_name}_latest"
-            if not model_dir.exists():
-                raise FileNotFoundError(
-                    _missing_model_message(model_name, model_dir)
-                )
         else:
             model_dir = self.base_path / f"{model_name}_{version}"
-            if not model_dir.exists():
-                raise FileNotFoundError(
-                    _missing_model_message(model_name, model_dir, version=version)
-                )
 
-        # Load model
+        if not model_dir.exists():
+            raise FileNotFoundError(
+                _missing_model_message(model_name, model_dir, version=version)
+            )
+
         import joblib
 
         model_path = model_dir / "model.pkl"
         model = joblib.load(model_path)
 
-        # Load metadata
         metadata_path = model_dir / "metadata.json"
         with open(metadata_path, 'r') as f:
             metadata = json.load(f)
 
-        # Load preprocessor if exists
         preprocessor_path = model_dir / "preprocessor.pkl"
         preprocessor = None
         if preprocessor_path.exists():

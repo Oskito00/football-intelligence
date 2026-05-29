@@ -1,5 +1,5 @@
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -16,6 +16,21 @@ from tests.import_audit import find_imports_matching, is_module_or_child
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+GENERATED_ARTIFACT_IGNORE_RULES = (
+    "models/*",
+    "!models/.gitkeep",
+    "*.pkl",
+    "*.joblib",
+    "*.sqlite",
+    "*.sqlite3",
+    "*.db",
+    "*.dump",
+    "*.sql",
+    "*.sql.gz",
+    "*.csv",
+    "*.parquet",
+    "data/",
+)
 
 
 def test_prediction_namespace_owns_inference_training_and_feature_loading():
@@ -86,27 +101,25 @@ def test_prediction_configs_and_saved_models_use_product_paths():
     assert "ml_pipeline" not in str(config)
 
 
-def test_generated_model_and_data_outputs_are_ignored():
-    gitignore = (PROJECT_ROOT / ".gitignore").read_text(encoding="utf-8")
-
-    required_ignore_rules = (
-        "models/*",
-        "!models/.gitkeep",
-        "*.pkl",
-        "*.joblib",
-        "*.sqlite",
-        "*.sqlite3",
-        "*.db",
-        "*.dump",
-        "*.sql",
-        "*.sql.gz",
-        "*.csv",
-        "*.parquet",
-        "data/",
+def test_generated_model_and_data_outputs_are_ignored_by_git():
+    assert_ignore_rules(
+        PROJECT_ROOT / ".gitignore",
+        GENERATED_ARTIFACT_IGNORE_RULES,
     )
 
+
+def test_generated_model_and_data_outputs_are_ignored_by_docker_context():
+    assert_ignore_rules(
+        PROJECT_ROOT / ".dockerignore",
+        GENERATED_ARTIFACT_IGNORE_RULES,
+    )
+
+
+def assert_ignore_rules(ignore_file: Path, required_ignore_rules: tuple[str, ...]) -> None:
+    ignored_paths = ignore_file.read_text(encoding="utf-8").splitlines()
+
     for rule in required_ignore_rules:
-        assert rule in gitignore
+        assert rule in ignored_paths
 
 
 def test_missing_model_artifact_error_explains_local_model_training_path(tmp_path):
