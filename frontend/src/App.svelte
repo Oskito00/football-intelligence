@@ -92,6 +92,57 @@
     empty_state: string | null;
   };
 
+  type MatchDetail = {
+    title: string;
+    match: {
+      match_id: number;
+      start_time: string | null;
+      home_team: string;
+      away_team: string;
+      competition: string;
+      country: string;
+      competition_id?: number | null;
+      status?: string | null;
+      score?: string | null;
+    };
+    prediction: Prediction | null;
+    prediction_empty_state: string | null;
+    odds_context: {
+      has_odds: boolean;
+      best_prices: {
+        outcome: string;
+        best_odds: number | null;
+        implied_probability: number | null;
+        bookmaker: string | null;
+        retrieved_at: string | null;
+      }[];
+      empty_state: string | null;
+    };
+    feature_snapshot: {
+      title: string;
+      available: boolean;
+      groups: {
+        title: string;
+        metrics: {
+          label: string;
+          value: unknown;
+        }[];
+      }[];
+      market_context: {
+        has_odds: boolean;
+        best_prices: {
+          outcome: string;
+          best_odds: number | null;
+          implied_probability: number | null;
+          bookmaker: string | null;
+          retrieved_at: string | null;
+        }[];
+      };
+      empty_state: string | null;
+    };
+    warnings: DashboardWarning[];
+  };
+
   type FootballDataStatus = {
     odds_freshness: {
       latest_retrieved_at: string | null;
@@ -109,6 +160,9 @@
   let board: PredictionBoard | null = null;
   let valueSignals: MarketValueSignalScan | null = null;
   let status: FootballDataStatus | null = null;
+  let matchDetail: MatchDetail | null = null;
+  let matchDetailLoading = false;
+  let matchDetailError = "";
   let loading = true;
   let errorMessage = "";
 
@@ -140,6 +194,35 @@
     }
 
     return (await response.json()) as FootballDataStatus;
+  };
+
+  const fetchMatchDetail = async (matchId: number) => {
+    const response = await fetch(`${API_URL}/api/matches/${matchId}`);
+
+    if (!response.ok) {
+      throw new Error(`Match Detail request failed with ${response.status}`);
+    }
+
+    return (await response.json()) as MatchDetail;
+  };
+
+  const openMatchDetail = async (matchId: number | undefined) => {
+    if (matchId === undefined) {
+      return;
+    }
+
+    matchDetailLoading = true;
+    matchDetailError = "";
+
+    try {
+      matchDetail = await fetchMatchDetail(matchId);
+    } catch (error) {
+      matchDetail = null;
+      matchDetailError =
+        error instanceof Error ? error.message : "Match Detail is unavailable.";
+    } finally {
+      matchDetailLoading = false;
+    }
   };
 
   const loadDashboard = async () => {
@@ -185,6 +268,22 @@
     }
 
     return `${value.toFixed(1)}%`;
+  };
+
+  const formatFeatureValue = (value: unknown) => {
+    if (value === null || value === undefined || value === "") {
+      return "None";
+    }
+
+    if (typeof value === "number") {
+      return Number.isInteger(value) ? String(value) : value.toFixed(2);
+    }
+
+    if (typeof value === "object") {
+      return JSON.stringify(value);
+    }
+
+    return String(value);
   };
 
   loadDashboard();
@@ -270,6 +369,13 @@
                   {:else}
                     <span>No signals</span>
                   {/if}
+                  <button
+                    class="detail-button"
+                    type="button"
+                    onclick={() => openMatchDetail(match.match_id)}
+                  >
+                    Details
+                  </button>
                 </div>
 
                 {#if match.market_value_signals.length}
@@ -289,6 +395,74 @@
         </section>
 
         <aside class="side-rail" aria-label="Dashboard context">
+          <section class="context-panel detail-panel">
+            <h2>Match Detail</h2>
+            {#if matchDetailLoading}
+              <p class="empty">Loading Match Detail...</p>
+            {:else if matchDetailError}
+              <p class="empty error">{matchDetailError}</p>
+            {:else if matchDetail}
+              <div class="detail-heading">
+                <span>{formatValue(matchDetail.match.start_time)}</span>
+                <strong>{matchDetail.match.home_team} vs {matchDetail.match.away_team}</strong>
+                <small>{matchDetail.match.competition} / {matchDetail.match.country}</small>
+              </div>
+
+              <div class="detail-block">
+                <h3>Prediction</h3>
+                {#if matchDetail.prediction}
+                  <div class="probabilities compact">
+                    <span>Home {formatPercent(matchDetail.prediction.probabilities.home_win)}</span>
+                    <span>Draw {formatPercent(matchDetail.prediction.probabilities.draw)}</span>
+                    <span>Away {formatPercent(matchDetail.prediction.probabilities.away_win)}</span>
+                  </div>
+                {:else}
+                  <p class="empty">{matchDetail.prediction_empty_state}</p>
+                {/if}
+              </div>
+
+              <div class="detail-block">
+                <h3>Odds Context</h3>
+                {#if matchDetail.odds_context.best_prices.length}
+                  <ul class="metric-list">
+                    {#each matchDetail.odds_context.best_prices as price}
+                      <li>
+                        <span>{price.outcome}</span>
+                        <strong>{formatValue(price.best_odds)}</strong>
+                        <small>{formatValue(price.bookmaker)}</small>
+                      </li>
+                    {/each}
+                  </ul>
+                {:else}
+                  <p class="empty">{matchDetail.odds_context.empty_state}</p>
+                {/if}
+              </div>
+
+              <div class="detail-block">
+                <h3>{matchDetail.feature_snapshot.title}</h3>
+                {#if matchDetail.feature_snapshot.groups.length}
+                  {#each matchDetail.feature_snapshot.groups as group}
+                    <div class="feature-group">
+                      <h4>{group.title}</h4>
+                      <ul class="metric-list">
+                        {#each group.metrics as metric}
+                          <li>
+                            <span>{metric.label}</span>
+                            <strong>{formatFeatureValue(metric.value)}</strong>
+                          </li>
+                        {/each}
+                      </ul>
+                    </div>
+                  {/each}
+                {:else}
+                  <p class="empty">{matchDetail.feature_snapshot.empty_state}</p>
+                {/if}
+              </div>
+            {:else}
+              <p class="empty">No match selected.</p>
+            {/if}
+          </section>
+
           <section class="context-panel">
             <h2>Market Value Signals</h2>
             <strong>
@@ -305,6 +479,13 @@
                     <div>
                       <strong>{formatPercent(signal.edge)}</strong>
                       <small>{formatPlainPercent(signal.paper_stake_percentage)} Paper Stake</small>
+                      <button
+                        class="detail-button compact-button"
+                        type="button"
+                        onclick={() => openMatchDetail(signal.match_id)}
+                      >
+                        Details
+                      </button>
                     </div>
                   </li>
                 {/each}

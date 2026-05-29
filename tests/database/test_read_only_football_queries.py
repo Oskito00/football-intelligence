@@ -145,6 +145,85 @@ def test_prediction_board_match_window_uses_explicit_bounds():
     assert runner.calls == [("all", runner.calls[0][1], (starts_at, ends_at))]
 
 
+def test_match_detail_lookup_maps_match_by_id():
+    start_time = datetime(2026, 5, 29, 20, 0)
+    queries = ReadOnlyFootballQueries(
+        FakeReadOnlyRunner(
+            one={
+                "match_id": 42,
+                "start_time": start_time,
+                "home_team_name": "Arsenal",
+                "away_team_name": "Chelsea",
+                "competition_name": "Premier League",
+                "competition_country": "England",
+                "competition_id": 39,
+                "match_status": "NS",
+                "home_score": None,
+                "away_score": None,
+            }
+        )
+    )
+
+    match = queries.get_match(42)
+
+    assert match == {
+        "match_id": 42,
+        "start_time": start_time,
+        "home_team": "Arsenal",
+        "away_team": "Chelsea",
+        "competition": "Premier League",
+        "country": "England",
+        "competition_id": 39,
+        "status": "NS",
+        "score": None,
+    }
+
+
+def test_feature_snapshot_facts_collect_future_feature_families():
+    runner = FakeReadOnlyRunner(
+        many=[
+            [{"competition_season_name": "2025/2026"}],
+            [{"stage_of_season": 0.73, "stage_of_season_category": "late"}],
+            [{"home_team_formation": "4-3-3", "away_team_formation": "3-4-3"}],
+            [
+                {
+                    "home_team_elo_K40": 1875,
+                    "away_team_elo_K40": 1810,
+                    "k_draw_parameter": 0.24,
+                    "eta_home_advantage": 0.31,
+                }
+            ],
+            [
+                {
+                    "home_standing": 2,
+                    "home_points": 71,
+                    "away_standing": 5,
+                    "away_points": 63,
+                }
+            ],
+            [
+                {
+                    "h2h_home_wins_last_10": 0.5,
+                    "h2h_draws_last_10": 0.2,
+                    "h2h_away_wins_last_10": 0.3,
+                    "h2h_avg_total_goals": 2.6,
+                }
+            ],
+            [{"home_team_form": {"wins": 3}, "away_team_form": {"wins": 2}}],
+        ]
+    )
+    queries = ReadOnlyFootballQueries(runner)
+
+    facts = queries.get_feature_snapshot_facts(42)
+
+    assert facts["match_info"] == {"competition_season": "2025/2026"}
+    assert facts["team_strength"]["home_team_elo_K40"] == 1875
+    assert facts["league_standings"]["away_points"] == 63
+    assert facts["head_to_head"]["h2h_avg_total_goals"] == 2.6
+    assert facts["form"]["home_team_form"] == {"wins": 3}
+    assert all(call[2] == (42,) for call in runner.calls)
+
+
 def test_odds_freshness_maps_latest_odds_by_match():
     retrieved_at = datetime(2026, 5, 29, 9, 30)
     api_last_updated = datetime(2026, 5, 29, 9, 20)

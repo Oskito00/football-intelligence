@@ -65,6 +65,23 @@ h2 {
   line-height: 1.2;
 }
 
+h3,
+h4 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+h3 {
+  font-size: 0.92rem;
+  line-height: 1.2;
+}
+
+h4 {
+  color: #34404a;
+  font-size: 0.84rem;
+  line-height: 1.2;
+}
+
 .refresh-button {
   min-height: 42px;
   border: 1px solid #9aa8b2;
@@ -74,6 +91,23 @@ h2 {
   padding: 0 16px;
   font-weight: 700;
   cursor: pointer;
+}
+
+.detail-button {
+  min-height: 32px;
+  border: 1px solid #9aa8b2;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #20262d;
+  padding: 0 12px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.compact-button {
+  margin-top: 4px;
+  justify-self: end;
 }
 
 .summary-grid {
@@ -193,10 +227,20 @@ h2 {
   font-size: 0.92rem;
 }
 
+.probabilities.compact {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 0;
+  border-top: 0;
+}
+
 .signal-list,
 .signal-detail-list,
 .team-list,
-.warning-list {
+.warning-list,
+.metric-list {
   margin: 14px 0 0;
   padding: 0;
   list-style: none;
@@ -205,7 +249,8 @@ h2 {
 .signal-list li,
 .signal-detail-list li,
 .team-list li,
-.warning-list li {
+.warning-list li,
+.metric-list li {
   padding: 10px 0;
   border-top: 1px solid #e5eaee;
 }
@@ -250,11 +295,48 @@ h2 {
   gap: 10px;
 }
 
+.detail-panel {
+  gap: 14px;
+}
+
+.detail-heading,
+.detail-block,
+.feature-group {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.detail-heading span,
+.detail-heading small,
+.metric-list span,
+.metric-list strong,
+.metric-list small {
+  overflow-wrap: anywhere;
+}
+
+.detail-heading span,
+.detail-heading small {
+  color: #5b6b79;
+}
+
+.metric-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 12px;
+}
+
+.metric-list small {
+  grid-column: 1 / -1;
+  color: #5b6b79;
+}
+
 .state {
   color: #5b6b79;
 }
 
-.state.error {
+.state.error,
+.empty.error {
   color: #a43f3f;
 }
 

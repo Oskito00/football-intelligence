@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from football_intelligence.analyst import AnalystAgent
+from football_intelligence.match_detail import MatchDetailNotFound
 from football_intelligence.value import DEFAULT_SIGNAL_DAYS
 
 _RECENT_CONTEXT_MESSAGE_LIMIT = 6
@@ -109,6 +110,20 @@ class MarketValueSignalServiceLike(Protocol):
         days: int = DEFAULT_SIGNAL_DAYS,
     ) -> MarketValueSignalScanLike:
         """Return Market Value Signals for the next N days."""
+
+
+class MatchDetailLike(Protocol):
+    """Match detail object returned by the match detail service."""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return deterministic API-ready match detail."""
+
+
+class MatchDetailServiceLike(Protocol):
+    """API-facing match detail behavior."""
+
+    def get_match_detail(self, match_id: int) -> MatchDetailLike:
+        """Return match detail for one match."""
 
 
 class AnalystChatService:
@@ -266,6 +281,23 @@ class LazyMarketValueSignalService:
         return self._service
 
 
+class LazyMatchDetailService:
+    """Lazy default match detail service so importing the ASGI app does not touch DB config."""
+
+    def __init__(self):
+        self._service: MatchDetailServiceLike | None = None
+
+    def get_match_detail(self, match_id: int) -> MatchDetailLike:
+        return self._get_service().get_match_detail(match_id)
+
+    def _get_service(self) -> MatchDetailServiceLike:
+        if self._service is None:
+            from football_intelligence.match_detail import MatchDetailService
+
+            self._service = MatchDetailService.from_config()
+        return self._service
+
+
 class GroqChatRunnable:
     """Groq chat completion adapter used by the LangChain RunnableLambda."""
 
@@ -300,6 +332,7 @@ def create_app(
     status_service: FootballDataStatusServiceLike | None = None,
     board_service: PredictionBoardServiceLike | None = None,
     value_service: MarketValueSignalServiceLike | None = None,
+    match_detail_service: MatchDetailServiceLike | None = None,
 ) -> FastAPI:
     """Create the FastAPI app while preserving the existing external contract."""
     service = chat_service if chat_service is not None else LazyAnalystChatService()
@@ -313,6 +346,11 @@ def create_app(
     )
     market_value_signals = (
         value_service if value_service is not None else LazyMarketValueSignalService()
+    )
+    match_detail = (
+        match_detail_service
+        if match_detail_service is not None
+        else LazyMatchDetailService()
     )
     api_app = FastAPI()
 
@@ -368,6 +406,15 @@ def create_app(
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    @api_app.get("/api/matches/{match_id}")
+    async def match_detail_by_id(match_id: int) -> dict[str, Any]:
+        try:
+            return match_detail.get_match_detail(match_id).to_dict()
+        except MatchDetailNotFound as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
     @api_app.get("/")
     async def root() -> dict[str, Any]:
         return {
@@ -378,6 +425,7 @@ def create_app(
                 "status": "/api/status",
                 "today_prediction_board": "/api/board/today",
                 "value_signals": "/api/value-signals",
+                "match_detail": "/api/matches/{match_id}",
                 "docs": "/docs",
             },
         }
@@ -386,6 +434,7 @@ def create_app(
     api_app.state.football_data_status_service = football_status
     api_app.state.prediction_board_service = prediction_board
     api_app.state.market_value_signal_service = market_value_signals
+    api_app.state.match_detail_service = match_detail
     return api_app
 
 

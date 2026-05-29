@@ -17,6 +17,7 @@ backend errors from valid no-result lookups.
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 from collections.abc import Callable, Mapping, Sequence
@@ -259,6 +260,108 @@ class ReadOnlyFootballQueries:
             ) from exc
 
         return [_map_upcoming_match(row) for row in rows]
+
+    def get_match(self, match_id: int) -> dict[str, Any] | None:
+        """Return one match by ID for match detail."""
+        query = """
+            SELECT
+                match_id,
+                start_time,
+                home_team_name,
+                away_team_name,
+                competition_name,
+                competition_country,
+                competition_id,
+                match_status,
+                home_score,
+                away_score
+            FROM matches
+            WHERE match_id = %s
+            LIMIT 1
+        """
+        try:
+            row = self._runner.fetch_one(query, (match_id,))
+        except Exception as exc:
+            raise FootballQueryError(f"Error getting match {match_id}: {exc}") from exc
+
+        return _map_match_detail(row) if row else None
+
+    def get_feature_snapshot_facts(self, match_id: int) -> dict[str, Any]:
+        """Return factual Future Feature Set inputs for a Feature Snapshot."""
+        queries = {
+            "match_info": """
+                SELECT competition_season_name
+                FROM match_info_future
+                WHERE match_id = %s
+                ORDER BY start_time DESC
+                LIMIT 1
+            """,
+            "stage_of_season": """
+                SELECT stage_of_season, stage_of_season_category
+                FROM stage_of_season_future
+                WHERE match_id = %s
+                ORDER BY start_time DESC
+                LIMIT 1
+            """,
+            "formation": """
+                SELECT home_team_formation, away_team_formation
+                FROM formation_future
+                WHERE match_id = %s
+                ORDER BY start_time DESC
+                LIMIT 1
+            """,
+            "team_strength": """
+                SELECT
+                    home_team_elo_K40,
+                    away_team_elo_K40,
+                    k_draw_parameter,
+                    eta_home_advantage
+                FROM elo_future
+                WHERE match_id = %s
+                ORDER BY start_time DESC
+                LIMIT 1
+            """,
+            "league_standings": """
+                SELECT
+                    home_standing,
+                    home_points,
+                    away_standing,
+                    away_points
+                FROM league_standings_future
+                WHERE match_id = %s
+                ORDER BY start_time DESC
+                LIMIT 1
+            """,
+            "head_to_head": """
+                SELECT
+                    h2h_home_wins_last_10,
+                    h2h_draws_last_10,
+                    h2h_away_wins_last_10,
+                    h2h_avg_total_goals
+                FROM h2h_future
+                WHERE match_id = %s
+                LIMIT 1
+            """,
+            "form": f"""
+                SELECT home_team_form, away_team_form, draw_features
+                FROM {FORM_FEATURE_SCHEMA.table_for_mode("inference")}
+                WHERE match_id = %s
+                LIMIT 1
+            """,
+        }
+
+        facts = {}
+        try:
+            for family, query in queries.items():
+                rows = self._runner.fetch_all(query, (match_id,))
+                if rows:
+                    facts[family] = _map_feature_snapshot_family(family, rows[0])
+        except Exception as exc:
+            raise FootballQueryError(
+                f"Error getting Feature Snapshot for match {match_id}: {exc}"
+            ) from exc
+
+        return facts
 
     def get_recent_form(
         self,
@@ -699,6 +802,48 @@ def _map_upcoming_match(row: Row) -> dict[str, Any]:
         "country": row["competition_country"],
         "competition_id": row.get("competition_id"),
     }
+
+
+def _map_match_detail(row: Row) -> dict[str, Any]:
+    home_score = row.get("home_score")
+    away_score = row.get("away_score")
+    score = (
+        f"{home_score}-{away_score}"
+        if home_score is not None and away_score is not None
+        else None
+    )
+    return {
+        "match_id": row["match_id"],
+        "start_time": row.get("start_time"),
+        "home_team": row["home_team_name"],
+        "away_team": row["away_team_name"],
+        "competition": row["competition_name"],
+        "country": row["competition_country"],
+        "competition_id": row.get("competition_id"),
+        "status": row.get("match_status"),
+        "score": score,
+    }
+
+
+def _map_feature_snapshot_family(family: str, row: Row) -> dict[str, Any]:
+    mapped = {key: _json_value(value) for key, value in dict(row).items()}
+    if family == "match_info":
+        return {
+            "competition_season": mapped.get("competition_season_name"),
+        }
+    return mapped
+
+
+def _json_value(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    stripped = value.strip()
+    if not stripped or stripped[0] not in "[{":
+        return value
+    try:
+        return json.loads(stripped)
+    except json.JSONDecodeError:
+        return value
 
 
 def _map_completed_match(row: Row) -> dict[str, Any]:
