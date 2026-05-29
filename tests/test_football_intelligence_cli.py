@@ -1,4 +1,5 @@
 from football_intelligence.cli import main as cli_main
+from football_intelligence.predictions.refresh import PredictionRefreshResult
 
 
 def test_model_training_command_runs_current_result_model_with_arguments(monkeypatch):
@@ -43,14 +44,7 @@ def test_prediction_refresh_command_does_not_invoke_model_training(monkeypatch):
             }
         )
 
-        return type(
-            "Result",
-            (),
-            {
-                "steps_run": ("refresh current match data",),
-                "steps_failed": (),
-            },
-        )()
+        return PredictionRefreshResult(steps_run=("refresh current match data",))
 
     from football_intelligence.cli import prediction_refresh
 
@@ -84,14 +78,7 @@ def test_prediction_refresh_command_forwards_selector_arguments(monkeypatch):
                 "selectors": selectors,
             }
         )
-        return type(
-            "Result",
-            (),
-            {
-                "steps_run": ("build Future Feature Set",),
-                "steps_failed": (),
-            },
-        )()
+        return PredictionRefreshResult(steps_run=("build Future Feature Set",))
 
     from football_intelligence.cli import prediction_refresh
 

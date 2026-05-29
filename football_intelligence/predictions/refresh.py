@@ -16,16 +16,24 @@ from football_intelligence.ingestion import SourceDataIngestion
 
 
 DEFAULT_MODEL_CONFIG = "result_model_early"
-PREDICTION_REFRESH_SELECTORS = {
-    "source-data-ingestion": {
-        "refresh league catalogue",
-        "refresh current match data",
-    },
-    "historical-feature-set": {"build Historical Feature Set"},
-    "future-feature-set": {"build Future Feature Set"},
-    "prediction-inference": {"run Prediction inference"},
-    "odds-refresh": {"refresh odds"},
+REFRESH_LEAGUE_CATALOGUE_STEP = "refresh league catalogue"
+REFRESH_CURRENT_MATCH_DATA_STEP = "refresh current match data"
+BUILD_HISTORICAL_FEATURE_SET_STEP = "build Historical Feature Set"
+BUILD_FUTURE_FEATURE_SET_STEP = "build Future Feature Set"
+RUN_PREDICTION_INFERENCE_STEP = "run Prediction inference"
+REFRESH_ODDS_STEP = "refresh odds"
+
+PREDICTION_REFRESH_SELECTORS: dict[str, tuple[str, ...]] = {
+    "source-data-ingestion": (
+        REFRESH_LEAGUE_CATALOGUE_STEP,
+        REFRESH_CURRENT_MATCH_DATA_STEP,
+    ),
+    "historical-feature-set": (BUILD_HISTORICAL_FEATURE_SET_STEP,),
+    "future-feature-set": (BUILD_FUTURE_FEATURE_SET_STEP,),
+    "prediction-inference": (RUN_PREDICTION_INFERENCE_STEP,),
+    "odds-refresh": (REFRESH_ODDS_STEP,),
 }
+PREDICTION_REFRESH_SELECTOR_CHOICES = tuple(PREDICTION_REFRESH_SELECTORS)
 
 
 @dataclass(frozen=True)
@@ -92,15 +100,15 @@ def build_prediction_refresh_steps(
             for step in source_data_ingestion.match_data_steps(conn)
         ),
         PredictionRefreshStep(
-            "build Historical Feature Set",
+            BUILD_HISTORICAL_FEATURE_SET_STEP,
             lambda: build_historical_feature_set(conn),
         ),
         PredictionRefreshStep(
-            "build Future Feature Set",
+            BUILD_FUTURE_FEATURE_SET_STEP,
             lambda: build_future_feature_set(conn),
         ),
         PredictionRefreshStep(
-            "run Prediction inference",
+            RUN_PREDICTION_INFERENCE_STEP,
             lambda: run_result_model_inference(conn, model_config),
         ),
     ]
@@ -176,7 +184,7 @@ def select_prediction_refresh_steps(
             + ", ".join(sorted(unknown_selectors))
         )
 
-    selected_step_names = set()
+    selected_step_names: set[str] = set()
     for selector in selectors:
         selected_step_names.update(PREDICTION_REFRESH_SELECTORS[selector])
 

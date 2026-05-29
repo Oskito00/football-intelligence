@@ -1,6 +1,7 @@
 import logging
 
 from football_intelligence.predictions.refresh import (
+    PredictionRefreshResult,
     PredictionRefreshStep,
     run_prediction_refresh,
 )
@@ -121,14 +122,9 @@ def test_prediction_refresh_cli_invokes_application_workflow(monkeypatch, capsys
 
     def fake_run_prediction_refresh(*, model_config, include_odds, selectors):
         calls.append((model_config, include_odds, selectors))
-        return type(
-            "Result",
-            (),
-            {
-                "steps_run": ("refresh current match data", "run Prediction inference"),
-                "steps_failed": (),
-            },
-        )()
+        return PredictionRefreshResult(
+            steps_run=("refresh current match data", "run Prediction inference")
+        )
 
     from football_intelligence.cli import prediction_refresh
 
@@ -152,14 +148,7 @@ def test_prediction_refresh_cli_accepts_refresh_selectors(monkeypatch):
 
     def fake_run_prediction_refresh(*, model_config, include_odds, selectors):
         calls.append((model_config, include_odds, selectors))
-        return type(
-            "Result",
-            (),
-            {
-                "steps_run": ("build Historical Feature Set",),
-                "steps_failed": (),
-            },
-        )()
+        return PredictionRefreshResult(steps_run=("build Historical Feature Set",))
 
     from football_intelligence.cli import prediction_refresh
 

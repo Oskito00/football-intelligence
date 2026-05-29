@@ -10,8 +10,6 @@ EXPECTED_MAKE_SHORTCUTS = {
     "build-future": f"{PREDICTION_REFRESH_COMMAND} --only future-feature-set",
     "predict": f"{PREDICTION_REFRESH_COMMAND} --only prediction-inference",
     "odds": f"{PREDICTION_REFRESH_COMMAND} --only odds-refresh",
-    "status": "python -m football_intelligence.cli status",
-    "tonight": "python -m football_intelligence.cli prediction-board --today",
 }
 
 REQUIRED_HANDBOOK_TERMS = (
@@ -19,8 +17,6 @@ REQUIRED_HANDBOOK_TERMS = (
     "**Source Data Ingestion**",
     "**Historical Feature Set**",
     "**Future Feature Set**",
-    "**Football Data Status**",
-    "**Prediction Board**",
     "`scrape` is shortcut slang for **Source Data Ingestion**",
 )
 

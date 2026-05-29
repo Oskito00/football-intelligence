@@ -74,12 +74,6 @@ def _handle_prediction_refresh(args: argparse.Namespace) -> int:
     return run_from_args(args)
 
 
-def run_prediction_refresh() -> None:
-    from football_intelligence.predictions.refresh import run_prediction_refresh as refresh
-
-    refresh()
-
-
 def run_model_training(
     config_name: str,
     *,

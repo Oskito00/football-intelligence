@@ -6,7 +6,7 @@ import argparse
 
 from football_intelligence.predictions.refresh import (
     DEFAULT_MODEL_CONFIG,
-    PREDICTION_REFRESH_SELECTORS,
+    PREDICTION_REFRESH_SELECTOR_CHOICES,
     run_prediction_refresh,
 )
 
@@ -35,7 +35,7 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--only",
         action="append",
-        choices=tuple(PREDICTION_REFRESH_SELECTORS),
+        choices=PREDICTION_REFRESH_SELECTOR_CHOICES,
         default=[],
         metavar="SELECTOR",
         help=(

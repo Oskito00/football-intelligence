@@ -27,15 +27,6 @@ Lifecycle** should be updated without **Model Training**:
 python -m football_intelligence.cli prediction-refresh
 ```
 
-## Read-Only Review Shortcuts
-
-These targets point at read-only product views from PRD #43.
-
-| Shortcut | Command | What It Shows |
-| --- | --- | --- |
-| `make status` | `python -m football_intelligence.cli status` | **Football Data Status** |
-| `make tonight` | `python -m football_intelligence.cli prediction-board --today` | Today's **Prediction Board** |
-
 ## Model Training
 
 **Model Training** is separate from **Prediction Refresh**. Run it deliberately
