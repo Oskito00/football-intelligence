@@ -62,10 +62,6 @@ class ValueBacktestResult:
     max_drawdown: float
 
     def to_dict(self) -> dict[str, Any]:
-        wins = sum(1 for bet in self.paper_bets if bet["result"] == "win")
-        losses = sum(1 for bet in self.paper_bets if bet["result"] == "loss")
-        paper_bet_count = len(self.paper_bets)
-        profit_loss = self.final_bankroll - self.config.starting_bankroll
         return {
             "title": VALUE_BACKTEST_TITLE,
             "headline": (
@@ -80,24 +76,13 @@ class ValueBacktestResult:
                 "strict_pre_kickoff_odds": self.config.strict_pre_kickoff_odds,
                 "strict_prediction_timing": self.config.strict_prediction_timing,
             },
-            "summary": {
-                "starting_bankroll": _round_money(self.config.starting_bankroll),
-                "final_bankroll": _round_money(self.final_bankroll),
-                "profit_loss": _round_money(profit_loss),
-                "roi": _round_ratio(profit_loss / self.config.starting_bankroll),
-                "eligible_match_count": self.eligible_match_count,
-                "paper_bet_count": paper_bet_count,
-                "wins": wins,
-                "losses": losses,
-                "hit_rate": _round_ratio(wins / paper_bet_count)
-                if paper_bet_count
-                else 0.0,
-                "max_drawdown": _round_ratio(self.max_drawdown),
-                "average_odds": _round_ratio(_average(self.paper_bets, "odds")),
-                "average_expected_value": _round_ratio(
-                    _average(self.paper_bets, "expected_value")
-                ),
-            },
+            "summary": _summarize_result(
+                config=self.config,
+                final_bankroll=self.final_bankroll,
+                eligible_match_count=self.eligible_match_count,
+                paper_bets=self.paper_bets,
+                max_drawdown=self.max_drawdown,
+            ),
             "skipped_matches": dict(self.skipped_matches),
             "paper_bets": [dict(bet) for bet in self.paper_bets],
             "warnings": [
@@ -184,25 +169,7 @@ def run_value_backtest(
         if not match_bets:
             continue
 
-        actual_outcome = _actual_outcome(match)
-        match_profit_loss = 0.0
-        for bet in match_bets:
-            if bet["outcome"] == actual_outcome:
-                bet_result = "win"
-                profit_loss = bet["stake"] * (bet["odds"] - 1)
-            else:
-                bet_result = "loss"
-                profit_loss = -bet["stake"]
-
-            match_profit_loss += profit_loss
-            bet.update(
-                {
-                    "actual_outcome": actual_outcome,
-                    "result": bet_result,
-                    "profit_loss": _round_money(profit_loss),
-                }
-            )
-
+        match_profit_loss = _settle_match_bets(match, match_bets)
         bankroll_after_match = bankroll + match_profit_loss
         for bet in match_bets:
             bet["bankroll_after_settlement"] = _round_money(bankroll_after_match)
@@ -223,13 +190,43 @@ def run_value_backtest(
     )
 
 
+def _summarize_result(
+    *,
+    config: ValueBacktestConfig,
+    final_bankroll: float,
+    eligible_match_count: int,
+    paper_bets: Sequence[Mapping[str, Any]],
+    max_drawdown: float,
+) -> dict[str, Any]:
+    wins = sum(1 for bet in paper_bets if bet["result"] == "win")
+    losses = sum(1 for bet in paper_bets if bet["result"] == "loss")
+    paper_bet_count = len(paper_bets)
+    profit_loss = final_bankroll - config.starting_bankroll
+    return {
+        "starting_bankroll": _round_money(config.starting_bankroll),
+        "final_bankroll": _round_money(final_bankroll),
+        "profit_loss": _round_money(profit_loss),
+        "roi": _round_ratio(profit_loss / config.starting_bankroll),
+        "eligible_match_count": eligible_match_count,
+        "paper_bet_count": paper_bet_count,
+        "wins": wins,
+        "losses": losses,
+        "hit_rate": _round_ratio(wins / paper_bet_count) if paper_bet_count else 0.0,
+        "max_drawdown": _round_ratio(max_drawdown),
+        "average_odds": _round_ratio(_average(paper_bets, "odds")),
+        "average_expected_value": _round_ratio(
+            _average(paper_bets, "expected_value")
+        ),
+    }
+
+
 def _select_odds(
     match: Mapping[str, Any],
     *,
     kickoff: datetime,
     config: ValueBacktestConfig,
 ) -> dict[str, dict[str, Any]]:
-    grouped: dict[str, list[Mapping[str, Any]]] = {}
+    grouped: dict[str, list[dict[str, Any]]] = {}
     for odds in match.get("odds", []) or []:
         outcome = _normalize_outcome(odds.get("outcome") or odds.get("bet_value"))
         odds_value = _float_or_none(odds.get("odds_value"))
@@ -253,24 +250,27 @@ def _select_odds(
     selected: dict[str, dict[str, Any]] = {}
     for outcome, outcome_odds in grouped.items():
         if config.odds_mode == "average":
-            average_odds = sum(row["odds_value"] for row in outcome_odds) / len(
-                outcome_odds
-            )
-            retrieved_times = [
-                row["retrieved_at"] for row in outcome_odds if row["retrieved_at"]
-            ]
-            selected[outcome] = {
-                "odds_value": average_odds,
-                "bookmaker_name": f"Average of {len(outcome_odds)} prices",
-                "bookmaker_id": None,
-                "retrieved_at": max(retrieved_times) if retrieved_times else None,
-            }
+            selected[outcome] = _average_odds_row(outcome_odds)
         else:
-            selected[outcome] = max(
-                outcome_odds,
-                key=lambda row: row["odds_value"],
-            )
+            selected[outcome] = _best_odds_row(outcome_odds)
     return selected
+
+
+def _average_odds_row(outcome_odds: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    average_odds = sum(row["odds_value"] for row in outcome_odds) / len(outcome_odds)
+    retrieved_times = [
+        row["retrieved_at"] for row in outcome_odds if row["retrieved_at"]
+    ]
+    return {
+        "odds_value": average_odds,
+        "bookmaker_name": f"Average of {len(outcome_odds)} prices",
+        "bookmaker_id": None,
+        "retrieved_at": max(retrieved_times) if retrieved_times else None,
+    }
+
+
+def _best_odds_row(outcome_odds: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    return max(outcome_odds, key=lambda row: row["odds_value"])
 
 
 def _qualifying_paper_bets(
@@ -283,39 +283,82 @@ def _qualifying_paper_bets(
 ) -> list[dict[str, Any]]:
     bets: list[dict[str, Any]] = []
     for outcome, probability_key in OUTCOME_PROBABILITIES:
-        odds = selected_odds.get(outcome)
-        if odds is None:
-            continue
-        model_probability = _float_or_none(prediction.get(probability_key))
-        if model_probability is None:
-            continue
+        bet = _qualifying_paper_bet(
+            match,
+            outcome=outcome,
+            probability_key=probability_key,
+            prediction=prediction,
+            selected_odds=selected_odds,
+            bankroll=bankroll,
+            config=config,
+        )
+        if bet is not None:
+            bets.append(bet)
 
-        odds_value = float(odds["odds_value"])
-        expected_value = (model_probability * odds_value) - 1
-        kelly_fraction = _kelly_fraction(model_probability, odds_value)
-        if expected_value <= config.min_expected_value or kelly_fraction <= 0:
-            continue
+    return bets
 
-        stake = bankroll * kelly_fraction * config.kelly_multiplier
-        bets.append(
+
+def _qualifying_paper_bet(
+    match: Mapping[str, Any],
+    *,
+    outcome: str,
+    probability_key: str,
+    prediction: Mapping[str, Any],
+    selected_odds: Mapping[str, Mapping[str, Any]],
+    bankroll: float,
+    config: ValueBacktestConfig,
+) -> dict[str, Any] | None:
+    odds = selected_odds.get(outcome)
+    if odds is None:
+        return None
+
+    model_probability = _float_or_none(prediction.get(probability_key))
+    if model_probability is None:
+        return None
+
+    odds_value = float(odds["odds_value"])
+    expected_value = (model_probability * odds_value) - 1
+    kelly_fraction = _kelly_fraction(model_probability, odds_value)
+    if expected_value <= config.min_expected_value or kelly_fraction <= 0:
+        return None
+
+    stake = bankroll * kelly_fraction * config.kelly_multiplier
+    return {
+        "match_id": int(match["match_id"]),
+        "start_time": _isoformat(match.get("start_time")),
+        "home_team": match.get("home_team"),
+        "away_team": match.get("away_team"),
+        "outcome": outcome,
+        "model_probability": _round_ratio(model_probability),
+        "implied_probability": _round_ratio(1 / odds_value),
+        "odds": _round_ratio(odds_value),
+        "expected_value": _round_ratio(expected_value),
+        "kelly_fraction": _round_ratio(kelly_fraction),
+        "stake": _round_money(stake),
+        "bankroll_before_match": _round_money(bankroll),
+        "bookmaker": odds.get("bookmaker_name"),
+    }
+
+
+def _settle_match_bets(
+    match: Mapping[str, Any],
+    match_bets: Sequence[dict[str, Any]],
+) -> float:
+    actual_outcome = _actual_outcome(match)
+    match_profit_loss = 0.0
+    for bet in match_bets:
+        is_win = bet["outcome"] == actual_outcome
+        profit_loss = bet["stake"] * (bet["odds"] - 1) if is_win else -bet["stake"]
+        match_profit_loss += profit_loss
+        bet.update(
             {
-                "match_id": int(match["match_id"]),
-                "start_time": _isoformat(match.get("start_time")),
-                "home_team": match.get("home_team"),
-                "away_team": match.get("away_team"),
-                "outcome": outcome,
-                "model_probability": _round_ratio(model_probability),
-                "implied_probability": _round_ratio(1 / odds_value),
-                "odds": _round_ratio(odds_value),
-                "expected_value": _round_ratio(expected_value),
-                "kelly_fraction": _round_ratio(kelly_fraction),
-                "stake": _round_money(stake),
-                "bankroll_before_match": _round_money(bankroll),
-                "bookmaker": odds.get("bookmaker_name"),
+                "actual_outcome": actual_outcome,
+                "result": "win" if is_win else "loss",
+                "profit_loss": _round_money(profit_loss),
             }
         )
 
-    return bets
+    return match_profit_loss
 
 
 def _prediction_for(match: Mapping[str, Any]) -> Mapping[str, Any] | None:
