@@ -53,7 +53,12 @@ def get_trainer(model_name: str):
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description='Train ML models for football prediction')
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run Model Training for Football Intelligence Predictions. "
+            "Saved artifacts are written locally under models/."
+        )
+    )
     parser.add_argument('config', help='Name of the config file (without extension)')
     parser.add_argument('--dry-run', action='store_true', help='Run without saving model')
     parser.add_argument('--limit', type=int, help='Limit number of samples for testing')

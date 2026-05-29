@@ -62,7 +62,7 @@ class ModelIO:
 
         # Create latest symlink
         latest_path = self.base_path / f"{model_name}_latest"
-        if latest_path.exists():
+        if latest_path.exists() or latest_path.is_symlink():
             latest_path.unlink()
         latest_path.symlink_to(model_dir.name, target_is_directory=True)
 
@@ -80,27 +80,25 @@ class ModelIO:
         Returns:
             Dictionary containing model, metadata, and preprocessor (if exists)
         """
-        import joblib
-
         if version is None:
             model_dir = self.base_path / f"{model_name}_latest"
-            if not model_dir.exists():
-                raise FileNotFoundError(f"No latest model found for {model_name}")
         else:
             model_dir = self.base_path / f"{model_name}_{version}"
-            if not model_dir.exists():
-                raise FileNotFoundError(f"Model version {version} not found for {model_name}")
 
-        # Load model
+        if not model_dir.exists():
+            raise FileNotFoundError(
+                _missing_model_message(model_name, model_dir, version=version)
+            )
+
+        import joblib
+
         model_path = model_dir / "model.pkl"
         model = joblib.load(model_path)
 
-        # Load metadata
         metadata_path = model_dir / "metadata.json"
         with open(metadata_path, 'r') as f:
             metadata = json.load(f)
 
-        # Load preprocessor if exists
         preprocessor_path = model_dir / "preprocessor.pkl"
         preprocessor = None
         if preprocessor_path.exists():
@@ -199,3 +197,19 @@ class ModelIO:
 
 # Global IO manager instance
 model_io = ModelIO()
+
+
+def _missing_model_message(
+    model_name: str,
+    model_dir: Path,
+    *,
+    version: Optional[str] = None,
+) -> str:
+    version_detail = "latest model" if version is None else f"model version {version}"
+    return (
+        f"No {version_detail} artifact found for {model_name} at {model_dir}. "
+        "Model artifacts are local generated outputs and are not committed. "
+        "Run Model Training with "
+        "`python -m football_intelligence.cli model-training` "
+        "or provide a trained artifact under the local models/ directory."
+    )

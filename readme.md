@@ -56,7 +56,9 @@ architecture.
 
 - **Model Training** is separate and intentional. It learns a new prediction
   model from the **Historical Feature Set** and writes model artifacts when the
-  run is not a dry run.
+  run is not a dry run. Trained model artifacts are local generated outputs
+  saved under `models/`; the public repository tracks only the directory
+  placeholder and does not include private `.pkl` artifacts.
 
   ```bash
   python -m football_intelligence.cli model-training
