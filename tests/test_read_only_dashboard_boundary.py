@@ -7,13 +7,19 @@ from football_intelligence.api import create_app
 
 
 ROOT = Path(__file__).resolve().parents[1]
+READ_ONLY_DASHBOARD_API_METHODS = {
+    "/api/status": {"get"},
+    "/api/board/today": {"get"},
+    "/api/value-signals": {"get"},
+    "/api/matches/{match_id}": {"get"},
+}
 DASHBOARD_FETCH_TARGETS = {
     "/api/status",
     "/api/board/today",
     "/api/value-signals?today=true",
     "/api/matches/${matchId}",
 }
-FORBIDDEN_DASHBOARD_ENDPOINTS = {
+NON_DASHBOARD_FETCH_TARGETS = {
     "/api/chat",
     "/api/reset",
     "/api/prediction-refresh",
@@ -21,7 +27,11 @@ FORBIDDEN_DASHBOARD_ENDPOINTS = {
     "/api/feature-rebuild",
     "/api/model-training",
 }
-FORBIDDEN_DASHBOARD_CONTROLS = (
+FORBIDDEN_OPERATIONAL_API_PATHS = NON_DASHBOARD_FETCH_TARGETS - {
+    "/api/chat",
+    "/api/reset",
+}
+FORBIDDEN_DASHBOARD_CONTROL_LABELS = (
     "Prediction Refresh",
     "Refresh Predictions",
     "Odds Refresh",
@@ -32,6 +42,79 @@ FORBIDDEN_DASHBOARD_CONTROLS = (
     "Train Model",
     "Delete",
 )
+STATUS_PAYLOAD = {
+    "title": "Football Data Status",
+    "odds_freshness": {
+        "latest_retrieved_at": None,
+        "matches_with_odds_next_7_days": 0,
+    },
+    "top_premier_league_elo_teams": [],
+    "warnings": [],
+}
+BOARD_PAYLOAD = {
+    "title": "Prediction Board",
+    "date": "2026-05-29",
+    "window": {
+        "starts_at": "2026-05-29T12:00:00",
+        "ends_at": "2026-05-30T00:00:00",
+        "timezone": "local",
+    },
+    "summary": {
+        "upcoming_match_count": 0,
+        "matches_with_predictions": 0,
+        "matches_with_odds": 0,
+        "market_value_signal_count": 0,
+    },
+    "matches": [],
+    "warnings": [],
+    "empty_state": "No remaining Upcoming Matches are scheduled.",
+}
+SIGNAL_SCAN_PAYLOAD = {
+    "title": "Market Value Signals",
+    "window": {
+        "starts_at": "2026-05-29T12:00:00",
+        "ends_at": "2026-05-30T00:00:00",
+        "timezone": "local",
+        "label": "today",
+    },
+    "summary": {
+        "upcoming_match_count": 0,
+        "matches_with_predictions": 0,
+        "matches_with_odds": 0,
+        "matches_with_value_signals": 0,
+        "market_value_signal_count": 0,
+    },
+    "signals": [],
+    "warnings": [],
+    "empty_state": "No Market Value Signals found for this window.",
+}
+MATCH_DETAIL_PAYLOAD = {
+    "title": "Match Detail",
+    "match": {"match_id": 42},
+    "prediction": None,
+    "prediction_empty_state": "No Prediction is available for this match.",
+    "odds_context": {
+        "has_odds": False,
+        "best_prices": [],
+        "empty_state": "No odds context is available for this match.",
+    },
+    "feature_snapshot": {
+        "title": "Feature Snapshot",
+        "available": False,
+        "groups": [],
+        "market_context": {"has_odds": False, "best_prices": []},
+        "empty_state": "No Feature Snapshot inputs are available for this match.",
+    },
+    "warnings": [],
+}
+
+
+class FakeApiResource:
+    def __init__(self, payload):
+        self._payload = payload
+
+    def to_dict(self):
+        return self._payload
 
 
 class FailingChatService:
@@ -49,109 +132,28 @@ class FailingChatService:
         return {}
 
 
-class FakeStatus:
-    def to_dict(self):
-        return {
-            "title": "Football Data Status",
-            "odds_freshness": {
-                "latest_retrieved_at": None,
-                "matches_with_odds_next_7_days": 0,
-            },
-            "top_premier_league_elo_teams": [],
-            "warnings": [],
-        }
-
-
 class FakeStatusService:
     def get_status(self):
-        return FakeStatus()
-
-
-class FakeBoard:
-    def to_dict(self):
-        return {
-            "title": "Prediction Board",
-            "date": "2026-05-29",
-            "window": {
-                "starts_at": "2026-05-29T12:00:00",
-                "ends_at": "2026-05-30T00:00:00",
-                "timezone": "local",
-            },
-            "summary": {
-                "upcoming_match_count": 0,
-                "matches_with_predictions": 0,
-                "matches_with_odds": 0,
-                "market_value_signal_count": 0,
-            },
-            "matches": [],
-            "warnings": [],
-            "empty_state": "No remaining Upcoming Matches are scheduled.",
-        }
+        return FakeApiResource(STATUS_PAYLOAD)
 
 
 class FakeBoardService:
     def today(self):
-        return FakeBoard()
-
-
-class FakeSignalScan:
-    def to_dict(self):
-        return {
-            "title": "Market Value Signals",
-            "window": {
-                "starts_at": "2026-05-29T12:00:00",
-                "ends_at": "2026-05-30T00:00:00",
-                "timezone": "local",
-                "label": "today",
-            },
-            "summary": {
-                "upcoming_match_count": 0,
-                "matches_with_predictions": 0,
-                "matches_with_odds": 0,
-                "matches_with_value_signals": 0,
-                "market_value_signal_count": 0,
-            },
-            "signals": [],
-            "warnings": [],
-            "empty_state": "No Market Value Signals found for this window.",
-        }
+        return FakeApiResource(BOARD_PAYLOAD)
 
 
 class FakeValueService:
     def today(self):
-        return FakeSignalScan()
+        return FakeApiResource(SIGNAL_SCAN_PAYLOAD)
 
     def next_days(self, *, days=7):
-        return FakeSignalScan()
-
-
-class FakeMatchDetail:
-    def to_dict(self):
-        return {
-            "title": "Match Detail",
-            "match": {"match_id": 42},
-            "prediction": None,
-            "prediction_empty_state": "No Prediction is available for this match.",
-            "odds_context": {
-                "has_odds": False,
-                "best_prices": [],
-                "empty_state": "No odds context is available for this match.",
-            },
-            "feature_snapshot": {
-                "title": "Feature Snapshot",
-                "available": False,
-                "groups": [],
-                "market_context": {"has_odds": False, "best_prices": []},
-                "empty_state": "No Feature Snapshot inputs are available for this match.",
-            },
-            "warnings": [],
-        }
+        return FakeApiResource(SIGNAL_SCAN_PAYLOAD)
 
 
 class FakeMatchDetailService:
     def get_match_detail(self, match_id):
         assert match_id == 42
-        return FakeMatchDetail()
+        return FakeApiResource(MATCH_DETAIL_PAYLOAD)
 
 
 def test_dashboard_api_endpoints_are_get_only_deterministic_contracts():
@@ -159,14 +161,10 @@ def test_dashboard_api_endpoints_are_get_only_deterministic_contracts():
 
     schema = client.get("/openapi.json").json()
 
-    assert set(schema["paths"]["/api/status"]) == {"get"}
-    assert set(schema["paths"]["/api/board/today"]) == {"get"}
-    assert set(schema["paths"]["/api/value-signals"]) == {"get"}
-    assert set(schema["paths"]["/api/matches/{match_id}"]) == {"get"}
+    for path, methods in READ_ONLY_DASHBOARD_API_METHODS.items():
+        assert set(schema["paths"][path]) == methods
 
-    for forbidden_path in FORBIDDEN_DASHBOARD_ENDPOINTS:
-        if forbidden_path in {"/api/chat", "/api/reset"}:
-            continue
+    for forbidden_path in FORBIDDEN_OPERATIONAL_API_PATHS:
         assert forbidden_path not in schema["paths"]
 
 
@@ -203,10 +201,10 @@ def test_svelte_dashboard_only_calls_read_only_dashboard_endpoints():
     assert "method:" not in app_source
     assert "type=\"submit\"" not in app_source
 
-    for forbidden_endpoint in FORBIDDEN_DASHBOARD_ENDPOINTS:
+    for forbidden_endpoint in NON_DASHBOARD_FETCH_TARGETS:
         assert forbidden_endpoint not in fetch_targets
 
-    for forbidden_control in FORBIDDEN_DASHBOARD_CONTROLS:
+    for forbidden_control in FORBIDDEN_DASHBOARD_CONTROL_LABELS:
         assert forbidden_control.lower() not in app_source.lower()
 
 
