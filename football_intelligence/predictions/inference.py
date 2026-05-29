@@ -56,7 +56,7 @@ def infer_result_model(conn, config: Dict[str, Any],
 
         # Validate required tables exist
         if not feature_loader.validate_required_tables():
-            raise ValueError("Required tables not found in database")
+            feature_loader.require_database_setup_tables("Prediction inference")
 
         # Load features for inference
         logger.info("Loading features for inference")

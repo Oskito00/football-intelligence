@@ -178,8 +178,6 @@ def default_feature_pipeline_dependencies() -> FeaturePipelineDependencies:
         StageOfSeasonManager,
     )
     from football_intelligence.database import (
-        create_future_tables,
-        create_tables,
         drop_future_tables,
         drop_tables,
         get_from_matches,
@@ -191,10 +189,10 @@ def default_feature_pipeline_dependencies() -> FeaturePipelineDependencies:
         get_matches=get_from_matches,
         update_processed_status=update_processed_status,
         drop_historical_tables=drop_tables,
-        create_historical_tables=create_tables,
+        create_historical_tables=_assume_database_setup_prepared_schema,
         process_matches_to_history=process_matches_to_history,
         drop_future_tables=drop_future_tables,
-        create_future_tables=create_future_tables,
+        create_future_tables=_assume_database_setup_prepared_schema,
         prune_old_future_features=prune_old_future_features,
         match_info_manager=MatchInfoManager,
         stage_of_season_manager=StageOfSeasonManager,
@@ -203,6 +201,10 @@ def default_feature_pipeline_dependencies() -> FeaturePipelineDependencies:
         form_manager=FormManager,
         h2h_manager=H2HManager,
     )
+
+
+def _assume_database_setup_prepared_schema(conn: Any) -> None:
+    """Default no-op: Alembic Database Setup owns schema creation."""
 
 
 def run_feature_pipeline(

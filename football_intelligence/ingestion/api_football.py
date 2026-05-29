@@ -15,8 +15,9 @@ from psycopg2.extras import RealDictCursor
 
 from config import get_config
 from football_intelligence.database import (
-    create_odds_table,
+    database_setup_required_message,
     get_future_matches_with_odds,
+    is_missing_database_schema_error,
     upsert_records,
 )
 
@@ -36,6 +37,7 @@ PAYLOAD = {}
 
 # Target bookmakers: Betfair, Bwin, William Hill, Bet365, Betfred
 TARGET_BOOKMAKERS = [3, 6, 7, 8, 12]
+ODDS_REFRESH_WORKFLOW = "Source Data Ingestion odds refresh"
 
 
 def datetime_string_converter(raw_datetime):
@@ -43,6 +45,10 @@ def datetime_string_converter(raw_datetime):
     if raw_datetime:
         return str(raw_datetime)[:10]
     return None
+
+
+def _print_odds_refresh_database_setup_required() -> None:
+    print(database_setup_required_message(ODDS_REFRESH_WORKFLOW))
 
 
 class ApiFootballSourceDataProvider:
@@ -401,7 +407,10 @@ def save_odds_to_db(conn, odds_records: list):
         return rows_inserted
 
     except Exception as e:
-        print(f"❌ Error saving odds: {str(e)}")
+        if is_missing_database_schema_error(e):
+            _print_odds_refresh_database_setup_required()
+        else:
+            print(f"❌ Error saving odds: {str(e)}")
         conn.rollback()
         return 0
     finally:
@@ -427,19 +436,15 @@ def scrape_future_match_odds(conn=None):
         print("🔌 Using provided database connection...")
 
     try:
-        print("📋 Creating odds table if it doesn't exist...")
-        create_odds_table(conn)
-        print("✅ Odds table ready")
-
         print("🔍 Querying for future matches with odds...")
         try:
             match_ids = get_future_matches_with_odds(conn)
             print(f"📋 Found {len(match_ids)} future matches to process")
         except Exception as e:
+            if is_missing_database_schema_error(e):
+                _print_odds_refresh_database_setup_required()
+                return
             print(f"❌ Error in get_future_matches_with_odds: {str(e)}")
-            import traceback
-
-            traceback.print_exc()
             return
 
         if len(match_ids) == 0:
@@ -485,6 +490,10 @@ def scrape_future_match_odds(conn=None):
         print(f"   • Total odds records saved: {total_odds_saved}")
 
     except Exception as e:
+        if is_missing_database_schema_error(e):
+            _print_odds_refresh_database_setup_required()
+            return
+
         print(f"❌ Error during scraping: {str(e)}")
         import traceback
 

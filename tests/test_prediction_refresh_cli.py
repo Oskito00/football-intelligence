@@ -1,5 +1,8 @@
 import logging
 
+import pytest
+
+from football_intelligence.database import DatabaseSetupRequiredError
 from football_intelligence.predictions.refresh import (
     PredictionRefreshStep,
     run_prediction_refresh,
@@ -194,6 +197,35 @@ def test_prediction_refresh_rejects_unknown_part():
         assert "Unknown Prediction Refresh part" in str(exc)
     else:
         raise AssertionError("Expected unknown Prediction Refresh part to fail")
+
+
+def test_prediction_refresh_reports_missing_schema_as_database_setup_required():
+    class MissingTableError(Exception):
+        pgcode = "42P01"
+
+    def step_factory(received_connection, model_config, include_odds, selected_steps):
+        return [
+            PredictionRefreshStep(
+                "refresh current match data",
+                lambda: (_ for _ in ()).throw(
+                    MissingTableError('relation "matches" does not exist')
+                ),
+            )
+        ]
+
+    with pytest.raises(DatabaseSetupRequiredError) as error:
+        run_prediction_refresh(
+            connection=object(),
+            step_factory=step_factory,
+            logger=logging.getLogger("test_prediction_refresh_missing_schema"),
+            continue_on_error=False,
+        )
+
+    message = str(error.value)
+    assert "Database Setup" in message
+    assert "python -m football_intelligence.cli db setup" in message
+    assert "Traceback" not in message
+    assert "relation" not in message
 
 
 def test_prediction_refresh_cli_invokes_application_workflow(monkeypatch, capsys):

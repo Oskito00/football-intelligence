@@ -6,6 +6,7 @@ import pytest
 from football_intelligence.features import (
     FeaturePipelineDependencies,
     FeatureSetMode,
+    default_feature_pipeline_dependencies,
     run_feature_pipeline,
 )
 
@@ -138,6 +139,30 @@ def test_shared_feature_pipeline_runs_historical_and_future_modes(
     assert result.processing_mode == processing_mode
     assert result.matches_processed == 2
     assert queries
+
+
+def test_default_feature_pipeline_dependencies_assume_database_setup(monkeypatch):
+    import football_intelligence.database as database
+
+    monkeypatch.setattr(
+        database,
+        "create_tables",
+        lambda conn: (_ for _ in ()).throw(
+            AssertionError("Feature construction must not create schema by default")
+        ),
+    )
+    monkeypatch.setattr(
+        database,
+        "create_future_tables",
+        lambda conn: (_ for _ in ()).throw(
+            AssertionError("Feature construction must not create schema by default")
+        ),
+    )
+
+    dependencies = default_feature_pipeline_dependencies()
+
+    dependencies.create_historical_tables(object())
+    dependencies.create_future_tables(object())
 
 
 def test_feature_set_construction_no_longer_imports_data_processing():
