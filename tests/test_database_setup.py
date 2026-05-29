@@ -160,3 +160,20 @@ def test_baseline_migration_is_schema_only_and_covers_current_tables():
     assert len(BASELINE_TABLES) == 28
     assert "INSERT INTO" not in baseline_schema.BASELINE_SCHEMA_SQL
     assert "COPY " not in baseline_schema.BASELINE_SCHEMA_SQL
+
+
+def test_follow_up_migration_converges_existing_stamped_databases():
+    migration_path = (
+        PROJECT_ROOT
+        / "football_intelligence"
+        / "database"
+        / "migrations"
+        / "versions"
+        / "0002_team_main_competition.py"
+    )
+
+    migration_source = migration_path.read_text(encoding="utf-8")
+
+    assert "down_revision" in migration_source
+    assert "0001_baseline_schema" in migration_source
+    assert "CREATE TABLE IF NOT EXISTS team_main_competition" in migration_source
