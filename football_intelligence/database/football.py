@@ -10,6 +10,8 @@ These contracts are stable for Analyst Tools:
 - ``get_recent_form`` returns ``{"success", "error", "data"}``.
 - ``get_best_odds_for_multiple_matches`` returns ``{match_id: odds_by_outcome}``.
 - ``analyze_matches_for_value`` returns a value-bet analysis dictionary.
+- ``get_value_backtest_matches`` returns Completed Matches with retained
+  Predictions and historical odds for Value Backtest simulation.
 
 Database failures raise ``FootballQueryError`` so callers can distinguish
 backend errors from valid no-result lookups.
@@ -768,6 +770,47 @@ class ReadOnlyFootballQueries:
         except Exception as exc:
             raise FootballQueryError(f"Error getting odds: {exc}") from exc
 
+    def get_value_backtest_matches(self) -> list[dict[str, Any]]:
+        """Return Completed Matches with retained Predictions and historical odds."""
+        query = """
+            SELECT
+                m.match_id,
+                m.start_time,
+                m.home_team_name,
+                m.away_team_name,
+                m.competition_name,
+                m.competition_country,
+                m.home_score,
+                m.away_score,
+                p.prob_home_win,
+                p.prob_draw,
+                p.prob_away_win,
+                p.prediction_timestamp,
+                p.model_type,
+                o.bookmaker_id,
+                o.bookmaker_name,
+                o.bet_value,
+                o.odds_value,
+                o.retrieved_at,
+                o.api_last_updated
+            FROM matches m
+            LEFT JOIN match_result_predictions p ON p.match_id = m.match_id
+            LEFT JOIN odds o
+                ON o.match_id = m.match_id
+                AND o.bet_type_id = 1
+            WHERE m.home_score IS NOT NULL
+            AND m.away_score IS NOT NULL
+            ORDER BY m.start_time ASC, m.match_id ASC, o.retrieved_at ASC
+        """
+        try:
+            rows = self._runner.fetch_all(query)
+        except Exception as exc:
+            raise FootballQueryError(
+                f"Error getting Value Backtest rows: {exc}"
+            ) from exc
+
+        return _map_value_backtest_matches(rows)
+
 
 def _ensure_read_only_query(query: str) -> None:
     normalized = query.lstrip().upper()
@@ -1002,6 +1045,50 @@ def _classify_match_result(
     if home_score > away_score:
         return "Home Win", "Win" if team_side == "home" else "Loss"
     return "Away Win", "Win" if team_side == "away" else "Loss"
+
+
+def _map_value_backtest_matches(rows: Sequence[Row]) -> list[dict[str, Any]]:
+    matches: dict[int, dict[str, Any]] = {}
+    for row in rows:
+        match_id = int(row["match_id"])
+        match = matches.setdefault(
+            match_id,
+            {
+                "match_id": match_id,
+                "start_time": row.get("start_time"),
+                "home_team": row.get("home_team_name"),
+                "away_team": row.get("away_team_name"),
+                "competition": row.get("competition_name"),
+                "country": row.get("competition_country"),
+                "home_score": row.get("home_score"),
+                "away_score": row.get("away_score"),
+                "prediction": None,
+                "odds": [],
+            },
+        )
+
+        if match["prediction"] is None and row.get("prob_home_win") is not None:
+            match["prediction"] = {
+                "prediction_date": row.get("prediction_timestamp"),
+                "prob_home_win": row.get("prob_home_win"),
+                "prob_draw": row.get("prob_draw"),
+                "prob_away_win": row.get("prob_away_win"),
+                "model_type": row.get("model_type"),
+            }
+
+        if row.get("odds_value") is not None:
+            match["odds"].append(
+                {
+                    "outcome": _normalize_bet_value(row.get("bet_value")),
+                    "bookmaker_id": row.get("bookmaker_id"),
+                    "bookmaker_name": row.get("bookmaker_name"),
+                    "odds_value": float(row.get("odds_value")),
+                    "retrieved_at": row.get("retrieved_at"),
+                    "api_last_updated": row.get("api_last_updated"),
+                }
+            )
+
+    return list(matches.values())
 
 
 def _group_odds_by_match_and_outcome(

@@ -249,6 +249,101 @@ def test_odds_freshness_maps_latest_odds_by_match():
     assert runner.calls[0][2] == (42, 43)
 
 
+def test_value_backtest_rows_group_predictions_and_historical_odds():
+    start_time = datetime(2026, 5, 29, 20, 0)
+    prediction_timestamp = datetime(2026, 5, 29, 10, 0)
+    retrieved_at = datetime(2026, 5, 29, 9, 0)
+    runner = FakeReadOnlyRunner(
+        many=[
+            {
+                "match_id": 42,
+                "start_time": start_time,
+                "home_team_name": "Arsenal",
+                "away_team_name": "Chelsea",
+                "competition_name": "Premier League",
+                "competition_country": "England",
+                "home_score": 2,
+                "away_score": 1,
+                "prob_home_win": 0.61,
+                "prob_draw": 0.21,
+                "prob_away_win": 0.18,
+                "prediction_timestamp": prediction_timestamp,
+                "model_type": "result_model",
+                "bookmaker_id": 8,
+                "bookmaker_name": "Bet365",
+                "bet_value": "Home",
+                "odds_value": 2.1,
+                "retrieved_at": retrieved_at,
+                "api_last_updated": datetime(2026, 5, 29, 8, 55),
+            },
+            {
+                "match_id": 42,
+                "start_time": start_time,
+                "home_team_name": "Arsenal",
+                "away_team_name": "Chelsea",
+                "competition_name": "Premier League",
+                "competition_country": "England",
+                "home_score": 2,
+                "away_score": 1,
+                "prob_home_win": 0.61,
+                "prob_draw": 0.21,
+                "prob_away_win": 0.18,
+                "prediction_timestamp": prediction_timestamp,
+                "model_type": "result_model",
+                "bookmaker_id": 9,
+                "bookmaker_name": "Sky Bet",
+                "bet_value": "Draw",
+                "odds_value": 3.4,
+                "retrieved_at": retrieved_at,
+                "api_last_updated": datetime(2026, 5, 29, 8, 57),
+            },
+        ]
+    )
+    queries = ReadOnlyFootballQueries(runner)
+
+    matches = queries.get_value_backtest_matches()
+
+    assert matches == [
+        {
+            "match_id": 42,
+            "start_time": start_time,
+            "home_team": "Arsenal",
+            "away_team": "Chelsea",
+            "competition": "Premier League",
+            "country": "England",
+            "home_score": 2,
+            "away_score": 1,
+            "prediction": {
+                "prediction_date": prediction_timestamp,
+                "prob_home_win": 0.61,
+                "prob_draw": 0.21,
+                "prob_away_win": 0.18,
+                "model_type": "result_model",
+            },
+            "odds": [
+                {
+                    "outcome": "Home Win",
+                    "bookmaker_id": 8,
+                    "bookmaker_name": "Bet365",
+                    "odds_value": 2.1,
+                    "retrieved_at": retrieved_at,
+                    "api_last_updated": datetime(2026, 5, 29, 8, 55),
+                },
+                {
+                    "outcome": "Draw",
+                    "bookmaker_id": 9,
+                    "bookmaker_name": "Sky Bet",
+                    "odds_value": 3.4,
+                    "retrieved_at": retrieved_at,
+                    "api_last_updated": datetime(2026, 5, 29, 8, 57),
+                },
+            ],
+        }
+    ]
+    assert runner.calls[0][0] == "all"
+    assert runner.calls[0][2] == ()
+
+
 def test_recent_form_returns_no_result_shape():
     queries = ReadOnlyFootballQueries(FakeReadOnlyRunner(many=[]))
 

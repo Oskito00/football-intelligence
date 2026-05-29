@@ -9,6 +9,7 @@ from football_intelligence.cli.prediction_refresh import (
     run_prediction_refresh_from_args,
 )
 from football_intelligence.value import DEFAULT_SIGNAL_DAYS
+from football_intelligence.value_backtest import ValueBacktestConfig
 
 
 CURRENT_RESULT_MODEL_CONFIG = "result_model_early"
@@ -29,6 +30,11 @@ class MarketValueSignalRenderable(Protocol):
         """Return display-ready Market Value Signal scan data."""
 
 
+class ValueBacktestRenderable(Protocol):
+    def to_dict(self) -> dict[str, Any]:
+        """Return display-ready Value Backtest data."""
+
+
 class MarketValueSignalServiceLike(Protocol):
     def today(self) -> MarketValueSignalRenderable:
         """Return today's Market Value Signals."""
@@ -39,6 +45,14 @@ class MarketValueSignalServiceLike(Protocol):
         days: int = DEFAULT_SIGNAL_DAYS,
     ) -> MarketValueSignalRenderable:
         """Return Market Value Signals for the next N days."""
+
+
+class ValueBacktestServiceLike(Protocol):
+    def run(
+        self,
+        config: ValueBacktestConfig | None = None,
+    ) -> ValueBacktestRenderable:
+        """Run a Value Backtest report."""
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -89,6 +103,12 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"Scan the next N days. Defaults to {DEFAULT_SIGNAL_DAYS}.",
     )
     value_picks.set_defaults(command_handler=_handle_value_picks)
+
+    value_backtest = subcommands.add_parser(
+        "value-backtest",
+        help="Run a Value Backtest report for historical Predictions.",
+    )
+    value_backtest.set_defaults(command_handler=_handle_value_backtest)
 
     model_training = subcommands.add_parser(
         "model-training",
@@ -158,6 +178,12 @@ def _handle_value_picks(args: argparse.Namespace) -> int:
     return 0
 
 
+def _handle_value_backtest(_args: argparse.Namespace) -> int:
+    result = get_value_backtest_service().run()
+    print(render_value_backtest(result))
+    return 0
+
+
 def run_model_training(
     config_name: str,
     *,
@@ -187,6 +213,12 @@ def get_market_value_signal_service() -> MarketValueSignalServiceLike:
     from football_intelligence.value import MarketValueSignalService
 
     return MarketValueSignalService.from_config()
+
+
+def get_value_backtest_service() -> ValueBacktestServiceLike:
+    from football_intelligence.value_backtest import ValueBacktestService
+
+    return ValueBacktestService.from_config()
 
 
 def render_football_data_status(status: FootballDataStatusRenderable) -> str:
@@ -296,6 +328,75 @@ def render_market_value_signals(scan: MarketValueSignalRenderable) -> str:
     return "\n".join(lines)
 
 
+def render_value_backtest(result: ValueBacktestRenderable) -> str:
+    data = result.to_dict()
+    summary = data["summary"]
+    configuration = data["configuration"]
+    lines = [
+        data["title"],
+        data["headline"],
+        f"Starting Bankroll: {_format_decimal_money(summary['starting_bankroll'])}",
+        f"Final Bankroll: {_format_decimal_money(summary['final_bankroll'])}",
+        f"Profit/Loss: {_format_decimal_money(summary['profit_loss'])}",
+        f"ROI: {_format_percentage(summary['roi'])}",
+        f"Eligible Completed Matches: {summary['eligible_match_count']}",
+        f"Paper Bets: {summary['paper_bet_count']}",
+        f"Wins/Losses: {summary['wins']}/{summary['losses']}",
+        f"Hit Rate: {_format_percentage(summary['hit_rate'])}",
+        f"Average Odds: {_format_decimal_odds(summary['average_odds'])}",
+        (
+            "Average Expected Value: "
+            f"{_format_percentage(summary['average_expected_value'])}"
+        ),
+        f"Max Drawdown: {_format_percentage(summary['max_drawdown'])}",
+        f"Odds Mode: {configuration['odds_mode']}",
+        (
+            "Paper Stake Rule: "
+            f"{_format_number(configuration['kelly_multiplier'])}x Kelly on every "
+            "positive-Kelly Market Value Signal"
+        ),
+    ]
+
+    if data["skipped_matches"]:
+        lines.append("Skipped Matches:")
+        lines.extend(
+            f"  - {reason}: {count}"
+            for reason, count in sorted(data["skipped_matches"].items())
+        )
+
+    if data["paper_bets"]:
+        lines.append("Paper Stakes:")
+        for bet in data["paper_bets"]:
+            lines.extend(_render_backtest_paper_bet(bet))
+
+    if data["warnings"]:
+        lines.append("Warnings:")
+        lines.extend(f"  - {warning['message']}" for warning in data["warnings"])
+
+    return "\n".join(lines)
+
+
+def _render_backtest_paper_bet(bet: Mapping[str, Any]) -> list[str]:
+    return [
+        (
+            f"  - {bet['start_time']} | {bet['home_team']} vs "
+            f"{bet['away_team']} | {bet['outcome']} | {bet['result']}"
+        ),
+        (
+            f"    Paper Stake: {_format_decimal_money(bet['stake'])}; "
+            f"Odds: {_format_decimal_odds(bet['odds'])}; "
+            f"EV: {_format_percentage(bet['expected_value'])}; "
+            f"Kelly: {_format_percentage(bet['kelly_fraction'])}"
+        ),
+        (
+            "    Bankroll: "
+            f"{_format_decimal_money(bet['bankroll_before_match'])} -> "
+            f"{_format_decimal_money(bet['bankroll_after_settlement'])}; "
+            f"Profit/Loss: {_format_decimal_money(bet['profit_loss'])}"
+        ),
+    ]
+
+
 def _render_market_value_signal(signal: Mapping[str, Any]) -> list[str]:
     return [
         (
@@ -375,6 +476,12 @@ def _format_number(value: Any) -> str:
 
 
 def _format_decimal_odds(value: Any) -> str:
+    if value is None:
+        return "None"
+    return f"{float(value):.2f}"
+
+
+def _format_decimal_money(value: Any) -> str:
     if value is None:
         return "None"
     return f"{float(value):.2f}"
