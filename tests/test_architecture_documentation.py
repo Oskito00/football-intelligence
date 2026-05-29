@@ -1,11 +1,12 @@
 from pathlib import Path
+import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
 ADR_0003 = ROOT / "docs" / "adr" / "0003-use-alembic-for-database-setup.md"
 CONTEXT = ROOT / "CONTEXT.md"
 DOMAIN_DOCS = ROOT / "docs" / "agents" / "domain.md"
-PUBLIC_README = ROOT / "readme.md"
+PUBLIC_README = ROOT / "README.md"
 ENV_EXAMPLE = ROOT / ".env.example"
 
 
@@ -50,6 +51,21 @@ def test_public_docs_distinguish_source_schema_data_and_artifacts():
     )
 
 
+def test_public_root_uses_standard_readme_name_and_no_editor_settings():
+    tracked_files = subprocess.run(
+        ["git", "ls-files"],
+        cwd=ROOT,
+        check=True,
+        text=True,
+        capture_output=True,
+    ).stdout.splitlines()
+
+    assert PUBLIC_README.exists()
+    assert "README.md" in tracked_files
+    assert "readme.md" not in tracked_files
+    assert ".vscode/settings.json" not in tracked_files
+
+
 def test_public_readme_documents_code_only_onboarding_path():
     assert_contains_all(
         read_text(PUBLIC_README),
@@ -66,6 +82,7 @@ def test_public_readme_documents_code_only_onboarding_path():
             "npm run build",
             "schema-only empty dashboard state",
             "The API, frontend dashboard, operational workflows, and **Football Intelligence Agent** are separate surfaces",
+            "For day-to-day commands, see [docs/COMMANDS.md](docs/COMMANDS.md)",
         ),
         normalize=True,
     )

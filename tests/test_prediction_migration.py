@@ -20,6 +20,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 GENERATED_ARTIFACT_IGNORE_RULES = (
     "models/*",
     "!models/.gitkeep",
+    "!models/README.md",
     "*.pkl",
     "*.joblib",
     "*.sqlite",
@@ -93,7 +94,7 @@ def test_prediction_configs_and_saved_models_use_product_paths():
         text=True,
         capture_output=True,
     ).stdout.splitlines()
-    assert tracked_model_files == ["models/.gitkeep"]
+    assert tracked_model_files == ["models/.gitkeep", "models/README.md"]
 
     with (config_dir / "result_model_early.yaml").open() as config_file:
         config = yaml.safe_load(config_file)

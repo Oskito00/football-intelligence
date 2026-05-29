@@ -16,7 +16,7 @@ RETIRED_ENTRYPOINT_TEXT = (
     "Dockerfile.scheduler",
 )
 DEPLOYMENT_DOCUMENTS = (
-    (ROOT / "readme.md", "## Deployment boundaries"),
+    (ROOT / "README.md", "## Deployment boundaries"),
     (ROOT / "football_intelligence" / "README.md", "## Deployment boundary"),
 )
 REQUIRED_DEPLOYMENT_TERMS = (
