@@ -1,6 +1,8 @@
 # Football Intelligence Package Migration
 
-`football_intelligence` is the product namespace for the staged **Football Intelligence Agent** refactor.
+`football_intelligence` is the product namespace for **Football Intelligence**:
+prediction workflows, odds-aware inspection, research signals, and the staged
+**Football Intelligence Agent**.
 
 Use these package homes for new code:
 
@@ -10,7 +12,7 @@ Use these package homes for new code:
 - `football_intelligence.predictions`: **Prediction** inference, evaluation, and **Model Training**.
 - `football_intelligence.status`: **Football Data Status** facts and warnings.
 - `football_intelligence.api`: API entrypoints that expose agent capabilities.
-- `football_intelligence.database`: database access interfaces.
+- `football_intelligence.database`: **Database Setup** and database access interfaces.
 - `football_intelligence.cli`: operational commands such as **Prediction Refresh**.
 
 ## Deployment boundary
@@ -18,6 +20,8 @@ Use these package homes for new code:
 The durable operational interface is the CLI, not any host-specific trigger
 file:
 
+- **Database Setup**: Alembic is the canonical schema setup and upgrade
+  mechanism. API startup is read-only and assumes setup has already run.
 - **Prediction Refresh**: `python -m football_intelligence.cli prediction-refresh`
 - **Model Training**: `python -m football_intelligence.cli model-training`
 - **Football Data Status**: `python -m football_intelligence.cli status`

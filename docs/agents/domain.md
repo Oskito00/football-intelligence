@@ -28,6 +28,23 @@ When output names a domain concept, use the term as defined in `CONTEXT.md`. Do 
 
 If the concept needed is not in the glossary yet, either reconsider the language or note it for `/grill-with-docs`.
 
+Use **Football Intelligence** for the public repo/product umbrella. The
+**Football Intelligence Agent** is the natural-language assistant surface for
+**Natural-Language Football Questions**; the dashboard is a separate read-only
+inspection surface.
+
+Use **Database Setup** for schema preparation language. Alembic owns schema
+setup and upgrades. API startup and read-only inspection surfaces must not
+create or mutate schema.
+
+Keep artifact language explicit: source code and Alembic schema migrations can
+be committed, while generated football data, database dumps, local exports, and
+trained model artifacts stay local/generated. The public repo should not imply
+that private data or trained models ship with the code.
+
+**Paper Stakes** and **Market Value Signals** are research outputs, not betting
+advice or real-money recommendations.
+
 ## Read-Only Dashboard Boundary
 
 ADR-0002 pins the read-only Svelte dashboard boundary. The dashboard consumes
