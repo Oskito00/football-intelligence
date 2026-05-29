@@ -388,6 +388,8 @@ def render_value_backtest(result: ValueBacktestRenderable) -> str:
         f"Final Bankroll: {_format_decimal_money(summary['final_bankroll'])}",
         f"Profit/Loss: {_format_decimal_money(summary['profit_loss'])}",
         f"ROI: {_format_percentage(summary['roi'])}",
+        f"Bankroll Peak: {_format_decimal_money(summary.get('bankroll_peak'))}",
+        f"Bankroll Trough: {_format_decimal_money(summary.get('bankroll_trough'))}",
         f"Eligible Completed Matches: {summary['eligible_match_count']}",
         f"Paper Bets: {summary['paper_bet_count']}",
         f"Wins/Losses: {summary['wins']}/{summary['losses']}",
@@ -451,12 +453,21 @@ def _render_backtest_paper_bet(bet: Mapping[str, Any]) -> list[str]:
             f"Kelly: {_format_percentage(bet['kelly_fraction'])}"
         ),
         (
+            "    Model Probability: "
+            f"{_format_percentage(bet['model_probability'])}; "
+            f"Implied Probability: {_format_percentage(bet['implied_probability'])}"
+        ),
+        (
             "    Bankroll: "
-            f"{_format_decimal_money(bet['bankroll_before_match'])} -> "
+            f"{_format_decimal_money(_backtest_bankroll_before_settlement(bet))} -> "
             f"{_format_decimal_money(bet['bankroll_after_settlement'])}; "
             f"Profit/Loss: {_format_decimal_money(bet['profit_loss'])}"
         ),
     ]
+
+
+def _backtest_bankroll_before_settlement(bet: Mapping[str, Any]) -> Any:
+    return bet.get("bankroll_before_settlement", bet.get("bankroll_before_match"))
 
 
 def _render_market_value_signal(signal: Mapping[str, Any]) -> list[str]:

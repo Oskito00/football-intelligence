@@ -70,8 +70,16 @@ class ValueBacktestResult:
     paper_bets: Sequence[Mapping[str, Any]]
     skipped_matches: Mapping[str, int]
     max_drawdown: float
+    bankroll_peak: float | None = None
+    bankroll_trough: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        bankroll_peak = (
+            self.final_bankroll if self.bankroll_peak is None else self.bankroll_peak
+        )
+        bankroll_trough = (
+            self.final_bankroll if self.bankroll_trough is None else self.bankroll_trough
+        )
         return {
             "title": VALUE_BACKTEST_TITLE,
             "headline": (
@@ -92,6 +100,8 @@ class ValueBacktestResult:
                 eligible_match_count=self.eligible_match_count,
                 paper_bets=self.paper_bets,
                 max_drawdown=self.max_drawdown,
+                bankroll_peak=bankroll_peak,
+                bankroll_trough=bankroll_trough,
             ),
             "skipped_matches": _skipped_match_counts(self.skipped_matches),
             "paper_bets": [dict(bet) for bet in self.paper_bets],
@@ -131,6 +141,7 @@ def run_value_backtest(
 
     bankroll = float(config.starting_bankroll)
     peak_bankroll = bankroll
+    trough_bankroll = bankroll
     max_drawdown = 0.0
     eligible_match_count = 0
     paper_bets: list[dict[str, Any]] = []
@@ -178,6 +189,7 @@ def run_value_backtest(
 
         bankroll = bankroll_after_match
         peak_bankroll = max(peak_bankroll, bankroll)
+        trough_bankroll = min(trough_bankroll, bankroll)
         if peak_bankroll > 0:
             max_drawdown = max(max_drawdown, (peak_bankroll - bankroll) / peak_bankroll)
 
@@ -188,6 +200,8 @@ def run_value_backtest(
         paper_bets=paper_bets,
         skipped_matches=skipped_matches,
         max_drawdown=max_drawdown,
+        bankroll_peak=peak_bankroll,
+        bankroll_trough=trough_bankroll,
     )
 
 
@@ -198,6 +212,8 @@ def _summarize_result(
     eligible_match_count: int,
     paper_bets: Sequence[Mapping[str, Any]],
     max_drawdown: float,
+    bankroll_peak: float,
+    bankroll_trough: float,
 ) -> dict[str, Any]:
     wins = sum(1 for bet in paper_bets if bet["result"] == "win")
     losses = sum(1 for bet in paper_bets if bet["result"] == "loss")
@@ -208,6 +224,8 @@ def _summarize_result(
         "final_bankroll": _round_money(final_bankroll),
         "profit_loss": _round_money(profit_loss),
         "roi": _round_ratio(profit_loss / config.starting_bankroll),
+        "bankroll_peak": _round_money(bankroll_peak),
+        "bankroll_trough": _round_money(bankroll_trough),
         "eligible_match_count": eligible_match_count,
         "paper_bet_count": paper_bet_count,
         "wins": wins,
@@ -384,6 +402,7 @@ def _qualifying_paper_bet(
         "kelly_fraction": _round_ratio(kelly_fraction),
         "stake": _round_money(stake),
         "bankroll_before_match": _round_money(bankroll),
+        "bankroll_before_settlement": _round_money(bankroll),
         "bookmaker": odds.get("bookmaker_name"),
     }
 
